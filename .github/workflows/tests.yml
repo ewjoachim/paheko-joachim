@@ -2,8 +2,6 @@ name: Tests
 
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -24,9 +22,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
       # Same image as local dev (core + caisse from the official Paheko image).
+      # load: build into the local daemon (we run it in this job, no registry).
+      # gha layer cache reuses unchanged layers across runs. Safe here because
+      # this workflow only runs on PRs (no trusted/publishing context that a
+      # poisoned cache could reach — zizmor cache-poisoning).
       - name: Build the Paheko image
-        run: docker build -t paheko-joachim:ci .
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          tags: paheko-joachim:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Start a fresh instance
         run: |
@@ -58,6 +68,11 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          # No uv cache: the deps are tiny and zizmor flags it as a
+          # cache-poisoning surface. The Docker layer cache above is the one
+          # that actually saves time.
+          enable-cache: false
 
       - name: Install Playwright browser
         working-directory: tests
