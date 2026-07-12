@@ -77,12 +77,24 @@ jobs:
           enable-cache: false
 
       - name: Install Playwright browser
-        working-directory: tests
         run: uv run playwright install --with-deps chromium
 
       - name: Run the tests
-        working-directory: tests
         run: uv run pytest
+
+      # Regenerate the guide screenshots too (the instance is already up): this
+      # catches a page that no longer captures, and uploads a preview of how the
+      # guide will look. Publishing happens only on release (deploy-doc.yml).
+      # The tests mutate data, so reseed for a clean fixture first.
+      - name: Generate guide screenshots (preview)
+        run: |
+          docker exec -i -u www-data paheko-ci php < doc-tools/seed-demo.php
+          uv run python doc-tools/screenshots.py
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: guide-screenshots
+          path: doc/suivi_cheques/screenshots/
 
       - name: Container logs on failure
         if: failure()
