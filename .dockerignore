@@ -1,6 +1,11 @@
-# The default build context is unused: the Paheko core is COPYied from the
-# paheko_src additional context, not from here. Keep the context empty so the
-# whole repo (modules/, doc/, .git…) isn't shipped to the builder.
-# (The Dockerfile itself is loaded via the compose `dockerfile:` field and is
-# never subject to .dockerignore, so no need to un-ignore it.)
+# The Paheko app comes from `COPY --from` the official image, not the build
+# context. All we need from the context is modules/ and config.local.php, so
+# ignore everything and allowlist those two.
+#
+# (An allowlist is safe here only because we no longer `ADD <git-url>`: buildah
+# applies .dockerignore to an ADD-pulled tree too, so a `*` would silently wipe
+# it — and only locally, since BuildKit/CI doesn't filter ADD. Reintroducing an
+# ADD-git line would mean switching this back to an anchored blocklist.)
 *
+!modules
+!config.local.php

@@ -7,8 +7,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      additional_contexts:
-        paheko_src: ../paheko-fossil/src
     image: paheko-joachim:local
     container_name: paheko-test
     ports:

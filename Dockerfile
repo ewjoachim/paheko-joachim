@@ -1,26 +1,32 @@
-# Paheko runtime image built arm64-native (the official image is amd64 -> SIGSEGV under QEMU).
-# Multi-arch base php:8.5-apache, extensions replicated from the official image.
-# The Paheko core comes from YOUR local source, passed via the "paheko_src" build context.
-FROM php:8.5-apache
+# Self-contained Paheko runtime image (core + bundled plugins + this repo's
+# modules and test config). Built on the multi-arch php:8.5-apache base — the
+# official Paheko image is amd64-only and SIGSEGVs under QEMU on arm64.
+#
+# The Paheko app tree is lifted wholesale from the official image via
+# `COPY --from` (pinned to a release tag, kept current by Renovate's native
+# dockerfile manager). Those are arch-agnostic PHP files (KD2 already vendored,
+# www/.htaccess already generated, caisse and the other plugins already bundled),
+# so copying from the amd64 image onto the arm64 base is clean — and the final
+# image runs natively on both arches. No make deps / fossil.kd2.org / ADD-git.
+FROM php:8.5-apache@sha256:ede24dfd13fe79fb8ea0d0bac0ac45827a9a540d2a16e45c047f9afaf69c3eaf
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libicu-dev zlib1g-dev libpng-dev libzip-dev libfreetype6-dev libjpeg62-turbo-dev libwebp-dev \
-      make wget unzip ca-certificates \
  && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
  && docker-php-ext-install -j"$(nproc)" gd intl zip calendar \
  && docker-php-ext-enable sodium \
  && rm -rf /var/lib/apt/lists/*
 
-# Core = your local source (build context paheko_src = ../paheko-fossil/src)
-COPY --from=paheko_src . /var/www/paheko
+# Paheko core, KD2, www/.htaccess and the bundled plugins (incl. caisse).
+COPY --from=docker.io/paheko/paheko:1.3.21@sha256:e9011f923a40161fd4748c90bf597a4a9c2d5562e5dabe4de566b12846311dae /var/www/paheko /var/www/paheko
 WORKDIR /var/www/paheko
 
-# Vendor KD2 (make deps: wget + unzip from fossil.kd2.org)
-# and generate the www/.htaccess for a docroot = www/ (make htaccess),
-# NOT the .htaccess.www meant for a subdirectory install (which loops).
-RUN make deps \
- && make htaccess \
- && chown -R www-data: /var/www/paheko
+# This repo's modules and the test config. Locally these paths are bind-mounted
+# over (live editing); in CI the baked copies are used as-is.
+COPY modules/ /var/www/paheko/modules/
+COPY config.local.php /var/www/paheko/config.local.php
+
+RUN chown -R www-data: /var/www/paheko
 
 ENV APACHE_DOCUMENT_ROOT=/var/www/paheko/www
 RUN a2enmod rewrite \
