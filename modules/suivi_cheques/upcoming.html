@@ -2,32 +2,12 @@
 
 {{#restrict block=true section="users" level="read"}}{{/restrict}}
 
-{{:admin_header title="Chèques à venir" current="module_suivi_cheques"}}
+{{* Chèques planifiés à partir du mois courant. Le squelette est dans _list_page.html. *}}
+{{#select strftime('%Y-%m', 'now') AS m}}{{:assign cur=$m}}{{/select}}
 
-{{#extension name="caisse"}}
-
-	{{:include file="./_tabs.html" tab="upcoming"}}
-
-	{{:assign configured=false}}
-	{{#load type="method_month_map" limit=1}}{{:assign configured=true}}{{/load}}
-
-	{{if !$configured}}
-		<p class="block alert">
-			Ce module n'est pas encore configuré.
-			{{:link href="config.html" label="Configurer"}}
-		</p>
-	{{else}}
-		{{#select strftime('%Y-%m', 'now') AS m}}{{:assign month=$m}}{{/select}}
-
-		<p class="help">Tous les chèques planifiés à partir du mois courant ({{$month}}), triés par mois d'encaissement.</p>
-
-		{{:include file="./_list.html" mode="upcoming" month=$month q_like=null user_id=null show_month_col=true}}
-	{{/if}}
-
-{{else}}
-	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
-{{/extension}}
-
-{{:include file="./_doc_footer.html"}}
-
-{{:admin_footer}}
+{{:include file="./_list_page.html"
+	tab="upcoming"
+	page_title="Chèques à venir"
+	list_mode="upcoming"
+	list_month=$cur
+	help="Tous les chèques planifiés à partir du mois courant (%s), triés par mois d'encaissement."|args:$cur}}

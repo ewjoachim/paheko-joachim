@@ -2,31 +2,10 @@
 
 {{#restrict block=true section="users" level="read"}}{{/restrict}}
 
-{{:admin_header title="Chèques de l'année en cours" current="module_suivi_cheques"}}
-
-{{#extension name="caisse"}}
-
-	{{:include file="./_tabs.html" tab="exercise"}}
-
-	{{:assign configured=false}}
-	{{#load type="method_month_map" limit=1}}{{:assign configured=true}}{{/load}}
-
-	{{if !$configured}}
-		<p class="block alert">
-			Ce module n'est pas encore configuré.
-			{{:link href="config.html" label="Configurer"}}
-		</p>
-	{{else}}
-		<p class="help">Tous les chèques planifiés sur l'année en cours, passés comme à venir, triés par mois d'encaissement.</p>
-
-		{{* mode=exercise : borné aux dates de l'exercice courant (bornes calculées dans _list.html). *}}
-		{{:include file="./_list.html" mode="exercise" month=null q_like=null user_id=null show_month_col=true}}
-	{{/if}}
-
-{{else}}
-	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
-{{/extension}}
-
-{{:include file="./_doc_footer.html"}}
-
-{{:admin_footer}}
+{{* Tous les chèques de l'année en cours (bornée par l'exercice). Squelette dans _list_page.html. *}}
+{{:include file="./_list_page.html"
+	tab="exercise"
+	page_title="Chèques de l'année en cours"
+	list_mode="exercise"
+	list_month=null
+	help="Tous les chèques planifiés sur l'année en cours, passés comme à venir, triés par mois d'encaissement."}}

@@ -1,0 +1,36 @@
+{{* -*- brindille -*- *}}
+
+{{* Squelette commun des vues liste (upcoming, exercise) — évite le copier-coller.
+    Paramètres attendus (passés par la page appelante) :
+      $tab         clé d'onglet à surligner ('upcoming' | 'exercise')
+      $page_title  titre de la page
+      $list_mode   mode passé à _list.html ('upcoming' | 'exercise')
+      $list_month  mois de référence (YYYY-MM) ou null si le mode l'ignore
+      $help        phrase d'aide affichée au-dessus de la liste
+    La garde d'accès (users=read) est posée par la page appelante. *}}
+{{:admin_header title=$page_title current="module_suivi_cheques"}}
+
+{{#extension name="caisse"}}
+
+	{{:include file="./_tabs.html" tab=$tab}}
+
+	{{:assign configured=false}}
+	{{#load type="method_month_map" limit=1}}{{:assign configured=true}}{{/load}}
+
+	{{if !$configured}}
+		<p class="block alert">
+			Ce module n'est pas encore configuré.
+			{{:link href="config.html" label="Configurer"}}
+		</p>
+	{{else}}
+		<p class="help">{{$help}}</p>
+		{{:include file="./_list.html" mode=$list_mode month=$list_month q_like=null user_id=null show_month_col=true}}
+	{{/if}}
+
+{{else}}
+	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
+{{/extension}}
+
+{{:include file="./_doc_footer.html"}}
+
+{{:admin_footer}}
