@@ -8,7 +8,7 @@ My [Paheko](https://paheko.cloud/) module(s) for a music school, together with t
 | Folder | Role |
 |---|---|
 | [`modules/`](modules/) | The Paheko module(s), one subfolder each. Currently `suivi_cheques/` (cheque tracking). Uploaded to Paheko Cloud. |
-| [`paheko-test/`](paheko-test/) | Docker/podman stack for a local Paheko instance (arm64), to develop and test modules/plugins outside of Cloud. |
+| [`docker-compose.yml`](docker-compose.yml) / [`run.sh`](run.sh) | Docker/podman stack for a local Paheko instance (arm64), to develop and test modules/plugins outside of Cloud. |
 | [`build.sh`](build.sh) | Assembles a module's `.zip` archive in the format expected by Paheko Cloud (upload via the Modules admin). |
 | [`doc/`](doc/) | Documentation site published on GitHub Pages: one folder per module (e.g. `doc/suivi_cheques/`). |
 | [`doc-tools/`](doc-tools/) | Tooling that generates the doc screenshots (Playwright + a throwaway demo fixture). Kept separate from the published site. |
@@ -16,7 +16,6 @@ My [Paheko](https://paheko.cloud/) module(s) for a music school, together with t
 ## Test instance
 
 ```sh
-cd paheko-test
 ./run.sh          # build image + start + bootstrap (deps, caisse, modules)
 ```
 

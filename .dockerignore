@@ -1,0 +1,6 @@
+# The default build context is unused: the Paheko core is COPYied from the
+# paheko_src additional context, not from here. Keep the context empty so the
+# whole repo (modules/, doc/, .git…) isn't shipped to the builder.
+# (The Dockerfile itself is loaded via the compose `dockerfile:` field and is
+# never subject to .dockerignore, so no need to un-ignore it.)
+*

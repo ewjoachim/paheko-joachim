@@ -1,10 +1,14 @@
+# Project name pinned so the named volume stays paheko-test_paheko_data
+# regardless of the directory this compose file lives in.
+name: paheko-test
+
 services:
   paheko:
     build:
       context: .
       dockerfile: Dockerfile
       additional_contexts:
-        paheko_src: /Users/joachim/code/paheko-fossil/src
+        paheko_src: ../paheko-fossil/src
     image: paheko-joachim:local
     container_name: paheko-test
     ports:
@@ -12,14 +16,13 @@ services:
     volumes:
       # Persistent data (SQLite DB) — named volume, seeded from the image
       - paheko_data:/var/www/paheko/data
-      # Your local env mounted live (direct editing, no rebuild)
-      # paheko-modules = shared community modules clone (reference)
-      - /Users/joachim/code/paheko-modules:/var/www/paheko/modules
+      # Sibling community modules clone (reference)
+      - ../paheko-modules:/var/www/paheko/modules
       # This repo's modules live in modules/ -> overlay each on top of the clone
       # (add one line per module)
-      - /Users/joachim/code/paheko-joachim/modules/suivi_cheques:/var/www/paheko/modules/suivi_cheques
-      - /Users/joachim/code/paheko-plugins:/var/www/paheko/data/plugins
-      # Editable config, lives in paheko-joachim
+      - ./modules/suivi_cheques:/var/www/paheko/modules/suivi_cheques
+      - ../paheko-plugins:/var/www/paheko/data/plugins
+      # Editable config
       - ./config.local.php:/var/www/paheko/config.local.php
 
 volumes:

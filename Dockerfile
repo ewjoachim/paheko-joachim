@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && docker-php-ext-enable sodium \
  && rm -rf /var/lib/apt/lists/*
 
-# Core = your local source (build context paheko_src = /Users/joachim/code/paheko/src)
+# Core = your local source (build context paheko_src = ../paheko-fossil/src)
 COPY --from=paheko_src . /var/www/paheko
 WORKDIR /var/www/paheko
 
