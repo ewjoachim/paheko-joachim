@@ -18,11 +18,11 @@ jobs:
     env:
       BASE_URL: http://localhost:8095
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       # Same image as local dev (core + caisse from the official Paheko image).
       # load: build into the local daemon (we run it in this job, no registry).
@@ -30,7 +30,7 @@ jobs:
       # this workflow only runs on PRs (no trusted/publishing context that a
       # poisoned cache could reach — zizmor cache-poisoning).
       - name: Build the Paheko image
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           tags: paheko-joachim:ci
@@ -67,7 +67,7 @@ jobs:
             echo "PAY_EDIT=$(printf '%s\n' "$SEED_OUT" | sed -n 's/^PAY_EDIT=//p')"
           } >> "$GITHUB_ENV"
 
-      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           # No uv cache: the deps are tiny and zizmor flags it as a
           # cache-poisoning surface. The Docker layer cache above is the one
