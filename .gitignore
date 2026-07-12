@@ -9,3 +9,6 @@ __pycache__/
 
 # Misc
 .DS_Store
+
+# Generated in CI (doc deploy) / locally via doc-tools/regen-screenshots.sh
+doc/suivi_cheques/screenshots/

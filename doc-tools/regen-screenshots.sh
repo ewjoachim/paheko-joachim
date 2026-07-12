@@ -8,7 +8,7 @@
 #
 # Requirements:
 #   - the Paheko test instance is running (podman, see paheko-test/), served on $BASE_URL
-#   - node + the playwright module installed in this folder (`npm install`)
+#   - uv (Playwright is pulled on the fly via `uv run --with playwright`)
 #
 # Usage:
 #   cd doc-tools && ./regen-screenshots.sh
@@ -34,8 +34,8 @@ restore() {
 }
 trap restore EXIT
 
-echo "==> Installing the playwright module if needed"
-[ -d node_modules/playwright ] || npm install --no-audit --no-fund >/dev/null
+echo "==> Installing the Playwright browser if needed"
+uv run --with playwright playwright install chromium >/dev/null
 
 echo "==> Seeding the demo fixture"
 SEED_OUT="$(podman exec -i "$CONTAINER" php < seed-demo.php)"
@@ -52,6 +52,6 @@ PAY_EDIT="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^PAY_EDIT=//p')"
 export ADMIN_EMAIL ADMIN_PASSWORD CAMILLE_ID PAY_EDIT
 
 echo "==> Screenshots (Playwright)"
-node screenshots.mjs
+uv run --with playwright python screenshots.py
 
 echo "==> Done. Screenshots in doc/suivi_cheques/screenshots/"
