@@ -4,6 +4,8 @@
 
 {{:admin_header title="Remise de chèques du mois" current="module_suivi_cheques"}}
 
+{{if $_GET.batch_cancelled}}<p class="block confirm">Bordereau annulé : les chèques concernés sont repassés « à encaisser ».</p>{{/if}}
+
 {{#extension name="caisse"}}
 
 	{{* Le module doit être configuré (mapping moyens de paiement -> mois) *}}

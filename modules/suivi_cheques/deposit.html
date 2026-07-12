@@ -38,7 +38,47 @@
 		{{:assign found=true b_date=$date b_account=$account b_total=$total b_lines=$lines b_txn=$deposit_txn_id}}
 	{{/load}}
 
+	{{* Comptabilisé = id d'écriture présent ET écriture existante (même définition
+	    robuste que to_record.html : un id pointant sur une écriture supprimée ne compte pas). *}}
+	{{:assign comptabilised=false}}
+	{{if $b_txn}}{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$b_txn}}{{:assign comptabilised=true}}{{/select}}{{/if}}
+
+	{{*=================================================================================
+	    Annulation du bordereau (uniquement tant qu'il n'est PAS comptabilisé).
+	    Aucune écriture à défaire : on déverrouille chaque chèque (batch_id -> null,
+	    il repasse « à encaisser » et redevient sélectionnable) puis on supprime le lot.
+	    La page est déjà gardée users=write en tête.
+	==================================================================================*}}
+	{{#form on="cancel"}}
+		{{if !$found}}{{:error message="Bordereau introuvable."}}{{/if}}
+		{{if $comptabilised}}{{:error message="Ce bordereau est déjà comptabilisé : la correction se fait côté comptabilité."}}{{/if}}
+
+		{{* On collecte d'abord les chèques du lot (clé + type), puis on les met à jour
+		    hors de la boucle SELECT (éviter de modifier la table pendant son parcours). *}}
+		{{:assign rows=null}}
+		{{:assign ri=0}}
+		{{#select key AS k, json_extract(document, '$.type') AS t
+			FROM module_data_suivi_cheques
+			WHERE json_extract(document, '$.batch_id') = :ref; :ref=$batch_key}}
+			{{:assign var="rows[%d][k]"|args:$ri value=$k}}
+			{{:assign var="rows[%d][t]"|args:$ri value=$t}}
+			{{:assign ri="%d+1"|math:$ri}}
+		{{/select}}
+		{{#foreach from=$rows item="r"}}
+			{{if $r.t === 'cheque'}}
+				{{:save type="cheque" key=$r.k validate_schema="./cheque.schema.json" batch_id=null}}
+			{{elseif $r.t === 'cheque_rempl'}}
+				{{:save type="cheque_rempl" key=$r.k validate_schema="./replacement.schema.json" batch_id=null}}
+			{{/if}}
+		{{/foreach}}
+
+		{{:delete type="deposit_batch" key="batch-%s"|args:$batch_key}}
+		{{:redirect to="index.html?batch_cancelled=1"}}
+	{{/form}}
+
 	{{:admin_header title="Bordereau de remise n°%s"|args:$batch_key}}
+
+	{{:form_errors}}
 
 	{{if !$found}}
 		<p class="block error">Bordereau introuvable.</p>
@@ -47,6 +87,12 @@
 		<p class="actions no-print">
 			{{:linkbutton href="index.html" label="Retour" shape="left"}}
 			<button type="button" class="main" onclick="window.print();return false;">Imprimer</button>
+			{{if !$comptabilised}}
+				<form method="post" action="" class="inline">
+					{{:button type="submit" name="cancel" value="1" label="Annuler le bordereau" shape="delete"
+						onclick="return confirm('Annuler ce bordereau ? Les chèques repasseront « à encaisser ».');"}}
+				</form>
+			{{/if}}
 		</p>
 
 		<h2>Bordereau de remise de chèques</h2>
