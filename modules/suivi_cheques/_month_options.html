@@ -1,0 +1,19 @@
+{{* -*- brindille -*- *}}
+{{* Options d'un <select> de mois (numéro 1-12 en valeur, nom en libellé).
+    Paramètres :
+      $selected     numéro de mois pré-sélectionné (int) ou null
+      $empty_label  si fourni, ajoute une option vide en tête avec ce libellé
+    L'année n'est pas saisie : elle est déduite de l'exercice à l'enregistrement. *}}
+{{if $empty_label}}<option value="">{{$empty_label|escape}}</option>{{/if}}
+<option value="1"{{if $selected == 1}} selected="selected"{{/if}}>Janvier</option>
+<option value="2"{{if $selected == 2}} selected="selected"{{/if}}>Février</option>
+<option value="3"{{if $selected == 3}} selected="selected"{{/if}}>Mars</option>
+<option value="4"{{if $selected == 4}} selected="selected"{{/if}}>Avril</option>
+<option value="5"{{if $selected == 5}} selected="selected"{{/if}}>Mai</option>
+<option value="6"{{if $selected == 6}} selected="selected"{{/if}}>Juin</option>
+<option value="7"{{if $selected == 7}} selected="selected"{{/if}}>Juillet</option>
+<option value="8"{{if $selected == 8}} selected="selected"{{/if}}>Août</option>
+<option value="9"{{if $selected == 9}} selected="selected"{{/if}}>Septembre</option>
+<option value="10"{{if $selected == 10}} selected="selected"{{/if}}>Octobre</option>
+<option value="11"{{if $selected == 11}} selected="selected"{{/if}}>Novembre</option>
+<option value="12"{{if $selected == 12}} selected="selected"{{/if}}>Décembre</option>
