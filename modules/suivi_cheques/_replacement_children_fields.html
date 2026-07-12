@@ -1,0 +1,49 @@
+{{* -*- brindille -*- *}}
+
+{{* Tableau « remplacé par un ou plusieurs chèques » — partagé par edit.html et
+    edit_replacement.html. Paramètre :
+      $parent_key  clé du parent (pay-<id> pour un chèque de caisse, ou la clé
+                   opaque d'un chèque de remplacement pour une chaîne).
+    Le mois se choisit dans un menu déroulant (_month_options) ; l'année est
+    déduite de l'exercice à l'enregistrement (voir _replacement_children_save). *}}
+<h3>Remplacé par un ou plusieurs chèques</h3>
+<p class="help">
+	Chaque chèque de remplacement est suivi comme un chèque à part entière (planifié et déposable) :
+	l'écriture le fera entrer sur le compte d'attente {{$waiting_account}}.
+</p>
+<table class="list">
+	<thead><tr><th>N° de chèque</th><th>Montant</th><th>Mois d'encaissement</th></tr></thead>
+	<tbody>
+		{{* Remplacements chèque déjà saisis, non verrouillés (ré-édition).
+		    rc_key masqué = clé de l'enfant, pour l'upsert (vide = nouvelle ligne). *}}
+		{{#select
+			key AS rkey,
+			json_extract(document, '$.cheque_number') AS n,
+			json_extract(document, '$.amount') AS a,
+			CAST(substr(json_extract(document, '$.planned_month'), 6, 2) AS INT) AS m_num
+			FROM module_data_suivi_cheques
+			WHERE json_extract(document, '$.type') = 'cheque_rempl'
+				AND json_extract(document, '$.parent_key') = :pk
+				AND COALESCE(CAST(json_extract(document, '$.cancelled') AS INT), 0) = 0
+				AND json_extract(document, '$.batch_id') IS NULL
+				AND json_extract(document, '$.annulation_txn_id') IS NULL
+			ORDER BY n;
+			:pk=$parent_key
+		}}
+			{{:assign rc_eu="%s/100"|math:$a}}
+			<tr>
+				<td><input type="hidden" name="rc_key[]" value="{{$rkey|escape}}" /><input type="text" name="rc_number[]" value="{{$n|escape}}" size="12" /></td>
+				<td><input type="text" name="rc_amount[]" value="{{$rc_eu}}" size="8" /></td>
+				<td><select name="rc_month[]">{{:include file="./_month_options.html" selected=$m_num empty_label="—"}}</select></td>
+			</tr>
+		{{/select}}
+		{{* Lignes vierges pour ajouter (rc_key vide) *}}
+		{{#foreach count=3}}
+			<tr>
+				<td><input type="hidden" name="rc_key[]" value="" /><input type="text" name="rc_number[]" size="12" /></td>
+				<td><input type="text" name="rc_amount[]" placeholder="0,00" size="8" /></td>
+				<td><select name="rc_month[]">{{:include file="./_month_options.html" selected=null empty_label="—"}}</select></td>
+			</tr>
+		{{/foreach}}
+	</tbody>
+</table>

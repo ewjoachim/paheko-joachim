@@ -1,0 +1,54 @@
+{{* -*- brindille -*- *}}
+
+{{* Upsert des chèques de remplacement (traitement POST) — partagé par edit.html et
+    edit_replacement.html. À inclure DANS le {{#form on="save"}} du parent : n'a que
+    des effets de bord ({{:save}}/{{:delete}}), aucune valeur renvoyée.
+    Paramètres :
+      $parent_key  clé du parent posée sur chaque enfant créé ;
+      $member_id   membre hérité par les enfants.
+    Hérités du parent : $_POST, $today, $ex_start_year, $ex_start_month.
+
+    Upsert par clé : mise à jour des enfants encore présents, création des nouveaux
+    (clé uuid), suppression des lignes vidées — sans JAMAIS toucher un enfant
+    verrouillé (dans un lot ou annulation comptabilisée). *}}
+{{#foreach from=$_POST.rc_number key="k" item="num"}}
+	{{:assign var="rc_amt_raw" from="_POST.rc_amount.%s"|args:$k}}
+	{{:assign rc_amt=$rc_amt_raw|money_int}}
+	{{:assign var="rc_mon" from="_POST.rc_month.%s"|args:$k}}
+	{{:assign var="rc_key" from="_POST.rc_key.%s"|args:$k}}
+	{{:assign rc_key=$rc_key|trim}}
+	{{* mois choisi (1-12) -> YYYY-MM via l'exercice courant *}}
+	{{:assign rc_mnum=$rc_mon|intval}}
+	{{:assign rc_ym=null}}
+	{{if $rc_mnum >= 1 && $ex_start_month}}{{if $rc_mnum >= $ex_start_month}}{{:assign rc_yr=$ex_start_year}}{{else}}{{:assign rc_yr="%d+1"|math:$ex_start_year}}{{/if}}{{:assign rc_ym="%04d-%02d"|args:$rc_yr:$rc_mnum}}{{/if}}
+	{{if $num|trim && $rc_amt > 0}}
+		{{if $rc_key}}
+			{{* mise à jour (merge : parent_key, member_id, liens compta préservés) *}}
+			{{:save type="cheque_rempl"
+				key=$rc_key
+				validate_schema="./replacement.schema.json"
+				cheque_number=$num|trim
+				amount=$rc_amt
+				planned_month=$rc_ym
+			}}
+		{{else}}
+			{{* nouvel enfant *}}
+			{{:save type="cheque_rempl"
+				key="uuid"
+				validate_schema="./replacement.schema.json"
+				parent_key=$parent_key
+				member_id=$member_id
+				cheque_number=$num|trim
+				amount=$rc_amt
+				planned_month=$rc_ym
+				received_date=$today
+				cancelled=0
+			}}
+		{{/if}}
+	{{elseif $rc_key}}
+		{{* ligne vidée -> suppression, sauf enfant verrouillé *}}
+		{{:delete type="cheque_rempl"
+			where="key = :k AND $$.batch_id IS NULL AND $$.annulation_txn_id IS NULL"
+			:k=$rc_key}}
+	{{/if}}
+{{/foreach}}
