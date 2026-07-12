@@ -1,0 +1,48 @@
+name: Package modules
+
+# Packages every module under modules/ (one artifact each) via build.sh.
+# It's not a real build — just the Paheko Cloud .zip layout (modules/<name>/…).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'modules/**'
+      - 'build.sh'
+      - '.github/workflows/package-modules.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Discover the module subfolders and expose them as a JSON matrix.
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.list.outputs.modules }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - id: list
+        run: |
+          modules=$(find modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+          echo "Found modules: $modules"
+
+  package:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.discover.outputs.modules) }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Package ${{ matrix.module }}
+        run: ./build.sh "${{ matrix.module }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.module }}-paheko-cloud
+          path: ${{ matrix.module }}-paheko-cloud.zip
+          if-no-files-found: error
