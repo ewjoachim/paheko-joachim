@@ -39,10 +39,13 @@ jobs:
         module: ${{ fromJSON(needs.discover.outputs.modules) }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-      - name: Package ${{ matrix.module }}
-        run: ./build.sh "${{ matrix.module }}"
+      - name: Stage ${{ matrix.module }}
+        run: STAGE_ONLY=1 ./build.sh "${{ matrix.module }}"
+      # upload-artifact re-zips the given directory, stripping the top folder:
+      # uploading _pkg/ yields an artifact whose zip root is modules/<name>/… —
+      # exactly the layout Paheko's module import expects (no zip-inside-a-zip).
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.module }}-paheko-cloud
-          path: ${{ matrix.module }}-paheko-cloud.zip
+          path: _pkg
           if-no-files-found: error

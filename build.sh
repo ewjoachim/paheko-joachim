@@ -33,6 +33,14 @@ rsync -a \
 	--exclude='_pkg' \
 	"$SRC"/ "$BUILD_DIR/modules/$MODULE/"
 
+# STAGE_ONLY: leave the staged tree ($BUILD_DIR/modules/<name>/…) and skip the zip.
+# Used by CI, where actions/upload-artifact re-zips the uploaded directory itself
+# (zipping here too would produce a useless zip-inside-a-zip).
+if [ -n "${STAGE_ONLY:-}" ]; then
+	echo "✅ Staged: $BUILD_DIR/modules/$MODULE"
+	exit 0
+fi
+
 # Create the zip (paths relative to BUILD_DIR -> modules/<name>/…)
 rm -f "$OUTPUT_ZIP"
 ( cd "$BUILD_DIR" && zip -rq "$OUTPUT_ZIP" modules )
