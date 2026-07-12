@@ -4,16 +4,6 @@
 
 {{:admin_header title="Remise de chèques du mois" current="module_suivi_cheques"}}
 
-{{* Doc link — URL comes from module.ini (doc_url), read here via the extension
-    section so it isn't duplicated. External host -> open in a new tab. *}}
-{{#extension name="suivi_cheques"}}
-	{{if $doc_url}}
-	<p class="actions">
-		{{:linkbutton label="Documentation" href=$doc_url shape="help" target="_blank"}}
-	</p>
-	{{/if}}
-{{/extension}}
-
 {{#extension name="caisse"}}
 
 	{{* Le module doit être configuré (mapping moyens de paiement -> mois) *}}
@@ -85,6 +75,16 @@
 
 {{else}}
 	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
+{{/extension}}
+
+{{* Doc link in the footer — URL comes from module.ini (doc_url), read via the
+    extension section so it isn't duplicated. External host -> new tab. *}}
+{{#extension name="suivi_cheques"}}
+	{{if $doc_url}}
+	<p class="actions-center">
+		{{:linkbutton label="Documentation" href=$doc_url shape="help" target="_blank"}}
+	</p>
+	{{/if}}
 {{/extension}}
 
 {{:admin_footer}}
