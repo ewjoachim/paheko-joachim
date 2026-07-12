@@ -1,0 +1,11 @@
+# Customize GitHub's auto-generated release notes.
+# https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+changelog:
+  exclude:
+    # Keep dependency bumps out of the notes. Renovate labels all its PRs
+    # "deps" (see renovate.json5); the author is matched too, as a belt-and-
+    # braces in case the label is ever missing.
+    labels:
+      - deps
+    authors:
+      - renovate[bot]
