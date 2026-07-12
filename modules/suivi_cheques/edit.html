@@ -33,6 +33,23 @@
 	{{:assign cur_batch_id=$batch_id cur_annul_txn=$annulation_txn_id}}
 {{/load}}
 
+{{* Bornes de l'exercice courant : le mois choisi (1-12) est résolu en YYYY-MM
+    en déduisant l'année de l'exercice (mois >= mois de début -> année de début,
+    sinon année suivante), comme le fait method_month_map (§6.1). *}}
+{{:assign ex_start_year=null ex_start_month=null}}
+{{#select
+	CAST(strftime('%Y', start_date) AS INT) AS sy,
+	CAST(strftime('%m', start_date) AS INT) AS sm
+	FROM acc_years WHERE status = 0
+	ORDER BY (date('now') BETWEEN start_date AND end_date) DESC, start_date DESC
+	LIMIT 1}}
+	{{:assign ex_start_year=$sy ex_start_month=$sm}}
+{{/select}}
+
+{{* Numéro de mois pré-sélectionné, extrait du YYYY-MM stocké *}}
+{{:assign cur_month_num=null}}
+{{if $cur_month}}{{#select CAST(substr(:m, 6, 2) AS INT) AS n; :m=$cur_month}}{{:assign cur_month_num=$n}}{{/select}}{{/if}}
+
 {{* Verrous (CONCEPTION §5) : dans un lot, ou annulation déjà comptabilisée.
     Pour l'annulation, on ne lit la compta que pour vérifier l'EXISTENCE de notre
     propre id (seule lecture comptable autorisée, CONCEPTION §2/§8). *}}
@@ -80,6 +97,10 @@
 		{{:assign var="rc_mon" from="_POST.rc_month.%s"|args:$k}}
 		{{:assign var="rc_key" from="_POST.rc_key.%s"|args:$k}}
 		{{:assign rc_key=$rc_key|trim}}
+		{{* mois choisi (1-12) -> YYYY-MM via l'exercice courant *}}
+		{{:assign rc_mnum=$rc_mon|intval}}
+		{{:assign rc_ym=null}}
+		{{if $rc_mnum >= 1 && $ex_start_month}}{{if $rc_mnum >= $ex_start_month}}{{:assign rc_yr=$ex_start_year}}{{else}}{{:assign rc_yr="%d+1"|math:$ex_start_year}}{{/if}}{{:assign rc_ym="%04d-%02d"|args:$rc_yr:$rc_mnum}}{{/if}}
 		{{if $num|trim && $rc_amt > 0}}
 			{{if $rc_key}}
 				{{* mise à jour (merge : parent_key, member_id, liens compta préservés) *}}
@@ -88,7 +109,7 @@
 					validate_schema="./replacement.schema.json"
 					cheque_number=$num|trim
 					amount=$rc_amt
-					planned_month=$rc_mon|trim|or:null
+					planned_month=$rc_ym
 				}}
 			{{else}}
 				{{* nouvel enfant *}}
@@ -99,7 +120,7 @@
 					member_id=$user_id
 					cheque_number=$num|trim
 					amount=$rc_amt
-					planned_month=$rc_mon|trim|or:null
+					planned_month=$rc_ym
 					received_date=$today
 					cancelled=0
 				}}
@@ -112,12 +133,17 @@
 		{{/if}}
 	{{/foreach}}
 
+	{{* Mois forcé choisi (1-12, vide = déduit du moyen) -> YYYY-MM via l'exercice *}}
+	{{:assign pm_num=$_POST.planned_month|intval}}
+	{{:assign planned_ym=null}}
+	{{if $pm_num >= 1 && $ex_start_month}}{{if $pm_num >= $ex_start_month}}{{:assign pm_yr=$ex_start_year}}{{else}}{{:assign pm_yr="%d+1"|math:$ex_start_year}}{{/if}}{{:assign planned_ym="%04d-%02d"|args:$pm_yr:$pm_num}}{{/if}}
+
 	{{* Écriture module : on préserve batch_id / annulation_txn_id (posés ailleurs). *}}
 	{{:save type="cheque"
 		key="pay-%d"|args:$pid
 		validate_schema="./cheque.schema.json"
 		payment_id=$pid
-		planned_month=$_POST.planned_month|trim|or:null
+		planned_month=$planned_ym
 		cancelled=$_POST.cancelled|intval
 		reason=$_POST.reason|trim|or:null
 		replacements=$replacements
@@ -149,8 +175,11 @@
 	<fieldset>
 		<legend>Encaissement</legend>
 		<dl>
-			{{:input type="text" name="planned_month" label="Mois d'encaissement forcé (YYYY-MM)" default=$cur_month
-				help="Laisser vide pour utiliser le mois déduit du moyen de paiement."}}
+			<dt><label>Mois d’encaissement forcé</label></dt>
+				<dd>
+					<select name="planned_month">{{:include file="./_month_options.html" selected=$cur_month_num empty_label="— déduit du moyen de paiement —"}}</select>
+					<p class="help">Laissez « déduit du moyen de paiement » pour le mois automatique. L’année est celle de l’exercice en cours.</p>
+				</dd>
 		</dl>
 	</fieldset>
 
@@ -216,7 +245,7 @@
 			l'écriture le fera entrer sur le compte d'attente {{$waiting_account}}.
 		</p>
 		<table class="list">
-			<thead><tr><th>N° de chèque</th><th>Montant</th><th>Mois d'encaissement (YYYY-MM)</th></tr></thead>
+			<thead><tr><th>N° de chèque</th><th>Montant</th><th>Mois d'encaissement</th></tr></thead>
 			<tbody>
 				{{* Remplacements chèque déjà saisis, non verrouillés (ré-édition).
 				    rc_key masqué = clé de l'enfant, pour l'upsert (vide = nouvelle ligne). *}}
@@ -224,7 +253,8 @@
 					key AS rkey,
 					json_extract(document, '$.cheque_number') AS n,
 					json_extract(document, '$.amount') AS a,
-					json_extract(document, '$.planned_month') AS m
+					json_extract(document, '$.planned_month') AS m,
+						CAST(substr(json_extract(document, '$.planned_month'), 6, 2) AS INT) AS m_num
 					FROM module_data_suivi_cheques
 					WHERE json_extract(document, '$.type') = 'cheque_rempl'
 						AND json_extract(document, '$.parent_key') = 'pay-' || :pid
@@ -238,7 +268,7 @@
 					<tr>
 						<td><input type="hidden" name="rc_key[]" value="{{$rkey|escape}}" /><input type="text" name="rc_number[]" value="{{$n|escape}}" size="12" /></td>
 						<td><input type="text" name="rc_amount[]" value="{{$rc_eu}}" size="8" /></td>
-						<td><input type="text" name="rc_month[]" value="{{$m|escape}}" placeholder="YYYY-MM" size="8" /></td>
+						<td><select name="rc_month[]">{{:include file="./_month_options.html" selected=$m_num empty_label="—"}}</select></td>
 					</tr>
 				{{/select}}
 				{{* Lignes vierges pour ajouter (rc_key vide) *}}
@@ -246,7 +276,7 @@
 					<tr>
 						<td><input type="hidden" name="rc_key[]" value="" /><input type="text" name="rc_number[]" size="12" /></td>
 						<td><input type="text" name="rc_amount[]" placeholder="0,00" size="8" /></td>
-						<td><input type="text" name="rc_month[]" placeholder="YYYY-MM" size="8" /></td>
+						<td><select name="rc_month[]">{{:include file="./_month_options.html" selected=null empty_label="—"}}</select></td>
 					</tr>
 				{{/foreach}}
 			</tbody>
