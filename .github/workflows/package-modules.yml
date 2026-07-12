@@ -25,6 +25,8 @@ jobs:
       modules: ${{ steps.list.outputs.modules }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
       - id: list
         run: |
           modules=$(find modules -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
@@ -45,10 +47,14 @@ jobs:
         module: ${{ fromJSON(needs.discover.outputs.modules) }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
       - id: sha
         run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
       - name: Stage ${{ matrix.module }}
-        run: STAGE_ONLY=1 ./build.sh "${{ matrix.module }}"
+        env:
+          MODULE: ${{ matrix.module }}
+        run: STAGE_ONLY=1 ./build.sh "$MODULE"
       # upload-artifact re-zips the given directory, stripping the top folder:
       # uploading _pkg/ yields an artifact whose zip root is modules/<name>/… —
       # exactly the layout Paheko's module import expects (no zip-inside-a-zip).
@@ -66,6 +72,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
+          MODULE: ${{ matrix.module }}
         run: |
-          ( cd _pkg && zip -rq "../${{ matrix.module }}-${TAG}.zip" modules )
-          gh release upload "$TAG" "${{ matrix.module }}-${TAG}.zip" --clobber
+          ( cd _pkg && zip -rq "../$MODULE-$TAG.zip" modules )
+          gh release upload "$TAG" "$MODULE-$TAG.zip" --clobber

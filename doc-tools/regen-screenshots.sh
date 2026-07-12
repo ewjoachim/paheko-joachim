@@ -43,10 +43,13 @@ echo "$SEED_OUT" | tail -1
 podman exec "$CONTAINER" sh -c "rm -rf '$CACHE'/* 2>/dev/null || true"
 
 # Pick up the credentials / ids produced by the seed
-export ADMIN_EMAIL="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^ADMIN_EMAIL=//p')"
-export ADMIN_PASSWORD="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^ADMIN_PASSWORD=//p')"
-export CAMILLE_ID="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^CAMILLE_ID=//p')"
-export PAY_EDIT="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^PAY_EDIT=//p')"
+# (declare then export separately so a failing command substitution isn't masked
+# by export's own exit status — shellcheck SC2155)
+ADMIN_EMAIL="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^ADMIN_EMAIL=//p')"
+ADMIN_PASSWORD="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^ADMIN_PASSWORD=//p')"
+CAMILLE_ID="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^CAMILLE_ID=//p')"
+PAY_EDIT="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^PAY_EDIT=//p')"
+export ADMIN_EMAIL ADMIN_PASSWORD CAMILLE_ID PAY_EDIT
 
 echo "==> Screenshots (Playwright)"
 node screenshots.mjs
