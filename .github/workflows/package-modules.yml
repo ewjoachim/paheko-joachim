@@ -45,23 +45,28 @@ jobs:
         module: ${{ fromJSON(needs.discover.outputs.modules) }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
       - name: Stage ${{ matrix.module }}
         run: STAGE_ONLY=1 ./build.sh "${{ matrix.module }}"
       # upload-artifact re-zips the given directory, stripping the top folder:
       # uploading _pkg/ yields an artifact whose zip root is modules/<name>/… —
       # exactly the layout Paheko's module import expects (no zip-inside-a-zip).
+      # Name it after the commit it was built from.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ matrix.module }}
+          name: ${{ matrix.module }}-${{ steps.sha.outputs.short }}
           path: _pkg
           if-no-files-found: error
       # On a release, also attach the real .zip (build.sh's own archive, uploaded
-      # as-is so it stays a plain zip Paheko can import — not re-zipped by GH).
+      # as-is so it stays a plain zip Paheko can import — not re-zipped by GH),
+      # named with the release tag.
       - name: Attach ${{ matrix.module }} to the release
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
         run: |
           ./build.sh "${{ matrix.module }}"
-          gh release upload "${{ github.event.release.tag_name }}" \
-            "${{ matrix.module }}.zip" --clobber
+          mv "${{ matrix.module }}.zip" "${{ matrix.module }}-${TAG}.zip"
+          gh release upload "$TAG" "${{ matrix.module }}-${TAG}.zip" --clobber
