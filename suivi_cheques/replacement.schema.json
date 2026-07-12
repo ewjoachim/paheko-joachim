@@ -1,0 +1,66 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"type": {
+			"type": "string",
+			"enum": ["cheque_rempl"]
+		},
+		"parent_key": {
+			"type": "string",
+			"description": "Clé module du chèque remplacé : 'pay-<payment_id>' (chèque de caisse) ou clé d'un autre cheque_rempl (chaîne A→B→C). La ligne 5112 de ce chèque naît de l'écriture d'annulation de son parent (CONCEPTION §6.2)."
+		},
+		"member_id": {
+			"type": ["null", "integer"],
+			"description": "Membre concerné, hérité du parent à la création. Découple du monde caisse et fonctionne à toute profondeur de chaîne."
+		},
+		"cheque_number": {
+			"type": "string",
+			"description": "Numéro du chèque de remplacement. Devient la référence de sa ligne au débit du 5112."
+		},
+		"amount": {
+			"type": "integer",
+			"description": "Montant du chèque de remplacement, en centimes."
+		},
+		"planned_month": {
+			"type": ["null", "string"],
+			"description": "Mois d'encaissement prévu, format YYYY-MM."
+		},
+		"received_date": {
+			"type": ["null", "string"],
+			"description": "Date d'enregistrement du remplacement (YYYY-MM-DD), figée à la création."
+		},
+		"cancelled": {
+			"type": "integer",
+			"enum": [0, 1],
+			"description": "1 = ce chèque de remplacement a lui-même été annulé/remplacé (chaîne)."
+		},
+		"reason": {
+			"type": ["null", "string"]
+		},
+		"replacements": {
+			"type": ["null", "array"],
+			"description": "Remplacements non-chèque (CB, espèces…) si ce chèque est à son tour annulé.",
+			"items": {
+				"type": "object",
+				"properties": {
+					"method_id": { "type": "integer" },
+					"account": { "type": ["null", "string"] },
+					"amount": { "type": "integer" }
+				}
+			}
+		},
+		"notes": {
+			"type": ["null", "string"]
+		},
+		"annulation_txn_id": {
+			"type": ["null", "integer"],
+			"description": "Identifiant de l'écriture d'annulation de ce chèque de remplacement, créée via :api (CONCEPTION §8)."
+		},
+		"batch_id": {
+			"type": ["null", "string"],
+			"description": "Identifiant du lot de remise une fois parti à la banque. Verrouille le chèque."
+		}
+	},
+	"required": ["type", "parent_key", "cheque_number", "amount"]
+}

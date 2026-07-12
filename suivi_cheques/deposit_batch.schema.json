@@ -1,0 +1,45 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"type": {
+			"type": "string",
+			"enum": ["deposit_batch"]
+		},
+		"ref": {
+			"type": "string",
+			"description": "Référence du lot / du bordereau (= suffixe de la clé batch-<ref>). Le champ 'id' est réservé par :save, d'où 'ref'."
+		},
+		"date": {
+			"type": "string",
+			"description": "Date du dépôt physique (YYYY-MM-DD), figée à la génération."
+		},
+		"account": {
+			"type": ["null", "string"],
+			"description": "Compte d'attente crédité par l'écriture de dépôt (défaut 5112)."
+		},
+		"lines": {
+			"type": "array",
+			"description": "Composition figée du bordereau : un chèque par ligne.",
+			"items": {
+				"type": "object",
+				"properties": {
+					"source_key": { "type": "string", "description": "Clé module du chèque (pay-<id> pour un chèque de caisse, ou clé opaque d'un cheque_rempl)." },
+					"cheque_ref": { "type": ["null", "string"], "description": "Numéro du chèque." },
+					"member": { "type": ["null", "string"], "description": "Nom du membre, figé à la génération du bordereau." },
+					"amount": { "type": "integer", "description": "Montant en centimes." }
+				},
+				"required": ["source_key", "amount"]
+			}
+		},
+		"total": {
+			"type": "integer",
+			"description": "Montant total du lot, en centimes."
+		},
+		"deposit_txn_id": {
+			"type": ["null", "integer"],
+			"description": "Identifiant de l'écriture de dépôt créée via :api par la comptable (CONCEPTION §6.3/§8)."
+		}
+	},
+	"required": ["type", "ref", "date", "lines", "total"]
+}

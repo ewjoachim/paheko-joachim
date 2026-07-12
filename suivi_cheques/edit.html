@@ -1,0 +1,269 @@
+{{* -*- brindille -*- *}}
+
+{{* Édition opérationnelle d'un chèque de caisse. N'écrit QUE dans les données du
+    module — jamais en comptabilité (CONCEPTION §6.1/§6.2). L'écriture d'annulation
+    est passée plus tard par la comptable depuis « à comptabiliser ». Réservé à la
+    gestion des membres. *}}
+{{#restrict block=true section="users" level="write"}}{{/restrict}}
+
+{{:assign pid=$_GET.payment|intval}}
+{{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
+
+{{* Date du jour, pour figer la date d'enregistrement d'un remplacement *}}
+{{:assign today=null}}
+{{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
+
+{{* Infos du chèque (lecture caisse) *}}
+{{:assign cheque_number=null amount=0 received_date=null user_id=null}}
+{{#select
+	p.reference AS cheque_number, p.amount AS amount, p.date AS received_date, t.user_id AS user_id
+	FROM plugin_pos_tabs_payments p
+	INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+	WHERE p.id = :pid LIMIT 1;
+	:pid=$pid
+}}
+	{{:assign cheque_number=$cheque_number amount=$amount received_date=$received_date user_id=$user_id}}
+{{/select}}
+
+{{* Overlay existant (valeurs par défaut du formulaire + champs à préserver) *}}
+{{:assign cur_month=null cur_cancelled=0 cur_reason=null cur_notes=null cur_replacements=null}}
+{{:assign cur_batch_id=null cur_annul_txn=null}}
+{{#load type="cheque" key="pay-%d"|args:$pid}}
+	{{:assign cur_month=$planned_month cur_cancelled=$cancelled cur_reason=$reason cur_notes=$notes cur_replacements=$replacements}}
+	{{:assign cur_batch_id=$batch_id cur_annul_txn=$annulation_txn_id}}
+{{/load}}
+
+{{* Verrous (CONCEPTION §5) : dans un lot, ou annulation déjà comptabilisée.
+    Pour l'annulation, on ne lit la compta que pour vérifier l'EXISTENCE de notre
+    propre id (seule lecture comptable autorisée, CONCEPTION §2/§8). *}}
+{{:assign locked=false lock_msg=null}}
+{{if $cur_batch_id !== null}}
+	{{:assign locked=true}}
+	{{:assign lock_msg="Ce chèque est dans un lot de remise : il n'est plus modifiable ici."}}
+{{elseif $cur_annul_txn}}
+	{{#select 1 AS x FROM acc_transactions WHERE id = :tid LIMIT 1; :tid=$cur_annul_txn}}
+		{{:assign locked=true}}
+		{{:assign lock_msg="L'annulation de ce chèque est comptabilisée : cette fiche n'est plus modifiable ici (voir la comptabilité)."}}
+	{{/select}}
+{{/if}}
+
+{{#form on="save"}}
+	{{if !$pid}}{{:error message="Paiement introuvable."}}{{/if}}
+	{{if $locked}}{{:error message=$lock_msg}}{{/if}}
+
+	{{* Remplacements NON-chèque (CB, espèces…) -> replacements[] *}}
+	{{:assign replacements=null}}
+	{{:assign i=0}}
+	{{#foreach from=$_POST.repl_method key="k" item="mid"}}
+		{{:assign var="amt_raw" from="_POST.repl_amount.%s"|args:$k}}
+		{{:assign amt=$amt_raw|money_int}}
+		{{if $mid|intval > 0 && $amt > 0}}
+			{{:assign acct=null}}
+			{{#select account AS a FROM plugin_pos_methods WHERE id = :m LIMIT 1; :m=$mid|intval}}
+				{{:assign acct=$a}}
+			{{/select}}
+			{{:assign var="replacements[%d][method_id]"|args:$i value=$mid|intval}}
+			{{:assign var="replacements[%d][account]"|args:$i value=$acct}}
+			{{:assign var="replacements[%d][amount]"|args:$i value=$amt}}
+			{{:assign i="%d+1"|math:$i}}
+		{{/if}}
+	{{/foreach}}
+
+	{{* Remplacements PAR CHÈQUE -> lignes cheque_rempl (chèques suivis à part entière).
+	    Upsert par clé : mise à jour des enfants encore présents, création des nouveaux
+	    (clé uuid), suppression des lignes vidées — sans JAMAIS toucher un enfant
+	    verrouillé (dans un lot ou annulation comptabilisée). Le parent est ce chèque de
+	    caisse (parent_key = pay-<pid>) ; l'enfant hérite du membre. *}}
+	{{#foreach from=$_POST.rc_number key="k" item="num"}}
+		{{:assign var="rc_amt_raw" from="_POST.rc_amount.%s"|args:$k}}
+		{{:assign rc_amt=$rc_amt_raw|money_int}}
+		{{:assign var="rc_mon" from="_POST.rc_month.%s"|args:$k}}
+		{{:assign var="rc_key" from="_POST.rc_key.%s"|args:$k}}
+		{{:assign rc_key=$rc_key|trim}}
+		{{if $num|trim && $rc_amt > 0}}
+			{{if $rc_key}}
+				{{* mise à jour (merge : parent_key, member_id, liens compta préservés) *}}
+				{{:save type="cheque_rempl"
+					key=$rc_key
+					validate_schema="./replacement.schema.json"
+					cheque_number=$num|trim
+					amount=$rc_amt
+					planned_month=$rc_mon|trim|or:null
+				}}
+			{{else}}
+				{{* nouvel enfant *}}
+				{{:save type="cheque_rempl"
+					key="uuid"
+					validate_schema="./replacement.schema.json"
+					parent_key="pay-%d"|args:$pid
+					member_id=$user_id
+					cheque_number=$num|trim
+					amount=$rc_amt
+					planned_month=$rc_mon|trim|or:null
+					received_date=$today
+					cancelled=0
+				}}
+			{{/if}}
+		{{elseif $rc_key}}
+			{{* ligne vidée -> suppression, sauf enfant verrouillé *}}
+			{{:delete type="cheque_rempl"
+				where="key = :k AND $$.batch_id IS NULL AND $$.annulation_txn_id IS NULL"
+				:k=$rc_key}}
+		{{/if}}
+	{{/foreach}}
+
+	{{* Écriture module : on préserve batch_id / annulation_txn_id (posés ailleurs). *}}
+	{{:save type="cheque"
+		key="pay-%d"|args:$pid
+		validate_schema="./cheque.schema.json"
+		payment_id=$pid
+		planned_month=$_POST.planned_month|trim|or:null
+		cancelled=$_POST.cancelled|intval
+		reason=$_POST.reason|trim|or:null
+		replacements=$replacements
+		notes=$_POST.notes|trim|or:null
+		batch_id=$cur_batch_id
+		annulation_txn_id=$cur_annul_txn
+	}}
+
+	{{:redirect to="index.html?saved=1"}}
+{{/form}}
+
+{{:admin_header title="Chèque n°%s"|args:$cheque_number|or:$pid}}
+
+{{:form_errors}}
+
+<p class="help">
+	Montant : <strong>{{$amount|raw|money_currency}}</strong> — reçu le {{$received_date|date_short}}
+	{{if $user_id}}— {{#users id=$user_id}}{{$_name}}{{/users}}{{/if}}
+</p>
+
+{{if $locked}}
+	<p class="block confirm">
+		{{$lock_msg|escape}}
+		{{if $cur_reason}}<br />Motif : {{$cur_reason|escape}}{{/if}}
+	</p>
+	<p class="actions">{{:linkbutton href="index.html" label="Retour" shape="left"}}</p>
+{{else}}
+<form method="post" action="">
+	<fieldset>
+		<legend>Encaissement</legend>
+		<dl>
+			{{:input type="text" name="planned_month" label="Mois d'encaissement forcé (YYYY-MM)" default=$cur_month
+				help="Laisser vide pour utiliser le mois déduit du moyen de paiement."}}
+		</dl>
+	</fieldset>
+
+	<fieldset>
+		<legend>Annulation / remplacement</legend>
+		<dl>
+			{{:input type="checkbox" name="cancelled" value="1" label="Chèque non encaissé" default=$cur_cancelled}}
+			{{:input type="text" name="reason" label="Motif" default=$cur_reason
+				help="Ex. : remplacé par CB, remplacé par un autre chèque, membre parti en cours d'année."}}
+		</dl>
+
+		<p class="help">
+			En cochant « Chèque non encaissé », le chèque est retiré des remises à venir.
+			<strong>Aucune écriture comptable n'est générée ici</strong> : la comptabilité la passera ensuite,
+			en s'appuyant sur les remplacements saisis ci-dessous.
+		</p>
+
+		<h3>Remplacé par un autre moyen (CB, espèces…)</h3>
+		<table class="list">
+			<thead><tr><th>Moyen</th><th>Montant</th></tr></thead>
+			<tbody>
+					{{* Remplacements non-chèque déjà saisis (pré-remplis) *}}
+					{{#foreach from=$cur_replacements item="rep"}}
+						{{:assign rep_eu="%s/100"|math:$rep.amount}}
+						<tr>
+							<td>
+								<select name="repl_method[]">
+									<option value="0">— (aucun) —</option>
+									{{#select id, name FROM plugin_pos_methods WHERE enabled = 1
+										AND id NOT IN (SELECT CAST(json_extract(document, '$.method_id') AS INT)
+											FROM module_data_suivi_cheques WHERE json_extract(document, '$.type') = 'method_month_map')
+										ORDER BY name}}
+										<option value="{{$id}}"{{if $id == $rep.method_id}} selected="selected"{{/if}}>{{$name|escape}}</option>
+									{{/select}}
+								</select>
+							</td>
+							<td><input type="text" name="repl_amount[]" value="{{$rep_eu}}" size="8" /></td>
+						</tr>
+					{{/foreach}}
+					{{* Lignes vierges pour ajouter *}}
+					{{#foreach count=2}}
+						<tr>
+							<td>
+								<select name="repl_method[]">
+									<option value="0">— (aucun) —</option>
+									{{#select id, name FROM plugin_pos_methods WHERE enabled = 1
+										AND id NOT IN (SELECT CAST(json_extract(document, '$.method_id') AS INT)
+											FROM module_data_suivi_cheques WHERE json_extract(document, '$.type') = 'method_month_map')
+										ORDER BY name}}
+										<option value="{{$id}}">{{$name|escape}}</option>
+									{{/select}}
+								</select>
+							</td>
+							<td><input type="text" name="repl_amount[]" placeholder="0,00" size="8" /></td>
+						</tr>
+					{{/foreach}}
+			</tbody>
+		</table>
+
+		<h3>Remplacé par un ou plusieurs chèques</h3>
+		<p class="help">
+			Chaque chèque de remplacement est suivi comme un chèque à part entière (planifié et déposable) :
+			l'écriture le fera entrer sur le compte d'attente {{$waiting_account}}.
+		</p>
+		<table class="list">
+			<thead><tr><th>N° de chèque</th><th>Montant</th><th>Mois d'encaissement (YYYY-MM)</th></tr></thead>
+			<tbody>
+				{{* Remplacements chèque déjà saisis, non verrouillés (ré-édition).
+				    rc_key masqué = clé de l'enfant, pour l'upsert (vide = nouvelle ligne). *}}
+				{{#select
+					key AS rkey,
+					json_extract(document, '$.cheque_number') AS n,
+					json_extract(document, '$.amount') AS a,
+					json_extract(document, '$.planned_month') AS m
+					FROM module_data_suivi_cheques
+					WHERE json_extract(document, '$.type') = 'cheque_rempl'
+						AND json_extract(document, '$.parent_key') = 'pay-' || :pid
+						AND COALESCE(CAST(json_extract(document, '$.cancelled') AS INT), 0) = 0
+						AND json_extract(document, '$.batch_id') IS NULL
+						AND json_extract(document, '$.annulation_txn_id') IS NULL
+					ORDER BY n;
+					:pid=$pid
+				}}
+					{{:assign rc_eu="%s/100"|math:$a}}
+					<tr>
+						<td><input type="hidden" name="rc_key[]" value="{{$rkey|escape}}" /><input type="text" name="rc_number[]" value="{{$n|escape}}" size="12" /></td>
+						<td><input type="text" name="rc_amount[]" value="{{$rc_eu}}" size="8" /></td>
+						<td><input type="text" name="rc_month[]" value="{{$m|escape}}" placeholder="YYYY-MM" size="8" /></td>
+					</tr>
+				{{/select}}
+				{{* Lignes vierges pour ajouter (rc_key vide) *}}
+				{{#foreach count=3}}
+					<tr>
+						<td><input type="hidden" name="rc_key[]" value="" /><input type="text" name="rc_number[]" size="12" /></td>
+						<td><input type="text" name="rc_amount[]" placeholder="0,00" size="8" /></td>
+						<td><input type="text" name="rc_month[]" placeholder="YYYY-MM" size="8" /></td>
+					</tr>
+				{{/foreach}}
+			</tbody>
+		</table>
+	</fieldset>
+
+	<fieldset>
+		<legend>Notes</legend>
+		<dl>
+			{{:input type="textarea" name="notes" label="Notes libres" default=$cur_notes}}
+		</dl>
+	</fieldset>
+
+	<p class="submit">
+		{{:button type="submit" name="save" label="Enregistrer" shape="right" class="main"}}
+	</p>
+</form>
+{{/if}}
+
+{{:admin_footer}}

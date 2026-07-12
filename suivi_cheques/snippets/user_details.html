@@ -1,0 +1,44 @@
+{{* -*- brindille -*- *}}
+
+{{* Encart « Chèques » sur la fiche membre. Inclut le MÊME partial que le module
+    (_list.html) — aucune requête dupliquée (CONCEPTION §9.3). En lecture seule
+    (show_actions=false) : pour agir, un lien renvoie vers le module.
+
+    Visibilité : le rendu des snippets n'applique pas le restrict du module ; elle est
+    donc bornée par le droit d'accès à la fiche membre (membres = lecture), ce qui est
+    le bon public. Aucune garde supplémentaire posée ici. *}}
+{{#extension name="caisse"}}
+	{{:assign configured=false}}
+	{{#load type="method_month_map" limit=1}}{{:assign configured=true}}{{/load}}
+
+	{{if $configured}}
+		{{* Ne montrer l'encart que si le membre a au moins un chèque (caisse ou remplacement). *}}
+		{{:assign nc=0}}
+		{{#select (
+				(SELECT COUNT(*) FROM plugin_pos_tabs_payments p
+					INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+					INNER JOIN module_data_suivi_cheques mm
+						ON json_extract(mm.document, '$.type') = 'method_month_map'
+						AND CAST(json_extract(mm.document, '$.method_id') AS INT) = p.method
+					WHERE t.user_id = :uid)
+				+
+				(SELECT COUNT(*) FROM module_data_suivi_cheques r
+					WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
+						AND CAST(json_extract(r.document, '$.member_id') AS INT) = :uid)
+			) AS n;
+			:uid=$user.id
+		}}
+			{{:assign nc=$n}}
+		{{/select}}
+
+		{{if $nc > 0}}
+			<h2 class="ruler">Chèques</h2>
+			{{:include file="../_list.html"
+				mode="all" month="0000-00" q_like=null user_id=$user.id
+				show_month_col=true show_deposit_button=false show_actions=false}}
+			<p class="help">
+				{{:link href="%sindex.html"|args:$module.url label="Gérer ces chèques dans le suivi des chèques"}}
+			</p>
+		{{/if}}
+	{{/if}}
+{{/extension}}

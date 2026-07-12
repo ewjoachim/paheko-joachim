@@ -1,0 +1,285 @@
+{{* -*- brindille -*- *}}
+
+{{* Préparation d'un bordereau de remise (CONCEPTION §6.3). Action opérationnelle de
+    Ben (il va physiquement à la banque). Trois états :
+      - GET sans ?batch : sélection des chèques à déposer ;
+      - POST : gel d'un deposit_batch + pose de batch_id sur les chèques + redirection ;
+      - GET ?batch=<id> : bordereau figé, imprimable.
+    Aucune écriture comptable ici : la comptable postera le dépôt depuis « à
+    comptabiliser ». *}}
+{{#restrict block=true section="users" level="write"}}{{/restrict}}
+
+{{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
+{{:assign today=null}}
+{{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
+
+{{* Bornes de l'exercice courant pour résoudre mois -> année (cf. _list.html / §6.1) *}}
+{{:assign ex_start_year=null ex_start_month=null}}
+{{#select
+	CAST(strftime('%Y', start_date) AS INT) AS sy,
+	CAST(strftime('%m', start_date) AS INT) AS sm
+	FROM acc_years
+	WHERE status = 0
+	ORDER BY (date('now') BETWEEN start_date AND end_date) DESC, start_date DESC
+	LIMIT 1
+}}
+	{{:assign ex_start_year=$sy ex_start_month=$sm}}
+{{/select}}
+
+{{:assign batch_key=$_GET.batch|trim}}
+
+{{*=================================================================================
+    ÉTAT C — bordereau figé (imprimable)
+==================================================================================*}}
+{{if $batch_key}}
+
+	{{:assign found=false b_date=null b_account=null b_total=0 b_lines=null b_txn=null}}
+	{{#load type="deposit_batch" key="batch-%s"|args:$batch_key}}
+		{{:assign found=true b_date=$date b_account=$account b_total=$total b_lines=$lines b_txn=$deposit_txn_id}}
+	{{/load}}
+
+	{{:admin_header title="Bordereau de remise n°%s"|args:$batch_key}}
+
+	{{if !$found}}
+		<p class="block error">Bordereau introuvable.</p>
+		<p class="actions">{{:linkbutton href="index.html" label="Retour" shape="left"}}</p>
+	{{else}}
+		<p class="actions no-print">
+			{{:linkbutton href="index.html" label="Retour" shape="left"}}
+			<button type="button" class="main" onclick="window.print();return false;">Imprimer</button>
+		</p>
+
+		<h2>Bordereau de remise de chèques</h2>
+		<p>
+			Référence : <strong>{{$batch_key|escape}}</strong> —
+			Date de dépôt : <strong>{{$b_date|date_short}}</strong> —
+			Compte d'attente : <strong>{{$b_account|escape|or:$waiting_account}}</strong>
+		</p>
+
+		<table class="list">
+			<thead><tr><th>#</th><th>N° de chèque</th><th>Membre</th><th class="money">Montant</th></tr></thead>
+			<tbody>
+				{{:assign row=0}}
+				{{#foreach from=$b_lines item="l"}}
+					{{:assign row="%d+1"|math:$row}}
+					<tr>
+						<td>{{$row}}</td>
+						<td>{{$l.cheque_ref|escape|or:'—'}}</td>
+						<td>{{$l.member|escape|or:'—'}}</td>
+						<td class="money">{{$l.amount|raw|money_currency}}</td>
+					</tr>
+				{{/foreach}}
+				<tr class="total">
+					<td colspan="3"><strong>Total — {{$row}} chèque(s)</strong></td>
+					<td class="money"><strong>{{$b_total|raw|money_currency}}</strong></td>
+				</tr>
+			</tbody>
+		</table>
+
+		<p class="help no-print">
+			{{if $b_txn}}
+				{{:tag label="Dépôt comptabilisé" color="darkgreen"}}
+				{{:link href="!acc/transactions/details.php?id=%d"|args:$b_txn label="Voir l'écriture"}}
+			{{else}}
+				Dépôt <strong>pas encore comptabilisé</strong> — la comptabilité le passera depuis
+				{{:link href="to_record.html" label="« Chèques à comptabiliser »"}}.
+			{{/if}}
+		</p>
+		<p class="help no-print">
+			Ce bordereau est <strong>figé</strong> : il reflète ce qui est physiquement parti à la
+			banque, indépendamment des modifications ultérieures des chèques.
+		</p>
+	{{/if}}
+
+	{{:admin_footer}}
+
+{{else}}
+
+{{*=================================================================================
+    ÉTAT B — POST : gel du lot + pose des batch_id
+==================================================================================*}}
+{{#form on="save"}}
+
+	{{* Construction de la composition figée. On re-dérive n° + montant depuis la
+	    source (jamais depuis le POST) et on ne retient que les chèques éligibles
+	    (non annulés, pas déjà dans un lot). *}}
+	{{:assign lines=null}}
+	{{:assign sel=null}}
+	{{:assign total=0}}
+	{{:assign n=0}}
+	{{#foreach from=$_POST.deposit key="skey" item="v"}}
+		{{#select
+			reference AS ref, amount AS amt, src_type, pid, uid
+			FROM (
+				SELECT 'pay-' || p.id AS skey, p.reference AS reference, p.amount AS amount,
+					'caisse' AS src_type, p.id AS pid, t.user_id AS uid,
+					COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) AS cancelled,
+					json_extract(ov.document, '$.batch_id') AS batch_id
+				FROM plugin_pos_tabs_payments p
+				INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+				LEFT JOIN module_data_suivi_cheques ov
+					ON json_extract(ov.document, '$.type') = 'cheque'
+					AND CAST(json_extract(ov.document, '$.payment_id') AS INT) = p.id
+				UNION ALL
+				SELECT r.key AS skey, json_extract(r.document, '$.cheque_number') AS reference,
+					CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
+					'rempl' AS src_type, NULL AS pid,
+					CAST(json_extract(r.document, '$.member_id') AS INT) AS uid,
+					COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) AS cancelled,
+					json_extract(r.document, '$.batch_id') AS batch_id
+				FROM module_data_suivi_cheques r
+				WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
+			)
+			WHERE skey = :skey AND cancelled = 0 AND batch_id IS NULL
+			LIMIT 1;
+			:skey=$skey
+		}}
+			{{* Nom du membre, figé dans le lot (bordereau = fait physique daté) *}}
+			{{:assign mname=null}}
+			{{if $uid}}{{#users id=$uid}}{{:assign mname=$_name}}{{/users}}{{/if}}
+			{{:assign var="lines[%d][source_key]"|args:$n value=$skey}}
+			{{:assign var="lines[%d][cheque_ref]"|args:$n value=$ref}}
+			{{:assign var="lines[%d][member]"|args:$n value=$mname}}
+			{{:assign var="lines[%d][amount]"|args:$n value=$amt|intval}}
+			{{:assign var="sel[%d][key]"|args:$n value=$skey}}
+			{{:assign var="sel[%d][type]"|args:$n value=$src_type}}
+			{{:assign var="sel[%d][pid]"|args:$n value=$pid}}
+			{{:assign total="%d+%d"|math:$total:$amt}}
+			{{:assign n="%d+1"|math:$n}}
+		{{/select}}
+	{{/foreach}}
+
+	{{if $n < 1}}{{:error message="Aucun chèque éligible sélectionné."}}{{/if}}
+
+	{{* Identifiant du lot (horodaté, sert de référence du bordereau) *}}
+	{{:assign batch_id=null}}
+	{{#select strftime('%Y%m%d-%H%M%S', 'now', 'localtime') AS bid}}{{:assign batch_id=$bid}}{{/select}}
+
+	{{* Gel du lot *}}
+	{{:save type="deposit_batch"
+		key="batch-%s"|args:$batch_id
+		validate_schema="./deposit_batch.schema.json"
+		ref=$batch_id
+		date=$today
+		account=$waiting_account
+		lines=$lines
+		total=$total|intval
+	}}
+
+	{{* Pose de batch_id sur chaque chèque (merge -> les autres champs sont préservés) *}}
+	{{#foreach from=$sel item="row"}}
+		{{if $row.type === 'caisse'}}
+			{{:save type="cheque"
+				key="pay-%d"|args:$row.pid
+				validate_schema="./cheque.schema.json"
+				payment_id=$row.pid|intval
+				batch_id=$batch_id}}
+		{{else}}
+			{{:save type="cheque_rempl"
+				key=$row.key
+				validate_schema="./replacement.schema.json"
+				batch_id=$batch_id}}
+		{{/if}}
+	{{/foreach}}
+
+	{{:redirect to="deposit.html?batch=%s"|args:$batch_id}}
+{{/form}}
+
+{{*=================================================================================
+    ÉTAT A — sélection des chèques à déposer
+==================================================================================*}}
+{{:assign month=$_GET.month|trim}}
+{{if !$month}}
+	{{#select strftime('%Y-%m', 'now') AS m}}{{:assign month=$m}}{{/select}}
+{{/if}}
+
+{{:admin_header title="Préparer un bordereau de remise" current="module_suivi_cheques"}}
+
+{{:form_errors}}
+
+{{#extension name="caisse"}}
+
+	<p class="actions">
+		{{:linkbutton href="index.html" label="Retour à la remise du mois" shape="left"}}
+	</p>
+	<p class="help">
+		Cochez les chèques physiquement apportés à la banque (échéance jusqu'à {{$month}} incluse,
+		non annulés, pas déjà dans un lot). La génération <strong>fige</strong> le bordereau.
+	</p>
+
+	<form method="post" action="">
+		<table class="list">
+			<thead>
+				<tr><th></th><th>Mois prévu</th><th>N° de chèque</th><th>Membre</th><th class="money">Montant</th></tr>
+			</thead>
+			<tbody>
+				{{:assign _n=0}}
+				{{#select
+					*
+					FROM (
+						SELECT 'pay-' || p.id AS skey, p.reference AS cheque_number, p.amount AS amount,
+							t.user_id AS user_id, t.name AS tab_name,
+							COALESCE(
+								json_extract(ov.document, '$.planned_month'),
+								CASE WHEN :ex_start_month IS NULL THEN NULL
+									ELSE printf('%04d-%02d',
+										CASE WHEN CAST(json_extract(mm.document, '$.month') AS INT) >= :ex_start_month
+											THEN :ex_start_year ELSE :ex_start_year + 1 END,
+										CAST(json_extract(mm.document, '$.month') AS INT))
+								END
+							) AS planned_month,
+							COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) AS cancelled,
+							json_extract(ov.document, '$.batch_id') AS batch_id
+						FROM plugin_pos_tabs_payments p
+						INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+						INNER JOIN module_data_suivi_cheques mm
+							ON json_extract(mm.document, '$.type') = 'method_month_map'
+							AND CAST(json_extract(mm.document, '$.method_id') AS INT) = p.method
+						LEFT JOIN module_data_suivi_cheques ov
+							ON json_extract(ov.document, '$.type') = 'cheque'
+							AND CAST(json_extract(ov.document, '$.payment_id') AS INT) = p.id
+						UNION ALL
+						SELECT r.key AS skey, json_extract(r.document, '$.cheque_number') AS cheque_number,
+							CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
+							CAST(json_extract(r.document, '$.member_id') AS INT) AS user_id, NULL AS tab_name,
+							json_extract(r.document, '$.planned_month') AS planned_month,
+							COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) AS cancelled,
+							json_extract(r.document, '$.batch_id') AS batch_id
+						FROM module_data_suivi_cheques r
+						WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
+					)
+					WHERE cancelled = 0 AND batch_id IS NULL
+						AND planned_month IS NOT NULL AND planned_month <= :month
+					ORDER BY planned_month ASC, cheque_number ASC;
+					:month=$month
+					:ex_start_year=$ex_start_year
+					:ex_start_month=$ex_start_month
+				}}
+					{{:assign _n="%d+1"|math:$_n}}
+					<tr>
+						<td><input type="checkbox" name="deposit[{{$skey|escape}}]" value="1" checked="checked" /></td>
+						<td>{{$planned_month|escape}}</td>
+						<td>{{$cheque_number|escape|or:'—'}}</td>
+						<td>{{if $user_id}}{{#users id=$user_id}}{{$_name|escape}}{{/users}}{{else}}{{$tab_name|escape|or:'—'}}{{/if}}</td>
+						<td class="money">{{$amount|raw|money_currency}}</td>
+					</tr>
+				{{else}}
+					<tr><td colspan="5">Aucun chèque à déposer pour cette période.</td></tr>
+				{{/select}}
+			</tbody>
+		</table>
+
+		{{if $_n > 0}}
+			<p class="submit">
+				{{:button type="submit" name="save" label="Générer le bordereau" shape="money" class="main"}}
+			</p>
+		{{/if}}
+	</form>
+
+{{else}}
+	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
+{{/extension}}
+
+{{:admin_footer}}
+
+{{/if}}

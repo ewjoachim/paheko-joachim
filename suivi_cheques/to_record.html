@@ -1,0 +1,276 @@
+{{* -*- brindille -*- *}}
+
+{{* File « à comptabiliser » (CONCEPTION §9.4). La comptable poste en un clic, via
+    {{:api}}, les écritures que le module a préparées : annulations (§6.2) et dépôts
+    (§6.3). La page est visible dès comptabilité = lecture (Ben suit ce qui reste) ;
+    seuls les boutons d'écriture sont réservés à comptabilité = écriture.
+
+    Robustesse (§8) : « à comptabiliser » = pas d'id d'écriture stocké, OU id stocké
+    absent de acc_transactions (la comptable a supprimé l'écriture). On ne relit
+    JAMAIS un libellé/une référence — uniquement l'existence de NOTRE id. *}}
+{{#restrict block=true section="accounting" level="read"}}{{/restrict}}
+
+{{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
+{{:assign receivable_account=$module.config.receivable_account|or:"411"}}
+{{:assign bank_account=$module.config.bank_account|or:"512"}}
+{{:assign today=null}}
+{{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
+
+{{*=================================================================================
+    POST — comptabiliser un élément via :api (gardé comptabilité = écriture).
+    L'appel :api s'exécute au niveau « write » indépendamment de l'utilisateur : le
+    {{#restrict accounting write}} est LA garantie que seule la comptable l'exécute.
+==================================================================================*}}
+{{#form on="record"}}
+{{#restrict section="accounting" level="write"}}
+	{{:assign kind=$_POST.rec_kind|trim}}
+	{{:assign rid=$_POST.rec_id|trim}}
+
+	{{if $kind === 'deposit'}}
+		{{* ---- Écriture de dépôt (§6.3) : 1 débit banque + n crédits attente ---- *}}
+		{{:assign b_total=0 b_lines=null b_account=null b_done=null}}
+		{{#load type="deposit_batch" key="batch-%s"|args:$rid}}
+			{{:assign b_total=$total b_lines=$lines b_account=$account b_done=$deposit_txn_id}}
+		{{/load}}
+		{{if $b_done}}{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$b_done}}{{:error message="Ce dépôt est déjà comptabilisé."}}{{/select}}{{/if}}
+		{{if !$b_total}}{{:error message="Bordereau introuvable ou vide."}}{{/if}}
+
+		{{:assign lines=null}}
+		{{:assign var="lines[0][account]" value=$bank_account}}
+		{{:assign var="lines[0][debit]" value=$b_total|money}}
+		{{:assign var="lines[0][label]" value="Remise de chèques n°%s"|args:$rid}}
+		{{:assign li=1}}
+		{{#foreach from=$b_lines item="l"}}
+			{{:assign var="lines[%d][account]"|args:$li value=$b_account|or:$waiting_account}}
+			{{:assign var="lines[%d][credit]"|args:$li value=$l.amount|money}}
+			{{:assign var="lines[%d][reference]"|args:$li value=$l.cheque_ref}}
+			{{:assign var="lines[%d][label]"|args:$li value="Chèque n°%s"|args:$l.cheque_ref}}
+			{{:assign li="%d+1"|math:$li}}
+		{{/foreach}}
+
+		{{:assign created=null}}
+		{{:api method="POST" path="accounting/transaction" access="write"
+			id_year="current" type="advanced" date=$today
+			label="Remise de chèques n°%s"|args:$rid
+			reference="DEPOT-%s"|args:$rid
+			lines=$lines assign="created"}}
+		{{if $created}}{{:save type="deposit_batch" key="batch-%s"|args:$rid deposit_txn_id=$created.id}}{{/if}}
+		{{:redirect to="to_record.html?done=1"}}
+
+	{{else}}
+		{{* ---- Écriture d'annulation (§6.2) : crédit attente + remplacements + créance ---- *}}
+		{{:assign amount=0 cheque_number=null reason=null replacements=null uid=null already=null}}
+		{{:assign parent_key=null store_key=null store_type=null}}
+
+		{{if $kind === 'annul_pay'}}
+			{{:assign pid=$rid|intval}}
+			{{#select p.reference AS r, p.amount AS a, t.user_id AS u
+				FROM plugin_pos_tabs_payments p INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+				WHERE p.id = :pid LIMIT 1; :pid=$pid}}
+				{{:assign cheque_number=$r amount=$a uid=$u}}
+			{{/select}}
+			{{#load type="cheque" key="pay-%d"|args:$pid}}
+				{{:assign reason=$reason replacements=$replacements already=$annulation_txn_id}}
+			{{/load}}
+			{{:assign parent_key="pay-%d"|args:$pid store_key="pay-%d"|args:$pid store_type="cheque"}}
+		{{elseif $kind === 'annul_rempl'}}
+			{{#load type="cheque_rempl" key=$rid}}
+				{{:assign amount=$amount cheque_number=$cheque_number reason=$reason replacements=$replacements already=$annulation_txn_id uid=$member_id}}
+			{{/load}}
+			{{:assign parent_key=$rid store_key=$rid store_type="cheque_rempl"}}
+		{{else}}
+			{{:error message="Type d'élément inconnu."}}
+		{{/if}}
+
+		{{if $already}}{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$already}}{{:error message="Cette annulation est déjà comptabilisée."}}{{/select}}{{/if}}
+		{{if !$amount}}{{:error message="Chèque introuvable ou montant nul."}}{{/if}}
+
+		{{* crédit du compte d'attente : le chèque quitte l'attente *}}
+		{{:assign lines=null}}
+		{{:assign var="lines[0][account]" value=$waiting_account}}
+		{{:assign var="lines[0][credit]" value=$amount|money}}
+		{{:assign var="lines[0][reference]" value=$cheque_number}}
+		{{:assign var="lines[0][label]" value="Chèque annulé n°%s"|args:$cheque_number}}
+		{{:assign li=1}}
+		{{:assign covered=0}}
+
+		{{* remplacements non-chèque : débit de leur compte *}}
+		{{#foreach from=$replacements item="rep"}}
+			{{if $rep.amount > 0 && $rep.account}}
+				{{:assign var="lines[%d][account]"|args:$li value=$rep.account}}
+				{{:assign var="lines[%d][debit]"|args:$li value=$rep.amount|money}}
+				{{:assign var="lines[%d][label]"|args:$li value="Remplacement chèque n°%s"|args:$cheque_number}}
+				{{:assign covered="%d+%d"|math:$covered:$rep.amount}}
+				{{:assign li="%d+1"|math:$li}}
+			{{/if}}
+		{{/foreach}}
+
+		{{* remplacements PAR chèque (enfants directs : chèque de caisse OU de remplacement) :
+		    débit attente, réf = n° du nouveau chèque. Récursion « par niveau » — on ne
+		    regarde qu'un cran en dessous (CHAINES-REMPLACEMENT §1). *}}
+		{{if $parent_key}}
+			{{#select json_extract(document, '$.cheque_number') AS n, CAST(json_extract(document, '$.amount') AS INT) AS a
+				FROM module_data_suivi_cheques
+				WHERE json_extract(document, '$.type') = 'cheque_rempl'
+					AND json_extract(document, '$.parent_key') = :pk
+					AND COALESCE(CAST(json_extract(document, '$.cancelled') AS INT), 0) = 0
+				ORDER BY n; :pk=$parent_key}}
+				{{:assign var="lines[%d][account]"|args:$li value=$waiting_account}}
+				{{:assign var="lines[%d][debit]"|args:$li value=$a|money}}
+				{{:assign var="lines[%d][reference]"|args:$li value=$n}}
+				{{:assign var="lines[%d][label]"|args:$li value="Chèque de remplacement n°%s"|args:$n}}
+				{{:assign covered="%d+%d"|math:$covered:$a}}
+				{{:assign li="%d+1"|math:$li}}
+			{{/select}}
+		{{/if}}
+
+		{{if $covered > $amount}}{{:error message="Les remplacements dépassent le montant du chèque annulé."}}{{/if}}
+
+		{{* reliquat non couvert -> créance du membre (411) *}}
+		{{:assign remainder="%d-%d"|math:$amount:$covered}}
+		{{if $remainder > 0}}
+			{{:assign var="lines[%d][account]"|args:$li value=$receivable_account}}
+			{{:assign var="lines[%d][debit]"|args:$li value=$remainder|money}}
+			{{:assign var="lines[%d][label]"|args:$li value="Créance — chèque annulé n°%s"|args:$cheque_number}}
+			{{:assign li="%d+1"|math:$li}}
+		{{/if}}
+
+		{{:assign users=null}}
+		{{if $uid}}{{:assign var="users[0]" value=$uid|intval}}{{/if}}
+
+		{{:assign created=null}}
+		{{:api method="POST" path="accounting/transaction" access="write"
+			id_year="current" type="advanced" date=$today
+			label="Annulation chèque n°%s"|args:$cheque_number
+			reference="ANNUL-%s"|args:$rid
+			lines=$lines linked_users=$users assign="created"}}
+		{{if $created}}{{:save type=$store_type key=$store_key annulation_txn_id=$created.id}}{{/if}}
+		{{:redirect to="to_record.html?done=1"}}
+	{{/if}}
+
+{{else}}
+	{{:error message="Vous n'avez pas le droit de comptabiliser (comptabilité = écriture requis)."}}
+{{/restrict}}
+{{/form}}
+
+{{*=================================================================================
+    Rendu de la file
+==================================================================================*}}
+{{:admin_header title="Chèques à comptabiliser" current="module_suivi_cheques"}}
+
+{{:form_errors}}
+
+{{if $_GET.done}}<p class="block confirm">Écriture comptable créée.</p>{{/if}}
+
+{{#extension name="caisse"}}
+
+	<p class="actions">
+		{{:linkbutton href="index.html" label="Retour à la remise du mois" shape="left"}}
+	</p>
+	<p class="help">
+		Un clic crée l'écriture <strong>équilibrée</strong> correspondante. Elle reste
+		modifiable côté comptabilité (un lien vers l'écriture est affiché après création).
+	</p>
+
+	<h2 class="ruler">Annulations à comptabiliser</h2>
+	<table class="list">
+		<thead>
+			<tr><th>N° de chèque</th><th>Membre</th><th class="money">Montant</th><th>Motif</th><th class="actions"></th></tr>
+		</thead>
+		<tbody>
+			{{#select
+				*
+				FROM (
+					SELECT 'annul_pay' AS kind, CAST(p.id AS TEXT) AS rid,
+						p.reference AS number, p.amount AS amount, t.user_id AS uid,
+						json_extract(ov.document, '$.reason') AS reason
+					FROM plugin_pos_tabs_payments p
+					INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+					INNER JOIN module_data_suivi_cheques ov
+						ON json_extract(ov.document, '$.type') = 'cheque'
+						AND CAST(json_extract(ov.document, '$.payment_id') AS INT) = p.id
+						AND COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1
+					WHERE json_extract(ov.document, '$.annulation_txn_id') IS NULL
+						OR NOT EXISTS (SELECT 1 FROM acc_transactions a WHERE a.id = CAST(json_extract(ov.document, '$.annulation_txn_id') AS INT))
+					UNION ALL
+					SELECT 'annul_rempl' AS kind, r.key AS rid,
+						json_extract(r.document, '$.cheque_number') AS number,
+						CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
+						CAST(json_extract(r.document, '$.member_id') AS INT) AS uid,
+						json_extract(r.document, '$.reason') AS reason
+					FROM module_data_suivi_cheques r
+					WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
+						AND COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) = 1
+						AND (json_extract(r.document, '$.annulation_txn_id') IS NULL
+							OR NOT EXISTS (SELECT 1 FROM acc_transactions a WHERE a.id = CAST(json_extract(r.document, '$.annulation_txn_id') AS INT)))
+				)
+				ORDER BY number
+			}}
+				<tr>
+					<td>{{$number|escape|or:'—'}}</td>
+					<td>{{if $uid}}{{#users id=$uid}}{{:link href="!users/details.php?id=%d"|args:$uid label=$_name}}{{/users}}{{else}}—{{/if}}</td>
+					<td class="money">{{$amount|raw|money_currency}}</td>
+					<td>{{$reason|escape|or:'—'}}</td>
+					<td class="actions">
+						{{#restrict section="accounting" level="write"}}
+							<form method="post" action="" class="inline">
+								<input type="hidden" name="rec_kind" value="{{$kind|escape}}" />
+								<input type="hidden" name="rec_id" value="{{$rid|escape}}" />
+								{{:button type="submit" name="record" value="1" label="Comptabiliser" shape="money" class="main"}}
+							</form>
+						{{else}}
+							<em class="help">réservé à la comptabilité</em>
+						{{/restrict}}
+					</td>
+				</tr>
+			{{else}}
+				<tr><td colspan="5">Aucune annulation à comptabiliser.</td></tr>
+			{{/select}}
+		</tbody>
+	</table>
+
+	<h2 class="ruler">Remises à comptabiliser</h2>
+	<table class="list">
+		<thead>
+			<tr><th>Bordereau</th><th>Date</th><th>Chèques</th><th class="money">Total</th><th class="actions"></th></tr>
+		</thead>
+		<tbody>
+			{{#select
+				json_extract(md.document, '$.ref') AS ref,
+				json_extract(md.document, '$.date') AS bdate,
+				json_array_length(json_extract(md.document, '$.lines')) AS n,
+				CAST(json_extract(md.document, '$.total') AS INT) AS total
+				FROM module_data_suivi_cheques md
+				WHERE json_extract(md.document, '$.type') = 'deposit_batch'
+					AND (json_extract(md.document, '$.deposit_txn_id') IS NULL
+						OR NOT EXISTS (SELECT 1 FROM acc_transactions a WHERE a.id = CAST(json_extract(md.document, '$.deposit_txn_id') AS INT)))
+				ORDER BY bdate
+			}}
+				<tr>
+					<td>{{:link href="deposit.html?batch=%s"|args:$ref label=$ref}}</td>
+					<td>{{$bdate|date_short}}</td>
+					<td>{{$n}}</td>
+					<td class="money">{{$total|raw|money_currency}}</td>
+					<td class="actions">
+						{{#restrict section="accounting" level="write"}}
+							<form method="post" action="" class="inline">
+								<input type="hidden" name="rec_kind" value="deposit" />
+								<input type="hidden" name="rec_id" value="{{$ref|escape}}" />
+								{{:button type="submit" name="record" value="1" label="Comptabiliser" shape="money" class="main"}}
+							</form>
+						{{else}}
+							<em class="help">réservé à la comptabilité</em>
+						{{/restrict}}
+					</td>
+				</tr>
+			{{else}}
+				<tr><td colspan="5">Aucune remise à comptabiliser.</td></tr>
+			{{/select}}
+		</tbody>
+	</table>
+
+{{else}}
+	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
+{{/extension}}
+
+{{:admin_footer}}

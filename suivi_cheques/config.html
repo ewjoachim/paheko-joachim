@@ -1,0 +1,123 @@
+{{* -*- brindille -*- *}}
+
+{{* Cette page est déjà gardée par la plateforme à config = admin (Module::template). *}}
+
+{{:assign month_names='{"1":"Janvier","2":"Février","3":"Mars","4":"Avril","5":"Mai","6":"Juin","7":"Juillet","8":"Août","9":"Septembre","10":"Octobre","11":"Novembre","12":"Décembre"}'|json_decode}}
+
+{{#form on="save"}}
+	{{* On reconstruit entièrement le mapping à chaque enregistrement *}}
+	{{:delete type="method_month_map"}}
+
+	{{#foreach from=$_POST.month key="mid" item="m"}}
+		{{if $m|intval >= 1 && $m|intval <= 12}}
+			{{:save type="method_month_map"
+				key="method-%d"|args:$mid
+				validate_schema="./method_month_map.schema.json"
+				method_id=$mid|intval
+				month=$m|intval
+			}}
+		{{/if}}
+	{{/foreach}}
+
+	{{* Les sélecteurs de compte renvoient un tableau code => libellé ; on récupère le code. *}}
+	{{:assign wa=null}}
+	{{#foreach from=$_POST.waiting_account key="code" item="lbl"}}{{:assign wa=$code}}{{/foreach}}
+	{{:assign ra=null}}
+	{{#foreach from=$_POST.receivable_account key="code" item="lbl"}}{{:assign ra=$code}}{{/foreach}}
+	{{:assign ba=null}}
+	{{#foreach from=$_POST.bank_account key="code" item="lbl"}}{{:assign ba=$code}}{{/foreach}}
+	{{:save key="config"
+		waiting_account=$wa|trim|or:"5112"
+		receivable_account=$ra|trim|or:"411"
+		bank_account=$ba|trim|or:"512"
+	}}
+	{{:redirect to="?ok=1"}}
+{{/form}}
+
+{{:admin_header title="Configuration — Suivi des chèques"}}
+
+{{:form_errors}}
+
+{{if $_GET.ok}}<p class="block confirm">Configuration enregistrée.</p>{{/if}}
+
+{{#extension name="caisse"}}
+
+	<form method="post" action="">
+		<fieldset>
+			<legend>Comptes comptables</legend>
+			{{* Valeurs courantes mises en forme pour les sélecteurs : tableau code => libellé. *}}
+			{{:assign wa_cur=$module.config.waiting_account|or:"5112"}}
+			{{:assign wa_label=$wa_cur}}
+			{{#select label FROM acc_accounts WHERE code = :c ORDER BY id_chart DESC LIMIT 1; :c=$wa_cur}}{{:assign wa_label="%s — %s"|args:$wa_cur:$label}}{{/select}}
+			{{:assign wa_default=null}}
+			{{:assign var="wa_default[%s]"|args:$wa_cur value=$wa_label}}
+
+			{{:assign ra_cur=$module.config.receivable_account|or:"411"}}
+			{{:assign ra_label=$ra_cur}}
+			{{#select label FROM acc_accounts WHERE code = :c ORDER BY id_chart DESC LIMIT 1; :c=$ra_cur}}{{:assign ra_label="%s — %s"|args:$ra_cur:$label}}{{/select}}
+			{{:assign ra_default=null}}
+			{{:assign var="ra_default[%s]"|args:$ra_cur value=$ra_label}}
+
+			{{:assign ba_cur=$module.config.bank_account|or:"512"}}
+			{{:assign ba_label=$ba_cur}}
+			{{#select label FROM acc_accounts WHERE code = :c ORDER BY id_chart DESC LIMIT 1; :c=$ba_cur}}{{:assign ba_label="%s — %s"|args:$ba_cur:$label}}{{/select}}
+			{{:assign ba_default=null}}
+			{{:assign var="ba_default[%s]"|args:$ba_cur value=$ba_label}}
+			<dl>
+				{{:input type="list" name="waiting_account" label="Compte d'attente des chèques"
+					target="!acc/charts/accounts/selector.php?key=code&types=3"
+					default=$wa_default
+					help="Compte d'attente (type « attente ») crédité par les écritures d'annulation et de dépôt. Par défaut 5112."}}
+				{{:input type="list" name="receivable_account" label="Compte de créance des membres"
+					target="!acc/charts/accounts/selector.php?key=code"
+					default=$ra_default
+					help="Compte débité pour le montant non couvert d'une annulation (le membre nous doit). Par défaut 411."}}
+				{{:input type="list" name="bank_account" label="Compte bancaire (remises)"
+					target="!acc/charts/accounts/selector.php?key=code&types=1"
+					default=$ba_default
+					help="Compte banque débité par l'écriture de dépôt d'un bordereau. Par défaut 512."}}
+			</dl>
+		</fieldset>
+
+		<fieldset>
+			<legend>Moyens de paiement « chèque » et mois d'encaissement</legend>
+			<p class="help">
+				Pour chaque moyen de paiement de la caisse correspondant à un chèque, indiquez le mois d'encaissement associé.
+				L'année est déterminée par l'exercice comptable courant. Les autres moyens (espèces, CB…) sont laissés sur « — ».
+			</p>
+			<table class="list">
+				<thead>
+					<tr><th>Moyen de paiement (caisse)</th><th>Mois d'encaissement</th></tr>
+				</thead>
+				<tbody>
+					{{#select id, name FROM plugin_pos_methods WHERE enabled = 1 ORDER BY name}}
+						{{:assign cur=0}}
+						{{#load type="method_month_map" where="$$.method_id = :mid" :mid=$id limit=1}}{{:assign cur=$month}}{{/load}}
+						<tr>
+							<td>{{$name|escape}}</td>
+							<td>
+								<select name="month[{{$id}}]">
+									<option value="0">—</option>
+									{{#foreach from=$month_names key="num" item="mname"}}
+										<option value="{{$num}}"{{if $cur|intval === $num|intval}} selected="selected"{{/if}}>{{$mname}}</option>
+									{{/foreach}}
+								</select>
+							</td>
+						</tr>
+					{{else}}
+						<tr><td colspan="2">Aucun moyen de paiement actif dans la caisse.</td></tr>
+					{{/select}}
+				</tbody>
+			</table>
+		</fieldset>
+
+		<p class="submit">
+			{{:button type="submit" name="save" label="Enregistrer" shape="right" class="main"}}
+		</p>
+	</form>
+
+{{else}}
+	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
+{{/extension}}
+
+{{:admin_footer}}

@@ -1,0 +1,51 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"type": {
+			"type": "string",
+			"enum": ["cheque"]
+		},
+		"payment_id": {
+			"type": "integer",
+			"description": "Paiement caisse (plugin_pos_tabs_payments.id)."
+		},
+		"planned_month": {
+			"type": ["null", "string"],
+			"description": "Surcharge du mois d'encaissement (YYYY-MM). NULL = déduit du moyen de paiement + exercice."
+		},
+		"cancelled": {
+			"type": "integer",
+			"enum": [0, 1],
+			"description": "1 = chèque annulé/remplacé, retiré des remises."
+		},
+		"reason": {
+			"type": ["null", "string"],
+			"description": "Motif de l'annulation."
+		},
+		"replacements": {
+			"type": ["null", "array"],
+			"description": "Remplacements non-chèque (CB, espèces…) captés au comptoir, base de l'écriture d'annulation.",
+			"items": {
+				"type": "object",
+				"properties": {
+					"method_id": { "type": "integer" },
+					"account": { "type": ["null", "string"] },
+					"amount": { "type": "integer" }
+				}
+			}
+		},
+		"notes": {
+			"type": ["null", "string"]
+		},
+		"annulation_txn_id": {
+			"type": ["null", "integer"],
+			"description": "Identifiant de l'écriture d'annulation créée via :api (CONCEPTION §6.2/§8). Lien primaire immuable module <-> compta."
+		},
+		"batch_id": {
+			"type": ["null", "string"],
+			"description": "Identifiant du lot de remise une fois le chèque parti à la banque (CONCEPTION §6.3). Verrouille le chèque."
+		}
+	},
+	"required": ["type", "payment_id"]
+}

@@ -1,0 +1,80 @@
+{{* -*- brindille -*- *}}
+
+{{#restrict block=true section="users" level="read"}}{{/restrict}}
+
+{{:admin_header title="Remise de chèques du mois" current="module_suivi_cheques"}}
+
+{{#extension name="caisse"}}
+
+	{{* Le module doit être configuré (mapping moyens de paiement -> mois) *}}
+	{{:assign configured=false}}
+	{{#load type="method_month_map" limit=1}}{{:assign configured=true}}{{/load}}
+
+	{{if !$configured}}
+		<p class="block alert">
+			Ce module n'est pas encore configuré.
+			{{:link href="config.html" label="Configurer les moyens de paiement « chèque »"}}
+		</p>
+	{{else}}
+
+		{{* Mois affiché : ?month=YYYY-MM, sinon mois courant *}}
+		{{:assign month=$_GET.month|trim}}
+		{{if !$month}}
+			{{#select strftime('%Y-%m', 'now') AS m}}{{:assign month=$m}}{{/select}}
+		{{/if}}
+
+		{{* Mois précédent / suivant + libellé lisible *}}
+		{{#select
+			strftime('%Y-%m', :month || '-01', '-1 month') AS prev,
+			strftime('%Y-%m', :month || '-01', '+1 month') AS next;
+			:month=$month
+		}}
+			{{:assign prev=$prev next=$next}}
+		{{/select}}
+
+		{{* Filtres de recherche. On passe le terme BRUT à _list.html : l'échappement
+		    des métacaractères LIKE (% _ et le caractère d'échappement) se fait côté SQL,
+		    sinon une recherche contenant % ou _ sur-matche. *}}
+		{{:assign q=$_GET.q|trim}}
+		{{if $q !== ''}}{{:assign q_like=$q}}{{else}}{{:assign q_like=null}}{{/if}}
+
+		{{:assign user_id=null}}
+		{{#foreach from=$_GET.user key="id" item="l"}}{{:assign user_id=$id|intval}}{{/foreach}}
+
+		<form method="get" action="" class="block">
+			<fieldset>
+				<legend>Rechercher un chèque</legend>
+				<dl>
+					{{:input type="text" name="q" label="N° de chèque" default=$q}}
+					{{:input type="list" name="user" label="Membre" target="!users/selector.php" default=$_GET.user can_delete=true}}
+				</dl>
+				<p class="submit">
+					{{:button type="submit" label="Rechercher" shape="search" class="main"}}
+					{{:linkbutton href="index.html" label="Réinitialiser" shape="reset"}}
+				</p>
+			</fieldset>
+		</form>
+
+		{{if $q !== '' || $user_id}}
+			{{* En mode recherche, on ignore le filtre de mois et on cherche partout (à venir + passé) *}}
+			<p class="help">Résultats de recherche (tous mois confondus).</p>
+			{{:include file="./_list.html" mode="upcoming" month="0000-00" q_like=$q_like user_id=$user_id show_month_col=true}}
+		{{else}}
+			<p class="actions">
+				{{:linkbutton href="index.html?month=%s"|args:$prev label="Mois précédent" shape="left"}}
+				<strong>{{$month}}</strong>
+				{{:linkbutton href="index.html?month=%s"|args:$next label="Mois suivant" shape="right"}}
+				{{:linkbutton href="upcoming.html" label="Voir tous les mois à venir" shape="menu"}}
+				{{:linkbutton href="to_record.html" label="Chèques à comptabiliser" shape="alert"}}
+			</p>
+
+			{{:include file="./_list.html" mode="month" month=$month q_like=null user_id=null show_month_col=false show_deposit_button=true}}
+		{{/if}}
+
+	{{/if}}
+
+{{else}}
+	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
+{{/extension}}
+
+{{:admin_footer}}

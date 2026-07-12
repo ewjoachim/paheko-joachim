@@ -1,0 +1,223 @@
+{{* -*- brindille -*- *}}
+{{*
+	Tableau réutilisable des chèques — SOURCE UNIQUE : caisse + module_data.
+	Aucune lecture de la comptabilité pour déterminer l'état (CONCEPTION §2, §9.1).
+
+	Paramètres attendus :
+	  $mode                'month' (= :month), 'upcoming' (>= :month) ou 'all' (tous)
+	  $month               mois de référence, format YYYY-MM (ignoré si mode='all')
+	  $q_like              terme de recherche BRUT sur le n° de chèque, ou null
+	                       (l'échappement LIKE % _ se fait dans la clause WHERE)
+	  $user_id             filtre membre, ou null
+	  $show_month_col      affiche la colonne « Mois prévu » + sous-totaux par mois
+	  $show_deposit_button affiche le bouton « Préparer le bordereau » (câblé en phase 3)
+	NB : la table module_data_suivi_cheques doit correspondre au dossier du module.
+*}}
+
+{{* Exercice courant : ses bornes résolvent mois -> année (CONCEPTION §6.1).
+    L'année n'est JAMAIS déduite de la date de réception. On prend l'exercice ouvert
+    contenant aujourd'hui, sinon le plus récent ouvert. *}}
+{{:assign ex_start_year=null}}
+{{:assign ex_start_month=null}}
+{{#select
+	CAST(strftime('%Y', start_date) AS INT) AS sy,
+	CAST(strftime('%m', start_date) AS INT) AS sm
+	FROM acc_years
+	WHERE status = 0
+	ORDER BY (date('now') BETWEEN start_date AND end_date) DESC, start_date DESC
+	LIMIT 1
+}}
+	{{:assign ex_start_year=$sy ex_start_month=$sm}}
+{{/select}}
+
+{{:assign _n=0}}
+{{:assign _total=0}}
+{{:assign dep_count=0}}
+{{* État pour les sous-totaux par mois (uniquement en vue multi-mois) *}}
+{{:assign cur_group=null}}
+{{:assign group_n=0}}
+{{:assign group_total=0}}
+
+<table class="list">
+	<thead>
+		<tr>
+			{{if $show_month_col}}<th>Mois prévu</th>{{/if}}
+			<th>N° de chèque</th>
+			<th>Membre</th>
+			<th class="money">Montant</th>
+			<th>Reçu le</th>
+			<th>État / notes</th>
+			<th class="actions"></th>
+		</tr>
+	</thead>
+	<tbody>
+		{{#select
+			*
+			FROM (
+				-- Branche 1 : cheques saisis en caisse (moyens de paiement mappes)
+				SELECT
+					p.id AS payment_id,
+					'caisse' AS source,
+					NULL AS repl_key,
+					p.reference AS cheque_number,
+					p.amount AS amount,
+					p.date AS received_date,
+					t.user_id AS user_id,
+					t.name AS tab_name,
+					COALESCE(
+						json_extract(ov.document, '$.planned_month'),
+						CASE WHEN :ex_start_month IS NULL THEN NULL
+							ELSE printf('%04d-%02d',
+								CASE WHEN CAST(json_extract(mm.document, '$.month') AS INT) >= :ex_start_month
+									THEN :ex_start_year ELSE :ex_start_year + 1 END,
+								CAST(json_extract(mm.document, '$.month') AS INT))
+						END
+					) AS planned_month,
+					COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) AS cancelled,
+					json_extract(ov.document, '$.reason') AS reason,
+					json_extract(ov.document, '$.notes') AS notes,
+					json_extract(ov.document, '$.batch_id') AS batch_id,
+					(SELECT json_extract(b.document, '$.deposit_txn_id')
+						FROM module_data_suivi_cheques b
+						WHERE json_extract(b.document, '$.type') = 'deposit_batch'
+							AND b.key = 'batch-' || json_extract(ov.document, '$.batch_id')
+						LIMIT 1) AS batch_deposit_txn_id
+				FROM plugin_pos_tabs_payments p
+				INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+				INNER JOIN module_data_suivi_cheques mm
+					ON json_extract(mm.document, '$.type') = 'method_month_map'
+					AND CAST(json_extract(mm.document, '$.method_id') AS INT) = p.method
+				LEFT JOIN module_data_suivi_cheques ov
+					ON json_extract(ov.document, '$.type') = 'cheque'
+					AND CAST(json_extract(ov.document, '$.payment_id') AS INT) = p.id
+
+				UNION ALL
+
+				-- Branche 2 : cheques de remplacement (module uniquement, cf. cheque_rempl)
+				SELECT
+					NULL AS payment_id,
+					'rempl' AS source,
+					ov2.key AS repl_key,
+					json_extract(ov2.document, '$.cheque_number') AS cheque_number,
+					CAST(json_extract(ov2.document, '$.amount') AS INT) AS amount,
+					json_extract(ov2.document, '$.received_date') AS received_date,
+					CAST(json_extract(ov2.document, '$.member_id') AS INT) AS user_id,
+					NULL AS tab_name,
+					json_extract(ov2.document, '$.planned_month') AS planned_month,
+					COALESCE(CAST(json_extract(ov2.document, '$.cancelled') AS INT), 0) AS cancelled,
+					json_extract(ov2.document, '$.reason') AS reason,
+					json_extract(ov2.document, '$.notes') AS notes,
+					json_extract(ov2.document, '$.batch_id') AS batch_id,
+					(SELECT json_extract(b.document, '$.deposit_txn_id')
+						FROM module_data_suivi_cheques b
+						WHERE json_extract(b.document, '$.type') = 'deposit_batch'
+							AND b.key = 'batch-' || json_extract(ov2.document, '$.batch_id')
+						LIMIT 1) AS batch_deposit_txn_id
+				FROM module_data_suivi_cheques ov2
+				WHERE json_extract(ov2.document, '$.type') = 'cheque_rempl'
+			)
+			WHERE (
+					(:mode = 'month' AND planned_month = :month)
+					OR (:mode = 'upcoming' AND planned_month >= :month)
+					OR (:mode = 'all')
+				)
+				AND (:q IS NULL OR cheque_number LIKE '%' || REPLACE(REPLACE(REPLACE(:q, '~', '~~'), '%', '~%'), '_', '~_') || '%' ESCAPE '~')
+				AND (:user_id IS NULL OR user_id = :user_id)
+			ORDER BY planned_month ASC, cancelled ASC, cheque_number ASC;
+			:mode=$mode
+			:month=$month
+			:q=$q_like
+			:user_id=$user_id
+			:ex_start_year=$ex_start_year
+			:ex_start_month=$ex_start_month
+		}}
+			{{* Rupture de mois : sous-total du groupe précédent + en-tête du nouveau mois *}}
+			{{if $show_month_col && $planned_month !== $cur_group}}
+				{{if $cur_group !== null}}
+					<tr class="total">
+						<td colspan="7" class="money"><strong>Sous-total {{$cur_group|escape|or:'sans mois'}}</strong> : {{$group_n}} chèque(s) — {{$group_total|raw|money_currency}}</td>
+					</tr>
+				{{/if}}
+				<tr class="group"><td colspan="7"><strong>{{$planned_month|escape|or:'Sans mois prévu'}}</strong></td></tr>
+				{{:assign cur_group=$planned_month}}
+				{{:assign group_n=0}}
+				{{:assign group_total=0}}
+			{{/if}}
+
+			{{if !$cancelled}}
+				{{:assign _n="%d+1"|math:$_n}}
+				{{:assign _total="%d+%d"|math:$_total:$amount}}
+				{{:assign group_n="%d+1"|math:$group_n}}
+				{{:assign group_total="%d+%d"|math:$group_total:$amount}}
+			{{/if}}
+			{{* Déposable : non annulé, pas déjà dans un lot *}}
+			{{if !$cancelled && $batch_id === null}}
+				{{:assign dep_count="%d+1"|math:$dep_count}}
+			{{/if}}
+			<tr{{if $cancelled}} class="disabled"{{/if}}>
+				{{if $show_month_col}}<td>{{$planned_month|escape|or:'—'}}</td>{{/if}}
+				<td>{{if $cancelled}}<del>{{$cheque_number|escape|or:'—'}}</del>{{else}}{{$cheque_number|escape|or:'—'}}{{/if}}</td>
+				<td>
+					{{if $user_id}}
+						{{#users id=$user_id}}{{:link href="!users/details.php?id=%d"|args:$user_id label=$_name}}{{/users}}
+					{{else}}
+						{{$tab_name|escape|or:'—'}}
+					{{/if}}
+				</td>
+				<td class="money">{{$amount|raw|money_currency}}</td>
+				<td>{{$received_date|date_short}}</td>
+				<td>
+					{{if $source === 'rempl'}}{{:tag label="Remplacement" color="darkcyan"}} {{/if}}
+					{{if $cancelled}}
+						{{:tag label="Annulé" color="grey"}} {{$reason|escape}}
+					{{elseif $batch_id !== null && $batch_deposit_txn_id !== null}}
+						{{:tag label="Déposé" color="darkgreen"}}
+					{{elseif $batch_id !== null}}
+						{{:tag label="Dans un lot" color="blue"}}
+					{{else}}
+						{{:tag label="À encaisser" color="darkorange"}}
+					{{/if}}
+					{{if $notes}}<br /><small>{{$notes|escape|nl2br}}</small>{{/if}}
+				</td>
+				<td class="actions">
+					{{* Actions opérationnelles réservées à la gestion des membres.
+					    Un chèque déjà dans un lot est verrouillé (garde renforcée en phase 3).
+					    show_actions=false (snippet fiche membre) : liste en lecture seule. *}}
+					{{if $show_actions !== false}}{{#restrict section="users" level="write"}}
+						{{if $batch_id === null}}
+							{{if $source === 'caisse'}}
+								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit.html?payment=%d"|args:$payment_id target="_dialog"}}
+							{{else}}
+								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit_replacement.html?key=%s"|args:$repl_key target="_dialog"}}
+							{{/if}}
+						{{/if}}
+					{{/restrict}}{{/if}}
+				</td>
+			</tr>
+		{{else}}
+			<tr><td colspan="{{if $show_month_col}}7{{else}}6{{/if}}">Aucun chèque.</td></tr>
+		{{/select}}
+
+		{{* Sous-total du dernier mois (vue multi-mois) *}}
+		{{if $show_month_col && $cur_group !== null}}
+			<tr class="total">
+				<td colspan="7" class="money"><strong>Sous-total {{$cur_group|escape|or:'sans mois'}}</strong> : {{$group_n}} chèque(s) — {{$group_total|raw|money_currency}}</td>
+			</tr>
+		{{/if}}
+	</tbody>
+</table>
+
+<p class="help">
+	<strong>{{$_n}}</strong> chèque(s) à encaisser — total <strong>{{$_total|raw|money_currency}}</strong>
+	{{if $mode === 'month'}}(hors chèques annulés){{/if}}
+</p>
+
+{{* Bouton « Préparer le bordereau » — câblé en phase 3 (page deposit.html + gel du lot).
+    Réservé à la gestion des membres (Ben va physiquement à la banque). *}}
+{{if $show_deposit_button && $dep_count > 0}}
+	{{#restrict section="users" level="write"}}
+		<p class="actions">
+			{{:linkbutton href="deposit.html?month=%s"|args:$month label="Préparer le bordereau (%d chèque(s))"|args:$dep_count shape="money" class="main"}}
+		</p>
+	{{/restrict}}
+{{/if}}
