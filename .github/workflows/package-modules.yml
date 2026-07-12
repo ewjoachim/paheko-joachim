@@ -58,15 +58,14 @@ jobs:
           name: ${{ matrix.module }}-${{ steps.sha.outputs.short }}
           path: _pkg
           if-no-files-found: error
-      # On a release, also attach the real .zip (build.sh's own archive, uploaded
-      # as-is so it stays a plain zip Paheko can import — not re-zipped by GH),
-      # named with the release tag.
+      # On a release, attach the same staged tree as a real .zip named with the
+      # tag. We zip _pkg/ ourselves (rather than re-running build.sh) so the
+      # asset is a plain zip Paheko imports as-is — GH doesn't re-zip uploads.
       - name: Attach ${{ matrix.module }} to the release
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          ./build.sh "${{ matrix.module }}"
-          mv "${{ matrix.module }}.zip" "${{ matrix.module }}-${TAG}.zip"
+          ( cd _pkg && zip -rq "../${{ matrix.module }}-${TAG}.zip" modules )
           gh release upload "$TAG" "${{ matrix.module }}-${TAG}.zip" --clobber
