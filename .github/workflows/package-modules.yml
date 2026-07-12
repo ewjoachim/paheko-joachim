@@ -10,6 +10,8 @@ on:
       - 'modules/**'
       - 'build.sh'
       - '.github/workflows/package-modules.yml'
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -33,6 +35,10 @@ jobs:
   package:
     needs: discover
     runs-on: ubuntu-latest
+    # Needs write access to attach assets on a release; only exercised then
+    # (the release-upload step is the sole thing that writes).
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -49,3 +55,13 @@ jobs:
           name: ${{ matrix.module }}-paheko-cloud
           path: _pkg
           if-no-files-found: error
+      # On a release, also attach the real .zip (build.sh's own archive, uploaded
+      # as-is so it stays a plain zip Paheko can import — not re-zipped by GH).
+      - name: Attach ${{ matrix.module }} to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./build.sh "${{ matrix.module }}"
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "${{ matrix.module }}-paheko-cloud.zip" --clobber
