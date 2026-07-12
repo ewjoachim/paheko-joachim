@@ -1,0 +1,15 @@
+[project]
+name = "paheko-joachim-tests"
+version = "0"
+description = "End-to-end tests for this repo's Paheko modules"
+requires-python = ">=3.11"
+dependencies = [
+    "pytest>=8",
+    "pytest-playwright>=0.5",
+]
+
+# Test-only tooling — never shipped in the module zip (build.sh packages
+# modules/suivi_cheques only). Run with:
+#   cd tests && uv run playwright install chromium && uv run pytest
+[tool.pytest.ini_options]
+addopts = "-ra"

@@ -2,5 +2,10 @@
 *-paheko-cloud.zip
 _pkg/
 
+# Python test tooling (tests/)
+.venv/
+__pycache__/
+.pytest_cache/
+
 # Misc
 .DS_Store
