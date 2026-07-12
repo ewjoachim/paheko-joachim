@@ -1,0 +1,6 @@
+# Build artifacts (build.sh)
+*-paheko-cloud.zip
+_pkg/
+
+# Misc
+.DS_Store
