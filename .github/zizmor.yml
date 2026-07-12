@@ -1,0 +1,9 @@
+# zizmor configuration.
+rules:
+  cache-poisoning:
+    ignore:
+      # tests.yml builds the image with `load: true` (local daemon only — never
+      # pushed, published, or deployed) and runs it in-job. There is no trusted
+      # artifact a poisoned cache could reach; the finding is a false positive
+      # here. The main-branch run warms the cache read-only for PRs.
+      - tests.yml
