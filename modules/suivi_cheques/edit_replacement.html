@@ -90,47 +90,7 @@
 		{{/if}}
 	{{/foreach}}
 
-	{{* Remplacements PAR CHÈQUE -> enfants cheque_rempl (chaîne). Même upsert que
-	    edit.html : le parent est CE chèque (parent_key = sa propre clé) ; l'enfant hérite
-	    du membre. On ne touche jamais un enfant verrouillé. *}}
-	{{#foreach from=$_POST.rc_number key="k" item="num"}}
-		{{:assign var="rc_amt_raw" from="_POST.rc_amount.%s"|args:$k}}
-		{{:assign rc_amt=$rc_amt_raw|money_int}}
-		{{:assign var="rc_mon" from="_POST.rc_month.%s"|args:$k}}
-		{{:assign var="rc_key" from="_POST.rc_key.%s"|args:$k}}
-		{{:assign rc_key=$rc_key|trim}}
-		{{* mois choisi (1-12) -> YYYY-MM via l'exercice courant *}}
-		{{:assign rc_mnum=$rc_mon|intval}}
-		{{:assign rc_ym=null}}
-		{{if $rc_mnum >= 1 && $ex_start_month}}{{if $rc_mnum >= $ex_start_month}}{{:assign rc_yr=$ex_start_year}}{{else}}{{:assign rc_yr="%d+1"|math:$ex_start_year}}{{/if}}{{:assign rc_ym="%04d-%02d"|args:$rc_yr:$rc_mnum}}{{/if}}
-		{{if $num|trim && $rc_amt > 0}}
-			{{if $rc_key}}
-				{{:save type="cheque_rempl"
-					key=$rc_key
-					validate_schema="./replacement.schema.json"
-					cheque_number=$num|trim
-					amount=$rc_amt
-					planned_month=$rc_ym
-				}}
-			{{else}}
-				{{:save type="cheque_rempl"
-					key="uuid"
-					validate_schema="./replacement.schema.json"
-					parent_key=$key
-					member_id=$cur_member_id
-					cheque_number=$num|trim
-					amount=$rc_amt
-					planned_month=$rc_ym
-					received_date=$today
-					cancelled=0
-				}}
-			{{/if}}
-		{{elseif $rc_key}}
-			{{:delete type="cheque_rempl"
-				where="key = :k AND $$.batch_id IS NULL AND $$.annulation_txn_id IS NULL"
-				:k=$rc_key}}
-		{{/if}}
-	{{/foreach}}
+	{{:include file="./_replacement_children_save.html" parent_key=$key member_id=$cur_member_id}}
 
 	{{* Overlay du chèque de remplacement lui-même : on préserve l'identité (n°, montant,
 	    parent, membre, date) et les liens compta ; on met à jour mois/annulation/
@@ -204,90 +164,9 @@
 				en s'appuyant sur les remplacements saisis ci-dessous.
 			</p>
 
-			<h3>Remplacé par un autre moyen (CB, espèces…)</h3>
-			<table class="list">
-				<thead><tr><th>Moyen</th><th>Montant</th></tr></thead>
-				<tbody>
-					{{* Remplacements non-chèque déjà saisis (pré-remplis) *}}
-					{{#foreach from=$cur_replacements item="rep"}}
-						{{:assign rep_eu="%s/100"|math:$rep.amount}}
-						<tr>
-							<td>
-								<select name="repl_method[]">
-									<option value="0">— (aucun) —</option>
-									{{#select id, name FROM plugin_pos_methods WHERE enabled = 1
-										AND id NOT IN (SELECT CAST(json_extract(document, '$.method_id') AS INT)
-											FROM module_data_suivi_cheques WHERE json_extract(document, '$.type') = 'method_month_map')
-										ORDER BY name}}
-										<option value="{{$id}}"{{if $id == $rep.method_id}} selected="selected"{{/if}}>{{$name|escape}}</option>
-									{{/select}}
-								</select>
-							</td>
-							<td><input type="text" name="repl_amount[]" value="{{$rep_eu}}" size="8" /></td>
-						</tr>
-					{{/foreach}}
-					{{* Lignes vierges pour ajouter *}}
-					{{#foreach count=2}}
-						<tr>
-							<td>
-								<select name="repl_method[]">
-									<option value="0">— (aucun) —</option>
-									{{#select id, name FROM plugin_pos_methods WHERE enabled = 1
-										AND id NOT IN (SELECT CAST(json_extract(document, '$.method_id') AS INT)
-											FROM module_data_suivi_cheques WHERE json_extract(document, '$.type') = 'method_month_map')
-										ORDER BY name}}
-										<option value="{{$id}}">{{$name|escape}}</option>
-									{{/select}}
-								</select>
-							</td>
-							<td><input type="text" name="repl_amount[]" placeholder="0,00" size="8" /></td>
-						</tr>
-					{{/foreach}}
-				</tbody>
-			</table>
+			{{:include file="./_replacement_methods_fields.html"}}
 
-			<h3>Remplacé par un ou plusieurs chèques</h3>
-			<p class="help">
-				Chaque chèque de remplacement est suivi comme un chèque à part entière (planifié et déposable) :
-				l'écriture le fera entrer sur le compte d'attente {{$waiting_account}}. La chaîne peut se poursuivre
-				sur autant de niveaux que nécessaire.
-			</p>
-			<table class="list">
-				<thead><tr><th>N° de chèque</th><th>Montant</th><th>Mois d'encaissement</th></tr></thead>
-				<tbody>
-					{{* Remplacements chèque déjà saisis, non verrouillés (ré-édition). *}}
-					{{#select
-						key AS rkey,
-						json_extract(document, '$.cheque_number') AS n,
-						json_extract(document, '$.amount') AS a,
-						json_extract(document, '$.planned_month') AS m,
-							CAST(substr(json_extract(document, '$.planned_month'), 6, 2) AS INT) AS m_num
-						FROM module_data_suivi_cheques
-						WHERE json_extract(document, '$.type') = 'cheque_rempl'
-							AND json_extract(document, '$.parent_key') = :pk
-							AND COALESCE(CAST(json_extract(document, '$.cancelled') AS INT), 0) = 0
-							AND json_extract(document, '$.batch_id') IS NULL
-							AND json_extract(document, '$.annulation_txn_id') IS NULL
-						ORDER BY n;
-						:pk=$key
-					}}
-						{{:assign rc_eu="%s/100"|math:$a}}
-						<tr>
-							<td><input type="hidden" name="rc_key[]" value="{{$rkey|escape}}" /><input type="text" name="rc_number[]" value="{{$n|escape}}" size="12" /></td>
-							<td><input type="text" name="rc_amount[]" value="{{$rc_eu}}" size="8" /></td>
-							<td><select name="rc_month[]">{{:include file="./_month_options.html" selected=$m_num empty_label="—"}}</select></td>
-						</tr>
-					{{/select}}
-					{{* Lignes vierges pour ajouter (rc_key vide) *}}
-					{{#foreach count=3}}
-						<tr>
-							<td><input type="hidden" name="rc_key[]" value="" /><input type="text" name="rc_number[]" size="12" /></td>
-							<td><input type="text" name="rc_amount[]" placeholder="0,00" size="8" /></td>
-							<td><select name="rc_month[]">{{:include file="./_month_options.html" selected=null empty_label="—"}}</select></td>
-						</tr>
-					{{/foreach}}
-				</tbody>
-			</table>
+			{{:include file="./_replacement_children_fields.html" parent_key=$key}}
 		</fieldset>
 
 		<fieldset>

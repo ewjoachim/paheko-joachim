@@ -1,0 +1,47 @@
+{{* -*- brindille -*- *}}
+
+{{* Tableau « remplacé par un autre moyen (CB, espèces…) » — partagé par edit.html
+    et edit_replacement.html. Pré-remplit depuis $cur_replacements (hérité du parent) ;
+    les lignes sont relues côté POST par le bloc inline du parent (qui construit
+    $replacements pour son écriture — non extractible car un include ne renvoie rien). *}}
+<h3>Remplacé par un autre moyen (CB, espèces…)</h3>
+<table class="list">
+	<thead><tr><th>Moyen</th><th>Montant</th></tr></thead>
+	<tbody>
+			{{* Remplacements non-chèque déjà saisis (pré-remplis) *}}
+			{{#foreach from=$cur_replacements item="rep"}}
+				{{:assign rep_eu="%s/100"|math:$rep.amount}}
+				<tr>
+					<td>
+						<select name="repl_method[]">
+							<option value="0">— (aucun) —</option>
+							{{#select id, name FROM plugin_pos_methods WHERE enabled = 1
+								AND id NOT IN (SELECT CAST(json_extract(document, '$.method_id') AS INT)
+									FROM module_data_suivi_cheques WHERE json_extract(document, '$.type') = 'method_month_map')
+								ORDER BY name}}
+								<option value="{{$id}}"{{if $id == $rep.method_id}} selected="selected"{{/if}}>{{$name|escape}}</option>
+							{{/select}}
+						</select>
+					</td>
+					<td><input type="text" name="repl_amount[]" value="{{$rep_eu}}" size="8" /></td>
+				</tr>
+			{{/foreach}}
+			{{* Lignes vierges pour ajouter *}}
+			{{#foreach count=2}}
+				<tr>
+					<td>
+						<select name="repl_method[]">
+							<option value="0">— (aucun) —</option>
+							{{#select id, name FROM plugin_pos_methods WHERE enabled = 1
+								AND id NOT IN (SELECT CAST(json_extract(document, '$.method_id') AS INT)
+									FROM module_data_suivi_cheques WHERE json_extract(document, '$.type') = 'method_month_map')
+								ORDER BY name}}
+								<option value="{{$id}}">{{$name|escape}}</option>
+							{{/select}}
+						</select>
+					</td>
+					<td><input type="text" name="repl_amount[]" placeholder="0,00" size="8" /></td>
+				</tr>
+			{{/foreach}}
+	</tbody>
+</table>
