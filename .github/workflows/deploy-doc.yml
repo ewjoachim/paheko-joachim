@@ -75,6 +75,15 @@ jobs:
           uv run playwright install --with-deps chromium
           uv run python doc-tools/screenshots.py
 
+      # Cache-bust the screenshot URLs per release, so a CDN in front of Pages
+      # (Cloudflare) stops serving the previous release's cached images. The
+      # committed guide keeps clean paths — only the deployed copy is versioned.
+      - name: Version the screenshot URLs
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          sed -i -E "s#(src=\"screenshots/[a-z0-9-]+\.png)\"#\1?v=${TAG}\"#g" doc/suivi_cheques/guide.html
+
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
