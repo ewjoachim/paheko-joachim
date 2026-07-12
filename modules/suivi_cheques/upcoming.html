@@ -6,6 +6,8 @@
 
 {{#extension name="caisse"}}
 
+	{{:include file="./_tabs.html" tab="upcoming"}}
+
 	{{:assign configured=false}}
 	{{#load type="method_month_map" limit=1}}{{:assign configured=true}}{{/load}}
 
@@ -17,9 +19,6 @@
 	{{else}}
 		{{#select strftime('%Y-%m', 'now') AS m}}{{:assign month=$m}}{{/select}}
 
-		<p class="actions">
-			{{:linkbutton href="index.html" label="Retour à la remise du mois" shape="left"}}
-		</p>
 		<p class="help">Tous les chèques planifiés à partir du mois courant ({{$month}}), triés par mois d'encaissement.</p>
 
 		{{:include file="./_list.html" mode="upcoming" month=$month q_like=null user_id=null show_month_col=true}}

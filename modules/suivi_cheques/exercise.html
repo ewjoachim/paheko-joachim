@@ -6,6 +6,8 @@
 
 {{#extension name="caisse"}}
 
+	{{:include file="./_tabs.html" tab="exercise"}}
+
 	{{:assign configured=false}}
 	{{#load type="method_month_map" limit=1}}{{:assign configured=true}}{{/load}}
 
@@ -15,9 +17,6 @@
 			{{:link href="config.html" label="Configurer"}}
 		</p>
 	{{else}}
-		<p class="actions">
-			{{:linkbutton href="index.html" label="Retour à la remise du mois" shape="left"}}
-		</p>
 		<p class="help">Tous les chèques planifiés sur l'année en cours, passés comme à venir, triés par mois d'encaissement.</p>
 
 		{{* mode=exercise : borné aux dates de l'exercice courant (bornes calculées dans _list.html). *}}

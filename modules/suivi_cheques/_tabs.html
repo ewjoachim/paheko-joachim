@@ -1,0 +1,21 @@
+{{* -*- brindille -*- *}}
+
+{{* Sous-navigation entre les pages du module, dans le style des onglets de la
+    comptabilité (classe cœur nav.tabs). $tab = clé de la page courante (surlignée).
+    Chaque onglet est gardé par le droit qu'exige sa page cible, donc aucun ne mène
+    à un accès refusé selon le profil de la personne. *}}
+<nav class="tabs">
+	<ul>
+		{{#restrict section="users" level="read"}}
+			<li{{if $tab === 'month'}} class="current"{{/if}}><a href="index.html">Mois courant</a></li>
+			<li{{if $tab === 'upcoming'}} class="current"{{/if}}><a href="upcoming.html">Mois à venir</a></li>
+			<li{{if $tab === 'exercise'}} class="current"{{/if}}><a href="exercise.html">Année en cours</a></li>
+		{{/restrict}}
+		{{#restrict section="accounting" level="read"}}
+			<li{{if $tab === 'to_record'}} class="current"{{/if}}><a href="to_record.html">À comptabiliser</a></li>
+		{{/restrict}}
+		{{#restrict section="config" level="admin"}}
+			<li{{if $tab === 'config'}} class="current"{{/if}}><a href="config.html">Configuration</a></li>
+		{{/restrict}}
+	</ul>
+</nav>

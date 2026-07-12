@@ -8,6 +8,8 @@
 
 {{#extension name="caisse"}}
 
+	{{:include file="./_tabs.html" tab="month"}}
+
 	{{* Le module doit être configuré (mapping moyens de paiement -> mois) *}}
 	{{:assign configured=false}}
 	{{#load type="method_month_map" limit=1}}{{:assign configured=true}}{{/load}}
@@ -66,9 +68,6 @@
 				{{:linkbutton href="index.html?month=%s"|args:$prev label="Mois précédent" shape="left"}}
 				<strong>{{$month}}</strong>
 				{{:linkbutton href="index.html?month=%s"|args:$next label="Mois suivant" shape="right"}}
-				{{:linkbutton href="upcoming.html" label="Mois à venir" shape="menu"}}
-				{{:linkbutton href="exercise.html" label="Année en cours" shape="menu"}}
-				{{:linkbutton href="to_record.html" label="Comptabilité" shape="alert"}}
 			</p>
 
 			{{:include file="./_list.html" mode="month" month=$month q_like=null user_id=null show_month_col=false show_deposit_button=true}}
