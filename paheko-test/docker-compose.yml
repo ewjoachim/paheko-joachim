@@ -15,8 +15,9 @@ services:
       # Your local env mounted live (direct editing, no rebuild)
       # paheko-modules = shared community modules clone (reference)
       - /Users/joachim/code/paheko-modules:/var/www/paheko/modules
-      # suivi_cheques lives in THIS repo -> overlay it on top of the clone
-      - /Users/joachim/code/paheko-joachim/suivi_cheques:/var/www/paheko/modules/suivi_cheques
+      # This repo's modules live in modules/ -> overlay each on top of the clone
+      # (add one line per module)
+      - /Users/joachim/code/paheko-joachim/modules/suivi_cheques:/var/www/paheko/modules/suivi_cheques
       - /Users/joachim/code/paheko-plugins:/var/www/paheko/data/plugins
       # Editable config, lives in paheko-joachim
       - ./config.local.php:/var/www/paheko/config.local.php

@@ -7,7 +7,7 @@ My [Paheko](https://paheko.cloud/) module(s) for a music school, together with t
 
 | Folder | Role |
 |---|---|
-| [`suivi_cheques/`](suivi_cheques/) | The cheque-tracking module (Brindille templates + JSON schemas). Uploaded to Paheko Cloud as a module. |
+| [`modules/`](modules/) | The Paheko module(s), one subfolder each. Currently `suivi_cheques/` (cheque tracking). Uploaded to Paheko Cloud. |
 | [`paheko-test/`](paheko-test/) | Docker/podman stack for a local Paheko instance (arm64), to develop and test modules/plugins outside of Cloud. |
 | [`build.sh`](build.sh) | Assembles a module's `.zip` archive in the format expected by Paheko Cloud (upload via the Modules admin). |
 | [`doc/`](doc/) | Documentation site published on GitHub Pages: one folder per module (e.g. `doc/suivi_cheques/`). |
@@ -21,9 +21,9 @@ cd paheko-test
 ```
 
 Served on http://localhost:8080/. The Paheko core is mounted from a local checkout;
-`suivi_cheques/` (this repo), the sibling `paheko-modules/` clone and `paheko-plugins/`
-are bind-mounted live (hot editing). Details and gotchas are in the comments of
-`docker-compose.yml` / `run.sh`.
+`modules/suivi_cheques/` (this repo), the sibling `paheko-modules/` clone and
+`paheko-plugins/` are bind-mounted live (hot editing). Details and gotchas are in the
+comments of `docker-compose.yml` / `run.sh`.
 
 ## Packaging a module for Paheko Cloud
 
@@ -32,6 +32,10 @@ are bind-mounted live (hot editing). Details and gotchas are in the comments of
 ```
 
 Then upload the archive via the *Modules* admin of the Cloud instance.
+
+On every push to `main`, the [`package-modules`](.github/workflows/package-modules.yml)
+workflow packages every module under `modules/` (matrix, one per subfolder) and uploads
+each `.zip` as a build artifact.
 
 ## Documentation
 
