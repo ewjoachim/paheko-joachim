@@ -29,8 +29,12 @@ COPY config.local.php /var/www/paheko/config.local.php
 RUN chown -R www-data: /var/www/paheko
 
 ENV APACHE_DOCUMENT_ROOT=/var/www/paheko/www
+# Docroot = www/. The image's bundled www/.htaccess has no routing rule, so add
+# the front-controller fallback ourselves: any non-existent URL (e.g. the
+# module pages /m/<name>/…) is dispatched to www/_route.php. ErrorDocument
+# covers URLs ending in .php, which FallbackResource skips.
 RUN a2enmod rewrite \
  && sed -ri 's!/var/www/html!/var/www/paheko/www!g' /etc/apache2/sites-available/*.conf \
- && printf '<Directory /var/www/paheko/www/>\n\tAllowOverride All\n\tRequire all granted\n</Directory>\n' \
+ && printf '<Directory /var/www/paheko/www/>\n\tAllowOverride All\n\tRequire all granted\n\tFallbackResource /_route.php\n\tErrorDocument 404 /_route.php\n</Directory>\n' \
       > /etc/apache2/conf-available/paheko.conf \
  && a2enconf paheko

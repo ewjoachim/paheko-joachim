@@ -1,0 +1,87 @@
+name: Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: http://localhost:8095
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      # Same image as local dev (core + caisse from the official Paheko image).
+      # load: build into the local daemon (we run it in this job, no registry).
+      # gha layer cache reuses unchanged layers across runs. Safe here because
+      # this workflow only runs on PRs (no trusted/publishing context that a
+      # poisoned cache could reach — zizmor cache-poisoning).
+      - name: Build the Paheko image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          tags: paheko-joachim:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start a fresh instance
+        run: |
+          docker run -d --name paheko-ci \
+            -e WWW_URL="${BASE_URL}/" \
+            -p 8095:80 paheko-joachim:ci
+          # Wait for Apache + PHP to answer the install page.
+          for i in $(seq 1 30); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' "${BASE_URL}/admin/install.php")" = "200" ]; then
+              echo "up after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "instance did not come up"; docker logs paheko-ci; exit 1
+
+      - name: Install + enable caisse and the module
+        run: docker exec -i -u www-data paheko-ci php < doc-tools/bootstrap-instance.php
+
+      - name: Seed the demo fixture
+        run: |
+          SEED_OUT="$(docker exec -i -u www-data paheko-ci php < doc-tools/seed-demo.php)"
+          echo "$SEED_OUT"
+          # Expose the seeded ids/credentials to the test steps.
+          {
+            echo "ADMIN_EMAIL=$(printf '%s\n' "$SEED_OUT" | sed -n 's/^ADMIN_EMAIL=//p')"
+            echo "ADMIN_PASSWORD=$(printf '%s\n' "$SEED_OUT" | sed -n 's/^ADMIN_PASSWORD=//p')"
+            echo "CAMILLE_ID=$(printf '%s\n' "$SEED_OUT" | sed -n 's/^CAMILLE_ID=//p')"
+            echo "PAY_EDIT=$(printf '%s\n' "$SEED_OUT" | sed -n 's/^PAY_EDIT=//p')"
+          } >> "$GITHUB_ENV"
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          # No uv cache: the deps are tiny and zizmor flags it as a
+          # cache-poisoning surface. The Docker layer cache above is the one
+          # that actually saves time.
+          enable-cache: false
+
+      - name: Install Playwright browser
+        working-directory: tests
+        run: uv run playwright install --with-deps chromium
+
+      - name: Run the tests
+        working-directory: tests
+        run: uv run pytest
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs paheko-ci
