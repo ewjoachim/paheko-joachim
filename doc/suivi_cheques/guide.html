@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Suivi des chèques — guide d'utilisation</title>
+<style>
+	:root {
+		--accent: #1c7a86;
+		--accent-dark: #145b64;
+		--ink: #1a2226;
+		--muted: #5c6b72;
+		--line: #dce4e6;
+		--bg: #f6f8f9;
+		--warn-bg: #fff8e1;
+		--warn-line: #e0b400;
+		--ok-bg: #e6f4ea;
+		--ok-line: #2e8b57;
+	}
+	* { box-sizing: border-box; }
+	body {
+		margin: 0; color: var(--ink); background: var(--bg);
+		font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	}
+	.wrap { max-width: 900px; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+	header.top {
+		background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+		color: #fff; padding: 2.5rem 1.25rem;
+	}
+	header.top .wrap { padding: 0; max-width: 900px; margin: 0 auto; }
+	header.top h1 { margin: 0 0 .4rem; font-size: 2rem; }
+	header.top p { margin: 0; opacity: .92; font-size: 1.05rem; }
+	h2 {
+		margin: 2.75rem 0 1rem; padding-bottom: .35rem; font-size: 1.5rem;
+		border-bottom: 2px solid var(--accent); color: var(--accent-dark);
+	}
+	h3 { margin: 2rem 0 .5rem; font-size: 1.18rem; }
+	p, li { color: var(--ink); }
+	.muted { color: var(--muted); }
+	a { color: var(--accent-dark); }
+	figure {
+		margin: 1rem 0 1.5rem; border: 1px solid var(--line); border-radius: 8px;
+		overflow: hidden; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+	}
+	figure img { display: block; width: 100%; height: auto; }
+	figcaption { padding: .6rem .9rem; font-size: .9rem; color: var(--muted); border-top: 1px solid var(--line); background: #fbfcfc; }
+	.roles { width: 100%; border-collapse: collapse; margin: 1rem 0; background: #fff; }
+	.roles th, .roles td { border: 1px solid var(--line); padding: .7rem .9rem; text-align: left; vertical-align: top; }
+	.roles th { background: var(--accent); color: #fff; }
+	.roles caption { text-align: left; color: var(--muted); padding-bottom: .4rem; }
+	.tag { display: inline-block; padding: .05em .5em; border-radius: 4px; font-size: .82em; font-weight: 600; color: #fff; white-space: nowrap; }
+	.tag.enc { background: #d98324; }
+	.tag.lot { background: #2f6fb0; }
+	.tag.dep { background: #2e8b57; }
+	.tag.ann { background: #7a8891; }
+	.note, .warn {
+		border-radius: 8px; padding: .9rem 1.1rem; margin: 1.25rem 0; border: 1px solid;
+	}
+	.note { background: var(--ok-bg); border-color: var(--ok-line); }
+	.warn { background: var(--warn-bg); border-color: var(--warn-line); }
+	.note strong, .warn strong { color: var(--ink); }
+	ol.steps { padding-left: 1.2rem; }
+	ol.steps li { margin: .4rem 0; }
+	code { background: #eef2f3; padding: .1em .35em; border-radius: 4px; font-size: .9em; }
+	.lead { font-size: 1.08rem; }
+	hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+	footer { color: var(--muted); font-size: .9rem; margin-top: 3rem; }
+</style>
+</head>
+<body>
+<header class="top">
+	<div class="wrap">
+		<h1>Suivi des chèques</h1>
+		<p>Guide d'utilisation — recevoir, planifier, déposer et comptabiliser les chèques de la caisse.</p>
+	</div>
+</header>
+
+<div class="wrap">
+
+	<p class="lead">
+		Ce module suit chaque chèque encaissé <strong>en caisse</strong> : quand il sera déposé en banque,
+		s'il est annulé ou remplacé, et il prépare pour la comptabilité des écritures « prêtes à valider ».
+		Il s'adresse à deux personnes aux rôles bien distincts.
+	</p>
+
+	<h2>Les deux rôles</h2>
+	<table class="roles">
+		<thead>
+			<tr><th>Rôle</th><th>Qui</th><th>Ce qu'il/elle fait dans le module</th></tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td><strong>Accueil / caisse</strong></td>
+				<td>La personne qui tient la caisse et va à la banque</td>
+				<td>Suit les chèques du mois, planifie leur encaissement, gère les annulations et remplacements,
+					et prépare le bordereau de remise. <strong>Ne touche jamais à la comptabilité.</strong></td>
+			</tr>
+			<tr>
+				<td><strong>Comptabilité</strong></td>
+				<td>La personne qui tient la comptabilité</td>
+				<td>Passe, <strong>en un clic</strong>, les écritures préparées par le module
+					(annulations et dépôts). C'est la seule à écrire en comptabilité.</td>
+			</tr>
+		</tbody>
+	</table>
+	<div class="note">
+		<strong>Principe.</strong> Le module reflète en temps réel la réalité de la caisse. La comptabilité,
+		elle, peut être mise à jour plus tard : elle devient juste « à terme », sans jamais bloquer l'accueil.
+	</div>
+
+	<h2>Côté accueil</h2>
+
+	<h3>1. Les chèques du mois</h3>
+	<p>
+		La page d'accueil du module liste les chèques dont l'encaissement est prévu ce mois-ci. Chaque chèque
+		affiche son état :
+		<span class="tag enc">À encaisser</span>
+		<span class="tag lot">Dans un lot</span> (déjà sur un bordereau)
+		<span class="tag dep">Déposé</span>
+		<span class="tag ann">Annulé</span>.
+		On peut chercher un chèque par numéro ou par membre, et naviguer d'un mois à l'autre.
+	</p>
+	<figure>
+		<img src="screenshots/01-cheques-du-mois.png" alt="Liste des chèques du mois" />
+		<figcaption>Les chèques du mois, avec leur état et le bouton « Préparer le bordereau ».</figcaption>
+	</figure>
+
+	<h3>2. Les chèques à venir</h3>
+	<p>
+		Un adhérent paie souvent en plusieurs chèques (par exemple un par mois). La vue « à venir » les montre
+		tous, regroupés par mois d'encaissement prévu, avec un sous-total par mois.
+	</p>
+	<figure>
+		<img src="screenshots/02-a-venir.png" alt="Chèques à venir, groupés par mois" />
+		<figcaption>Tous les chèques planifiés, regroupés par mois.</figcaption>
+	</figure>
+	<p class="muted">
+		Le mois prévu est déduit automatiquement du moyen de paiement choisi en caisse (« Chèque janvier »,
+		« Chèque février »…). L'année est celle de l'exercice comptable en cours. On peut forcer un autre mois
+		au cas par cas (voir ci-dessous).
+	</p>
+
+	<h3>3. Annuler ou remplacer un chèque</h3>
+	<p>
+		Depuis un chèque, le bouton <em>Modifier / annuler</em> ouvre cette fiche. On peut :
+	</p>
+	<ol class="steps">
+		<li>changer le mois d'encaissement prévu ;</li>
+		<li>marquer le chèque comme <strong>non encaissé</strong> (annulé), avec un motif ;</li>
+		<li>saisir le(s) remplacement(s) reçus au comptoir : soit en <strong>CB / espèces</strong>,
+			soit par un <strong>autre chèque</strong> (qui devient alors un chèque suivi à part entière).</li>
+	</ol>
+	<figure>
+		<img src="screenshots/03-annuler-remplacer.png" alt="Fiche d'annulation / remplacement d'un chèque" />
+		<figcaption>Annulation d'un chèque et saisie des remplacements. Aucune écriture comptable n'est créée ici.</figcaption>
+	</figure>
+	<div class="note">
+		<strong>Rien n'est écrit en comptabilité à ce stade.</strong> L'accueil décrit simplement ce qui s'est
+		passé ; la comptabilité passera l'écriture plus tard, en un clic (voir « Côté comptabilité »).
+	</div>
+
+	<h3>4. Préparer le bordereau de remise</h3>
+	<p>
+		Avant d'aller à la banque, le bouton <em>Préparer le bordereau</em> propose les chèques déposables
+		(non annulés, pas déjà partis). On coche ceux que l'on emporte, puis on génère le bordereau.
+	</p>
+	<figure>
+		<img src="screenshots/04-preparer-bordereau.png" alt="Sélection des chèques à déposer" />
+		<figcaption>Sélection des chèques physiquement apportés à la banque.</figcaption>
+	</figure>
+	<p>
+		Le bordereau généré est <strong>figé</strong> : il liste exactement ce qui part à la banque, à une date
+		donnée. Il s'imprime pour être remis avec les chèques.
+	</p>
+	<figure>
+		<img src="screenshots/05-bordereau.png" alt="Bordereau de remise figé, imprimable" />
+		<figcaption>Le bordereau figé, imprimable. Les chèques inclus passent à l'état « Dans un lot ».</figcaption>
+	</figure>
+
+	<h2>Côté comptabilité</h2>
+
+	<h3>5. Chèques à comptabiliser</h3>
+	<p>
+		Cette page regroupe tout ce que l'accueil a préparé et qui attend une écriture comptable :
+	</p>
+	<ul>
+		<li><strong>Annulations</strong> — un clic crée l'écriture : le chèque sort du compte d'attente,
+			les remplacements (CB / espèces / autre chèque) sont enregistrés, et le reste éventuel devient une
+			<strong>créance du membre</strong> (le membre nous doit encore cette somme).</li>
+		<li><strong>Remises</strong> — un clic crée l'écriture de dépôt en banque à partir du bordereau figé.</li>
+	</ul>
+	<figure>
+		<img src="screenshots/06-a-comptabiliser.png" alt="File des chèques à comptabiliser" />
+		<figcaption>Annulations et remises en attente. Chaque bouton « Comptabiliser » crée une écriture équilibrée.</figcaption>
+	</figure>
+	<div class="note">
+		<strong>La comptabilité reste maîtresse.</strong> Chaque écriture créée reste modifiable normalement ;
+		un lien vers l'écriture est affiché. Si une écriture est supprimée, l'élément réapparaît simplement
+		dans la file, prêt à être re-passé.
+	</div>
+	<div class="warn">
+		<strong>La recette n'est jamais annulée.</strong> Un chèque impayé ne « défait » pas la recette
+		enregistrée : la part non recouvrée devient une créance du membre (compte 411 par défaut), que la
+		comptabilité solde ensuite (le membre repaie, ou passage en perte).
+	</div>
+
+	<h2>Sur la fiche d'un membre</h2>
+	<p>
+		Un encart « Chèques » apparaît sur la fiche de chaque adhérent concerné : il récapitule ses chèques et
+		leur état. En lecture seule — pour agir, un lien renvoie vers le module.
+	</p>
+	<figure>
+		<img src="screenshots/07-fiche-membre.png" alt="Encart chèques sur la fiche membre" />
+		<figcaption>Récapitulatif des chèques d'un membre, directement sur sa fiche.</figcaption>
+	</figure>
+
+	<h2>Configuration (administrateur)</h2>
+	<p>
+		Réservée à l'administrateur, la configuration relie chaque moyen de paiement « chèque » de la caisse à
+		un mois d'encaissement, et fixe les comptes comptables utilisés :
+	</p>
+	<ul>
+		<li><strong>compte d'attente</strong> des chèques (5112 par défaut) ;</li>
+		<li><strong>compte de créance</strong> des membres (411 par défaut) ;</li>
+		<li><strong>compte bancaire</strong> des remises (512 par défaut).</li>
+	</ul>
+	<figure>
+		<img src="screenshots/08-configuration.png" alt="Page de configuration du module" />
+		<figcaption>Configuration : comptes comptables et correspondance moyen de paiement → mois.</figcaption>
+	</figure>
+
+	<hr />
+	<footer>
+		<p>Module <strong>Suivi des chèques</strong> pour Paheko. Ce guide décrit l'usage courant.
+		Un chèque <strong>rejeté par la banque après son dépôt</strong> (impayé) se règle directement en
+		comptabilité : une fois déposé, un chèque n'est plus modifiable dans le module.</p>
+	</footer>
+
+</div>
+</body>
+</html>

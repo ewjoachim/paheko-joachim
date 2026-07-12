@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#
+# Regenerates all the guide screenshots (doc/suivi_cheques/screenshots/*.png).
+#
+# Principle: we DO NOT touch the working data. The working database is backed
+# up, a deterministic demo fixture is seeded in its place, screenshots are
+# taken, then the working database is restored (even on error, via `trap`).
+#
+# Requirements:
+#   - the Paheko test instance is running (podman, see paheko-test/), served on $BASE_URL
+#   - node + the playwright module installed in this folder (`npm install`)
+#
+# Usage:
+#   cd doc-tools && ./regen-screenshots.sh
+#
+# Optional variables: CONTAINER (default paheko-test), BASE_URL (default http://localhost:8080)
+
+set -euo pipefail
+cd "$(dirname "$0")"
+
+CONTAINER="${CONTAINER:-paheko-test}"
+export BASE_URL="${BASE_URL:-http://localhost:8080}"
+
+DB=/var/www/paheko/data/association.sqlite
+BK=/var/www/paheko/data/association.regen-backup.sqlite
+CACHE=/var/www/paheko/data/cache
+
+echo "==> Backing up the working database"
+podman exec "$CONTAINER" cp "$DB" "$BK"
+
+restore() {
+	echo "==> Restoring the working database"
+	podman exec "$CONTAINER" sh -c "cp '$BK' '$DB' && rm -f '$BK' && rm -rf '$CACHE'/* 2>/dev/null || true"
+}
+trap restore EXIT
+
+echo "==> Installing the playwright module if needed"
+[ -d node_modules/playwright ] || npm install --no-audit --no-fund >/dev/null
+
+echo "==> Seeding the demo fixture"
+SEED_OUT="$(podman exec -i "$CONTAINER" php < seed-demo.php)"
+echo "$SEED_OUT" | tail -1
+podman exec "$CONTAINER" sh -c "rm -rf '$CACHE'/* 2>/dev/null || true"
+
+# Pick up the credentials / ids produced by the seed
+export ADMIN_EMAIL="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^ADMIN_EMAIL=//p')"
+export ADMIN_PASSWORD="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^ADMIN_PASSWORD=//p')"
+export CAMILLE_ID="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^CAMILLE_ID=//p')"
+export PAY_EDIT="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^PAY_EDIT=//p')"
+
+echo "==> Screenshots (Playwright)"
+node screenshots.mjs
+
+echo "==> Done. Screenshots in doc/suivi_cheques/screenshots/"
