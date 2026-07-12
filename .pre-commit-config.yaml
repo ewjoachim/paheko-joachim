@@ -1,9 +1,9 @@
-# Hook versions (rev) are kept up to date by Renovate (:enablePreCommit).
-# No Brindille linter exists, so templates aren't linted here — this focuses on
-# the CI workflows and shell scripts around them.
+# prek config. Uses `repo: builtin` for the hygiene checks (native, no clone,
+# no Python env) — this makes the file prek-only, not the standard pre-commit
+# tool. External-tool hooks keep their repos; Renovate (:enablePreCommit) bumps
+# their rev. No Brindille linter exists, so templates aren't linted here.
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+  - repo: builtin
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -11,6 +11,9 @@ repos:
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-json
+      # check-json rejects comments / trailing commas; validate .json5
+      # (.github/renovate.json5) with the JSON5-aware parser instead.
+      - id: check-json5
 
   # Lint GitHub Actions workflows (syntax, expressions, matrix, run: shell).
   - repo: https://github.com/rhysd/actionlint
