@@ -82,15 +82,17 @@
 		<fieldset>
 			<legend>Moyens de paiement « chèque » et mois d'encaissement</legend>
 			<p class="help">
-				Pour chaque moyen de paiement de la caisse correspondant à un chèque, indiquez le mois d'encaissement associé.
-				L'année est déterminée par l'exercice comptable courant. Les autres moyens (espèces, CB…) sont laissés sur « — ».
+				Seuls les moyens de paiement de type « Suivi » de la caisse sont listés (les
+				chèques). Pour chacun, indiquez le mois d'encaissement associé, ou laissez « — »
+				s'il n'est pas encaissé en différé. L'année est déterminée par l'exercice comptable courant.
 			</p>
 			<table class="list">
 				<thead>
 					<tr><th>Moyen de paiement (caisse)</th><th>Mois d'encaissement</th></tr>
 				</thead>
 				<tbody>
-					{{#select id, name FROM plugin_pos_methods WHERE enabled = 1 ORDER BY name}}
+					{{* type = 0 = Method::TYPE_TRACKED (« Suivi ») : on ignore espèces/ardoise/porte-monnaie. *}}
+					{{#select id, name FROM plugin_pos_methods WHERE enabled = 1 AND type = 0 ORDER BY name}}
 						{{:assign cur=0}}
 						{{#load type="method_month_map" where="$$.method_id = :mid" :mid=$id limit=1}}{{:assign cur=$month}}{{/load}}
 						<tr>
@@ -105,7 +107,7 @@
 							</td>
 						</tr>
 					{{else}}
-						<tr><td colspan="2">Aucun moyen de paiement actif dans la caisse.</td></tr>
+						<tr><td colspan="2">Aucun moyen de paiement de type « Suivi » actif dans la caisse.</td></tr>
 					{{/select}}
 				</tbody>
 			</table>
