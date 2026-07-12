@@ -1,0 +1,22 @@
+services:
+  paheko:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      additional_contexts:
+        paheko_src: /Users/joachim/code/paheko-fossil/src
+    image: paheko-joachim:local
+    container_name: paheko-test
+    ports:
+      - "8080:80"
+    volumes:
+      # Persistent data (SQLite DB) — named volume, seeded from the image
+      - paheko_data:/var/www/paheko/data
+      # Your local env mounted live (direct editing, no rebuild)
+      - /Users/joachim/code/paheko-modules:/var/www/paheko/modules
+      - /Users/joachim/code/paheko-plugins:/var/www/paheko/data/plugins
+      # Editable config, lives in paheko-joachim
+      - ./config.local.php:/var/www/paheko/config.local.php
+
+volumes:
+  paheko_data:
