@@ -77,13 +77,12 @@
 	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
 {{/extension}}
 
-{{* Doc link in the footer — URL comes from module.ini (doc_url), read via the
-    extension section so it isn't duplicated. External host -> new tab. *}}
+{{* Doc link in the footer — discreet help text, not a button, so it stays
+    subordinate to the page's main action. URL comes from module.ini (doc_url),
+    read via the extension section so it isn't duplicated. External -> new tab. *}}
 {{#extension name="suivi_cheques"}}
 	{{if $doc_url}}
-	<p class="actions-center">
-		{{:linkbutton label="Documentation" href=$doc_url shape="help" target="_blank"}}
-	</p>
+	<p class="help">{{:link label="Consulter la documentation" href=$doc_url target="_blank"}}</p>
 	{{/if}}
 {{/extension}}
 
