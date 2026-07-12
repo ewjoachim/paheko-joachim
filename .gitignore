@@ -2,7 +2,7 @@
 *-paheko-cloud.zip
 _pkg/
 
-# Python test tooling (tests/)
+# Python tooling (pyproject.toml at the repo root: tests + screenshots)
 .venv/
 __pycache__/
 .pytest_cache/

@@ -35,7 +35,7 @@ restore() {
 trap restore EXIT
 
 echo "==> Installing the Playwright browser if needed"
-uv run --with playwright playwright install chromium >/dev/null
+uv run playwright install chromium >/dev/null
 
 echo "==> Seeding the demo fixture"
 SEED_OUT="$(podman exec -i "$CONTAINER" php < seed-demo.php)"
@@ -52,6 +52,6 @@ PAY_EDIT="$(printf '%s\n' "$SEED_OUT" | sed -n 's/^PAY_EDIT=//p')"
 export ADMIN_EMAIL ADMIN_PASSWORD CAMILLE_ID PAY_EDIT
 
 echo "==> Screenshots (Playwright)"
-uv run --with playwright python screenshots.py
+uv run python screenshots.py
 
 echo "==> Done. Screenshots in doc/suivi_cheques/screenshots/"

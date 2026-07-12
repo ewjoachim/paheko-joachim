@@ -1,0 +1,23 @@
+[project]
+name = "paheko-joachim"
+version = "0"
+description = "Python tooling for this repo: the E2E test suite and the guide screenshots"
+requires-python = ">=3.11"
+dependencies = [
+    "pytest>=8",
+    "pytest-playwright>=0.5",
+    # Used directly by doc-tools/screenshots.py (also a pytest-playwright dep).
+    "playwright>=1.40",
+]
+
+# Tooling only — not an installable package, and never shipped in the module zip
+# (build.sh packages modules/ only). Run from the repo root:
+#   uv run playwright install chromium
+#   uv run pytest
+#   uv run python doc-tools/screenshots.py
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
