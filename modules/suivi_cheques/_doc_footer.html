@@ -1,0 +1,12 @@
+{{* -*- brindille -*- *}}
+
+{{* Discreet footer doc link, shared by every full page. Rendered as plain help
+    text (not a button) so it stays subordinate to each page's main action. The
+    URL comes from module.ini (doc_url), read via the extension section so it is
+    defined in a single place. External host -> open in a new tab. Chrome, not
+    content: no-print keeps it off printouts (e.g. the deposit slip). *}}
+{{#extension name="suivi_cheques"}}
+	{{if $doc_url}}
+	<p class="help no-print">{{:link label="Consulter la documentation" href=$doc_url target="_blank"}}</p>
+	{{/if}}
+{{/extension}}
