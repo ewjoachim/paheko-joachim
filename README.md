@@ -1,14 +1,13 @@
 # paheko-joachim
 
-Tooling and documentation around my [Paheko](https://paheko.cloud/) work (modules,
-mostly for a music school). The module code lives in the sibling `paheko-modules/`
-repository; this repo gathers the **test environment**, the **packaging** and the
-**documentation**.
+My [Paheko](https://paheko.cloud/) module(s) for a music school, together with the
+**test environment**, the **packaging** and the **documentation** to build and ship them.
 
 ## Contents
 
 | Folder | Role |
 |---|---|
+| [`suivi_cheques/`](suivi_cheques/) | The cheque-tracking module (Brindille templates + JSON schemas). Uploaded to Paheko Cloud as a module. |
 | [`paheko-test/`](paheko-test/) | Docker/podman stack for a local Paheko instance (arm64), to develop and test modules/plugins outside of Cloud. |
 | [`build.sh`](build.sh) | Assembles a module's `.zip` archive in the format expected by Paheko Cloud (upload via the Modules admin). |
 | [`doc/`](doc/) | Documentation site published on GitHub Pages: one folder per module (e.g. `doc/suivi_cheques/`). |
@@ -22,8 +21,9 @@ cd paheko-test
 ```
 
 Served on http://localhost:8080/. The Paheko core is mounted from a local checkout;
-`paheko-modules/` and `paheko-plugins/` are bind-mounted live (hot editing). Details and
-gotchas are in the comments of `docker-compose.yml` / `run.sh`.
+`suivi_cheques/` (this repo), the sibling `paheko-modules/` clone and `paheko-plugins/`
+are bind-mounted live (hot editing). Details and gotchas are in the comments of
+`docker-compose.yml` / `run.sh`.
 
 ## Packaging a module for Paheko Cloud
 

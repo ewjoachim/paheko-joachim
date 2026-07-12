@@ -13,7 +13,10 @@ services:
       # Persistent data (SQLite DB) — named volume, seeded from the image
       - paheko_data:/var/www/paheko/data
       # Your local env mounted live (direct editing, no rebuild)
+      # paheko-modules = shared community modules clone (reference)
       - /Users/joachim/code/paheko-modules:/var/www/paheko/modules
+      # suivi_cheques lives in THIS repo -> overlay it on top of the clone
+      - /Users/joachim/code/paheko-joachim/suivi_cheques:/var/www/paheko/modules/suivi_cheques
       - /Users/joachim/code/paheko-plugins:/var/www/paheko/data/plugins
       # Editable config, lives in paheko-joachim
       - ./config.local.php:/var/www/paheko/config.local.php

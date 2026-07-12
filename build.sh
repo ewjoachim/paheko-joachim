@@ -10,7 +10,8 @@ set -euo pipefail
 
 MODULE="${1:-suivi_cheques}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC="$SCRIPT_DIR/../paheko-modules/$MODULE"
+# Modules live in this repo (e.g. ./suivi_cheques/).
+SRC="$SCRIPT_DIR/$MODULE"
 BUILD_DIR="$SCRIPT_DIR/_pkg"
 OUTPUT_ZIP="$SCRIPT_DIR/${MODULE}-paheko-cloud.zip"
 
