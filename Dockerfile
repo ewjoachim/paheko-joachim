@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Self-contained Paheko runtime image (core + bundled plugins + this repo's
 # modules and test config). Built on the multi-arch php:8.5-apache base — the
 # official Paheko image is amd64-only and SIGSEGVs under QEMU on arm64.
@@ -10,12 +11,18 @@
 # image runs natively on both arches. No make deps / fossil.kd2.org / ADD-git.
 FROM php:8.5-apache@sha256:ede24dfd13fe79fb8ea0d0bac0ac45827a9a540d2a16e45c047f9afaf69c3eaf
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# apt cache mounts speed up local rebuilds (podman keeps the .deb + lists cache
+# between builds). No CI effect — GitHub's ephemeral runners don't persist mount
+# caches; there the layer cache does the work. Dropping docker-clean keeps the
+# downloaded .debs in the cache mount (not in the image layer).
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+ && apt-get update && apt-get install -y --no-install-recommends \
       libicu-dev zlib1g-dev libpng-dev libzip-dev libfreetype6-dev libjpeg62-turbo-dev libwebp-dev \
  && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
  && docker-php-ext-install -j"$(nproc)" gd intl zip calendar \
- && docker-php-ext-enable sodium \
- && rm -rf /var/lib/apt/lists/*
+ && docker-php-ext-enable sodium
 
 # Paheko core, KD2, www/.htaccess and the bundled plugins (incl. caisse).
 COPY --from=docker.io/paheko/paheko:1.3.21@sha256:e9011f923a40161fd4748c90bf597a4a9c2d5562e5dabe4de566b12846311dae /var/www/paheko /var/www/paheko

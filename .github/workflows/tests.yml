@@ -2,6 +2,12 @@ name: Tests
 
 on:
   pull_request:
+  # Also run post-merge on main: it validates the merge result and, crucially,
+  # warms the gha caches (docker layers + Playwright browser) on the default
+  # branch — GitHub only lets PRs restore caches from their branch or main, so
+  # without this every PR builds cold.
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -27,10 +33,9 @@ jobs:
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       # Same image as local dev (core + caisse from the official Paheko image).
-      # load: build into the local daemon (we run it in this job, no registry).
-      # gha layer cache reuses unchanged layers across runs. Safe here because
-      # this workflow only runs on PRs (no trusted/publishing context that a
-      # poisoned cache could reach — zizmor cache-poisoning).
+      # load: build into the local daemon (we run it in this job, no registry —
+      # the image is never pushed or published). gha layer cache reuses unchanged
+      # layers across runs; the push-to-main run warms it for PRs to restore.
       - name: Build the Paheko image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
@@ -75,6 +80,12 @@ jobs:
           # cache-poisoning surface. The Docker layer cache above is the one
           # that actually saves time.
           enable-cache: false
+
+      - name: Cache the Playwright browser
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('uv.lock') }}
 
       - name: Install Playwright browser
         run: uv run playwright install --with-deps chromium
