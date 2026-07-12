@@ -4,7 +4,8 @@
 	Aucune lecture de la comptabilité pour déterminer l'état (CONCEPTION §2, §9.1).
 
 	Paramètres attendus :
-	  $mode                'month' (= :month), 'upcoming' (>= :month) ou 'all' (tous)
+	  $mode                'month' (= :month), 'upcoming' (>= :month),
+	                       'exercise' (bornes de l'exercice courant) ou 'all' (tous)
 	  $month               mois de référence, format YYYY-MM (ignoré si mode='all')
 	  $q_like              terme de recherche BRUT sur le n° de chèque, ou null
 	                       (l'échappement LIKE % _ se fait dans la clause WHERE)
@@ -19,15 +20,19 @@
     contenant aujourd'hui, sinon le plus récent ouvert. *}}
 {{:assign ex_start_year=null}}
 {{:assign ex_start_month=null}}
+{{:assign ex_start_ym=null}}
+{{:assign ex_end_ym=null}}
 {{#select
 	CAST(strftime('%Y', start_date) AS INT) AS sy,
-	CAST(strftime('%m', start_date) AS INT) AS sm
+	CAST(strftime('%m', start_date) AS INT) AS sm,
+	strftime('%Y-%m', start_date) AS sym,
+	strftime('%Y-%m', end_date) AS eym
 	FROM acc_years
 	WHERE status = 0
 	ORDER BY (date('now') BETWEEN start_date AND end_date) DESC, start_date DESC
 	LIMIT 1
 }}
-	{{:assign ex_start_year=$sy ex_start_month=$sm}}
+	{{:assign ex_start_year=$sy ex_start_month=$sm ex_start_ym=$sym ex_end_ym=$eym}}
 {{/select}}
 
 {{:assign _n=0}}
@@ -119,6 +124,7 @@
 			WHERE (
 					(:mode = 'month' AND planned_month = :month)
 					OR (:mode = 'upcoming' AND planned_month >= :month)
+					OR (:mode = 'exercise' AND planned_month BETWEEN :ex_start_ym AND :ex_end_ym)
 					OR (:mode = 'all')
 				)
 				AND (:q IS NULL OR cheque_number LIKE '%' || REPLACE(REPLACE(REPLACE(:q, '~', '~~'), '%', '~%'), '_', '~_') || '%' ESCAPE '~')
@@ -130,6 +136,8 @@
 			:user_id=$user_id
 			:ex_start_year=$ex_start_year
 			:ex_start_month=$ex_start_month
+			:ex_start_ym=$ex_start_ym
+			:ex_end_ym=$ex_end_ym
 		}}
 			{{* Rupture de mois : sous-total du groupe précédent + en-tête du nouveau mois *}}
 			{{if $show_month_col && $planned_month !== $cur_group}}
