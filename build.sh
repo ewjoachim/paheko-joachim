@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build a module archive for Paheko Cloud (uploaded via the admin).
+# Build a Paheko module archive (uploaded via the admin).
 #
 # Format expected by Paheko (UserTemplate\Modules::import): the zip contains
 #   modules/<name>/module.ini + every module file (subdirectories included).
@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Modules live in this repo under modules/ (e.g. ./modules/suivi_cheques/).
 SRC="$SCRIPT_DIR/modules/$MODULE"
 BUILD_DIR="$SCRIPT_DIR/_pkg"
-OUTPUT_ZIP="$SCRIPT_DIR/${MODULE}-paheko-cloud.zip"
+OUTPUT_ZIP="$SCRIPT_DIR/${MODULE}.zip"
 
 if [ ! -f "$SRC/module.ini" ]; then
 	echo "❌ Module not found or missing module.ini: $SRC" >&2

@@ -1,7 +1,7 @@
 name: Package modules
 
 # Packages every module under modules/ (one artifact each) via build.sh.
-# It's not a real build — just the Paheko Cloud .zip layout (modules/<name>/…).
+# It's not a real build — just the Paheko module .zip layout (modules/<name>/…).
 
 on:
   push:
@@ -52,7 +52,7 @@ jobs:
       # exactly the layout Paheko's module import expects (no zip-inside-a-zip).
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ matrix.module }}-paheko-cloud
+          name: ${{ matrix.module }}
           path: _pkg
           if-no-files-found: error
       # On a release, also attach the real .zip (build.sh's own archive, uploaded
@@ -64,4 +64,4 @@ jobs:
         run: |
           ./build.sh "${{ matrix.module }}"
           gh release upload "${{ github.event.release.tag_name }}" \
-            "${{ matrix.module }}-paheko-cloud.zip" --clobber
+            "${{ matrix.module }}.zip" --clobber
