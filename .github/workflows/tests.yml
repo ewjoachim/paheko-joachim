@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BASE_URL: http://localhost:8095
+      # The tests exec php in the running container (reseed, read back entries).
+      CONTAINER_EXEC: docker exec -i -u www-data paheko-ci
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
