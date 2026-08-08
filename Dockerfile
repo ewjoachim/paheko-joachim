@@ -9,7 +9,7 @@
 # www/.htaccess already generated, caisse and the other plugins already bundled),
 # so copying from the amd64 image onto the arm64 base is clean — and the final
 # image runs natively on both arches. No make deps / fossil.kd2.org / ADD-git.
-FROM php:8.5-apache@sha256:52c2e3ecd37f52936a46109720adbda74f12788580906fa8b3eaf07ba360dfbe
+FROM php:8.5-apache@sha256:0b69594dd09a95f41b262a4fc03acc03da5b1ceda01dd33876f5226e90e19750
 
 # apt cache mounts speed up local rebuilds (podman keeps the .deb + lists cache
 # between builds). No CI effect — GitHub's ephemeral runners don't persist mount
