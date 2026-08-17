@@ -1,0 +1,47 @@
+{{* -*- brindille -*- *}}
+
+{{* Accounting entry for a deposit slip (CONCEPTION §6.3): one bank debit for the
+    total + n credits of the waiting account (one per cheque, reference = number),
+    all built from the FROZEN batch. Extracted from to_record.html so it can be
+    reused. Include it INSIDE a {{#form}}.
+
+    Parameters:
+      $ref    batch reference (key "batch-<ref>").
+
+    As in _record_cancellation.html, AUTHORISATION is the caller's responsibility:
+    {{:api access="write"}} does not look at the user's permissions. *}}
+
+{{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
+{{:assign bank_account=$module.config.bank_account|or:"512"}}
+{{:assign rec_today=null}}
+{{#select date('now', 'localtime') AS d}}{{:assign rec_today=$d}}{{/select}}
+
+{{:assign b_total=0 b_lines=null b_account=null b_done=null}}
+{{#load type="deposit_batch" key="batch-%s"|args:$ref}}
+	{{:assign b_total=$total b_lines=$lines b_account=$account b_done=$deposit_txn_id}}
+{{/load}}
+
+{{* Already recorded = we stored an id AND that entry still exists (§8). *}}
+{{if $b_done}}{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$b_done}}{{:error message="Ce dépôt est déjà comptabilisé."}}{{/select}}{{/if}}
+{{if !$b_total}}{{:error message="Bordereau introuvable ou vide."}}{{/if}}
+
+{{:assign lines=null}}
+{{:assign var="lines[0][account]" value=$bank_account}}
+{{:assign var="lines[0][debit]" value=$b_total|money}}
+{{:assign var="lines[0][label]" value="Remise de chèques n°%s"|args:$ref}}
+{{:assign li=1}}
+{{#foreach from=$b_lines item="l"}}
+	{{:assign var="lines[%d][account]"|args:$li value=$b_account|or:$waiting_account}}
+	{{:assign var="lines[%d][credit]"|args:$li value=$l.amount|money}}
+	{{:assign var="lines[%d][reference]"|args:$li value=$l.cheque_ref}}
+	{{:assign var="lines[%d][label]"|args:$li value="Chèque n°%s"|args:$l.cheque_ref}}
+	{{:assign li="%d+1"|math:$li}}
+{{/foreach}}
+
+{{:assign created=null}}
+{{:api method="POST" path="accounting/transaction" access="write"
+	id_year="current" type="advanced" date=$rec_today
+	label="Remise de chèques n°%s"|args:$ref
+	reference="DEPOT-%s"|args:$ref
+	lines=$lines assign="created"}}
+{{if $created}}{{:save type="deposit_batch" key="batch-%s"|args:$ref deposit_txn_id=$created.id}}{{/if}}

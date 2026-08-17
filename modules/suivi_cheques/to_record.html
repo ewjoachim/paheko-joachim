@@ -10,16 +10,11 @@
     JAMAIS un libellé/une référence — uniquement l'existence de NOTRE id. *}}
 {{#restrict block=true section="accounting" level="read"}}{{/restrict}}
 
-{{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
-{{:assign receivable_account=$module.config.receivable_account|or:"411"}}
-{{:assign bank_account=$module.config.bank_account|or:"512"}}
-{{:assign today=null}}
-{{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
-
 {{*=================================================================================
     POST — comptabiliser un élément via :api (gardé comptabilité = écriture).
     L'appel :api s'exécute au niveau « write » indépendamment de l'utilisateur : le
     {{#restrict accounting write}} est LA garantie que seule la comptable l'exécute.
+    Entry building lives in _record_cancellation.html / _record_deposit.html.
 ==================================================================================*}}
 {{#form on="record"}}
 {{#restrict section="accounting" level="write"}}
@@ -27,124 +22,10 @@
 	{{:assign rid=$_POST.rec_id|trim}}
 
 	{{if $kind === 'deposit'}}
-		{{* ---- Écriture de dépôt (§6.3) : 1 débit banque + n crédits attente ---- *}}
-		{{:assign b_total=0 b_lines=null b_account=null b_done=null}}
-		{{#load type="deposit_batch" key="batch-%s"|args:$rid}}
-			{{:assign b_total=$total b_lines=$lines b_account=$account b_done=$deposit_txn_id}}
-		{{/load}}
-		{{if $b_done}}{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$b_done}}{{:error message="Ce dépôt est déjà comptabilisé."}}{{/select}}{{/if}}
-		{{if !$b_total}}{{:error message="Bordereau introuvable ou vide."}}{{/if}}
-
-		{{:assign lines=null}}
-		{{:assign var="lines[0][account]" value=$bank_account}}
-		{{:assign var="lines[0][debit]" value=$b_total|money}}
-		{{:assign var="lines[0][label]" value="Remise de chèques n°%s"|args:$rid}}
-		{{:assign li=1}}
-		{{#foreach from=$b_lines item="l"}}
-			{{:assign var="lines[%d][account]"|args:$li value=$b_account|or:$waiting_account}}
-			{{:assign var="lines[%d][credit]"|args:$li value=$l.amount|money}}
-			{{:assign var="lines[%d][reference]"|args:$li value=$l.cheque_ref}}
-			{{:assign var="lines[%d][label]"|args:$li value="Chèque n°%s"|args:$l.cheque_ref}}
-			{{:assign li="%d+1"|math:$li}}
-		{{/foreach}}
-
-		{{:assign created=null}}
-		{{:api method="POST" path="accounting/transaction" access="write"
-			id_year="current" type="advanced" date=$today
-			label="Remise de chèques n°%s"|args:$rid
-			reference="DEPOT-%s"|args:$rid
-			lines=$lines assign="created"}}
-		{{if $created}}{{:save type="deposit_batch" key="batch-%s"|args:$rid deposit_txn_id=$created.id}}{{/if}}
+		{{:include file="./_record_deposit.html" ref=$rid}}
 		{{:redirect to="to_record.html?done=1"}}
-
 	{{else}}
-		{{* ---- Écriture d'annulation (§6.2) : crédit attente + remplacements + créance ---- *}}
-		{{:assign amount=0 cheque_number=null reason=null replacements=null uid=null already=null}}
-		{{:assign parent_key=null store_key=null store_type=null}}
-
-		{{if $kind === 'annul_pay'}}
-			{{:assign pid=$rid|intval}}
-			{{#select p.reference AS r, p.amount AS a, t.user_id AS u
-				FROM plugin_pos_tabs_payments p INNER JOIN plugin_pos_tabs t ON t.id = p.tab
-				WHERE p.id = :pid LIMIT 1; :pid=$pid}}
-				{{:assign cheque_number=$r amount=$a uid=$u}}
-			{{/select}}
-			{{#load type="cheque" key="pay-%d"|args:$pid}}
-				{{:assign reason=$reason replacements=$replacements already=$annulation_txn_id}}
-			{{/load}}
-			{{:assign parent_key="pay-%d"|args:$pid store_key="pay-%d"|args:$pid store_type="cheque"}}
-		{{elseif $kind === 'annul_rempl'}}
-			{{#load type="cheque_rempl" key=$rid}}
-				{{:assign amount=$amount cheque_number=$cheque_number reason=$reason replacements=$replacements already=$annulation_txn_id uid=$member_id}}
-			{{/load}}
-			{{:assign parent_key=$rid store_key=$rid store_type="cheque_rempl"}}
-		{{else}}
-			{{:error message="Type d'élément inconnu."}}
-		{{/if}}
-
-		{{if $already}}{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$already}}{{:error message="Cette annulation est déjà comptabilisée."}}{{/select}}{{/if}}
-		{{if !$amount}}{{:error message="Chèque introuvable ou montant nul."}}{{/if}}
-
-		{{* crédit du compte d'attente : le chèque quitte l'attente *}}
-		{{:assign lines=null}}
-		{{:assign var="lines[0][account]" value=$waiting_account}}
-		{{:assign var="lines[0][credit]" value=$amount|money}}
-		{{:assign var="lines[0][reference]" value=$cheque_number}}
-		{{:assign var="lines[0][label]" value="Chèque annulé n°%s"|args:$cheque_number}}
-		{{:assign li=1}}
-		{{:assign covered=0}}
-
-		{{* remplacements non-chèque : débit de leur compte *}}
-		{{#foreach from=$replacements item="rep"}}
-			{{if $rep.amount > 0 && $rep.account}}
-				{{:assign var="lines[%d][account]"|args:$li value=$rep.account}}
-				{{:assign var="lines[%d][debit]"|args:$li value=$rep.amount|money}}
-				{{:assign var="lines[%d][label]"|args:$li value="Remplacement chèque n°%s"|args:$cheque_number}}
-				{{:assign covered="%d+%d"|math:$covered:$rep.amount}}
-				{{:assign li="%d+1"|math:$li}}
-			{{/if}}
-		{{/foreach}}
-
-		{{* remplacements PAR chèque (enfants directs : chèque de caisse OU de remplacement) :
-		    débit attente, réf = n° du nouveau chèque. Récursion « par niveau » — on ne
-		    regarde qu'un cran en dessous (CHAINES-REMPLACEMENT §1). *}}
-		{{if $parent_key}}
-			{{#select json_extract(document, '$.cheque_number') AS n, CAST(json_extract(document, '$.amount') AS INT) AS a
-				FROM module_data_suivi_cheques
-				WHERE json_extract(document, '$.type') = 'cheque_rempl'
-					AND json_extract(document, '$.parent_key') = :pk
-					AND COALESCE(CAST(json_extract(document, '$.cancelled') AS INT), 0) = 0
-				ORDER BY n; :pk=$parent_key}}
-				{{:assign var="lines[%d][account]"|args:$li value=$waiting_account}}
-				{{:assign var="lines[%d][debit]"|args:$li value=$a|money}}
-				{{:assign var="lines[%d][reference]"|args:$li value=$n}}
-				{{:assign var="lines[%d][label]"|args:$li value="Chèque de remplacement n°%s"|args:$n}}
-				{{:assign covered="%d+%d"|math:$covered:$a}}
-				{{:assign li="%d+1"|math:$li}}
-			{{/select}}
-		{{/if}}
-
-		{{if $covered > $amount}}{{:error message="Les remplacements dépassent le montant du chèque annulé."}}{{/if}}
-
-		{{* reliquat non couvert -> créance du membre (411) *}}
-		{{:assign remainder="%d-%d"|math:$amount:$covered}}
-		{{if $remainder > 0}}
-			{{:assign var="lines[%d][account]"|args:$li value=$receivable_account}}
-			{{:assign var="lines[%d][debit]"|args:$li value=$remainder|money}}
-			{{:assign var="lines[%d][label]"|args:$li value="Créance — chèque annulé n°%s"|args:$cheque_number}}
-			{{:assign li="%d+1"|math:$li}}
-		{{/if}}
-
-		{{:assign users=null}}
-		{{if $uid}}{{:assign var="users[0]" value=$uid|intval}}{{/if}}
-
-		{{:assign created=null}}
-		{{:api method="POST" path="accounting/transaction" access="write"
-			id_year="current" type="advanced" date=$today
-			label="Annulation chèque n°%s"|args:$cheque_number
-			reference="ANNUL-%s"|args:$rid
-			lines=$lines linked_users=$users assign="created"}}
-		{{if $created}}{{:save type=$store_type key=$store_key annulation_txn_id=$created.id}}{{/if}}
+		{{:include file="./_record_cancellation.html" kind=$kind rid=$rid}}
 		{{:redirect to="to_record.html?done=1"}}
 	{{/if}}
 
