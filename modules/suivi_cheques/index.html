@@ -6,6 +6,15 @@
 
 {{if $_GET.batch_cancelled}}<p class="block confirm">Bordereau annulé : les chèques concernés sont repassés « à encaisser ».</p>{{/if}}
 
+{{* Feedback from the automatic mode (immediate posting, see configuration) *}}
+{{if $_GET.recorded}}<p class="block confirm">Enregistré, et l'écriture comptable a été créée.</p>{{/if}}
+{{if $_GET.not_recorded}}
+	<p class="block alert">
+		Enregistré, mais l'écriture comptable n'a pas pu être créée : elle reste à passer depuis
+		{{:link href="to_record.html" label="« Chèques à comptabiliser »"}}.
+	</p>
+{{/if}}
+
 {{#extension name="caisse"}}
 
 	{{:include file="./_tabs.html" tab="month"}}

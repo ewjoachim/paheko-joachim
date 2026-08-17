@@ -14,7 +14,8 @@
     POST — comptabiliser un élément via :api (gardé comptabilité = écriture).
     L'appel :api s'exécute au niveau « write » indépendamment de l'utilisateur : le
     {{#restrict accounting write}} est LA garantie que seule la comptable l'exécute.
-    Entry building lives in _record_cancellation.html / _record_deposit.html.
+    Entry building lives in _record_cancellation.html / _record_deposit.html,
+    shared with the automatic mode (see the module configuration).
 ==================================================================================*}}
 {{#form on="record"}}
 {{#restrict section="accounting" level="write"}}
@@ -51,6 +52,12 @@
 		Un clic crée l'écriture <strong>équilibrée</strong> correspondante. Elle reste
 		modifiable côté comptabilité (un lien vers l'écriture est affiché après création).
 	</p>
+	{{if $module.config.auto_record_cancellations || $module.config.auto_record_deposits}}
+		<p class="help">
+			La comptabilisation automatique est activée : cette file ne contient plus que ce qui
+			n'a pas pu être passé automatiquement (ou dont l'écriture a été supprimée depuis).
+		</p>
+	{{/if}}
 
 	<h2 class="ruler">Annulations à comptabiliser</h2>
 	<table class="list">

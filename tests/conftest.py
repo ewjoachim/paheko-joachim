@@ -108,6 +108,30 @@ echo json_encode([
 """
 
 
+# Patch the module configuration in place, merging into the existing JSON exactly
+# like {{:save key="config"}} does.
+_CONFIG_PHP = """<?php
+namespace Paheko;
+require '/var/www/paheko/include/init.php';
+$db = DB::getInstance();
+$patch = json_decode(base64_decode('%s'), true);
+$cur = json_decode((string) $db->firstColumn('SELECT config FROM modules WHERE name = ?', 'suivi_cheques'), true) ?: [];
+$db->preparedQuery('UPDATE modules SET config = ? WHERE name = ?', json_encode(array_merge($cur, $patch)), 'suivi_cheques');
+"""
+
+
+@pytest.fixture
+def module_config():
+    """Set suivi_cheques configuration keys. Call it after reseed(), which resets
+    the config to the demo defaults (no automatic recording)."""
+
+    def _set(**values) -> None:
+        b64 = base64.b64encode(json.dumps(values).encode()).decode()
+        _php(_CONFIG_PHP % b64)
+
+    return _set
+
+
 @pytest.fixture
 def transaction():
     def _get(label: str) -> dict:

@@ -30,6 +30,8 @@
 		waiting_account=$wa|trim|or:"5112"
 		receivable_account=$ra|trim|or:"411"
 		bank_account=$ba|trim|or:"512"
+		auto_record_cancellations=$_POST.auto_record_cancellations|intval
+		auto_record_deposits=$_POST.auto_record_deposits|intval
 	}}
 	{{:redirect to="?ok=1"}}
 {{/form}}
@@ -79,6 +81,36 @@
 					default=$ba_default
 					help="Compte banque débité par l'écriture de dépôt d'un bordereau. Par défaut 512."}}
 			</dl>
+		</fieldset>
+
+		<fieldset>
+			<legend>Écritures comptables</legend>
+			<p class="help">
+				Par défaut, le module ne fait que <strong>préparer</strong> les écritures : elles
+				attendent dans « Chèques à comptabiliser », où la comptabilité les passe en un clic
+				après vérification. Les cases ci-dessous demandent au module de les passer
+				<strong>tout de suite</strong>, au moment où l'annulation est enregistrée ou le
+				bordereau généré — même si la personne qui fait l'opération n'a pas les droits en
+				comptabilité (comme le réglage équivalent de la caisse, c'est cette case qui vaut
+				autorisation).
+			</p>
+			<dl>
+				{{:input type="checkbox" name="auto_record_cancellations" value="1"
+					label="Comptabiliser automatiquement les annulations de chèques"
+					default=$module.config.auto_record_cancellations
+					help="Attention : l'écriture étant passée aussitôt, la fiche du chèque devient
+						immédiatement non modifiable. Pour la corriger, il faut supprimer l'écriture
+						en comptabilité — le chèque redevient alors modifiable."}}
+				{{:input type="checkbox" name="auto_record_deposits" value="1"
+					label="Comptabiliser automatiquement les remises de chèques"
+					default=$module.config.auto_record_deposits
+					help="Sans risque : un bordereau est de toute façon figé au moment de sa génération."}}
+			</dl>
+			<p class="help">
+				Si une écriture ne peut pas être créée (aucun exercice ouvert ne couvre la date, par
+				exemple), l'opération est quand même enregistrée et l'élément reste dans
+				« Chèques à comptabiliser » : rien n'est perdu.
+			</p>
 		</fieldset>
 
 		<fieldset>
