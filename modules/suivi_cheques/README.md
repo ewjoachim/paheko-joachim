@@ -11,11 +11,15 @@ Conception détaillée : `paheko-joachim/CONCEPTION.md`.
 ## Principe
 
 - **Le module est la source de vérité opérationnelle**, la comptabilité un reflet aval
-  (juste « à terme »). L'accueil n'écrit jamais en comptabilité ; il ne manipule que les
-  données du module.
+  (juste « à terme »). L'accueil ne manipule que les données du module.
 - **La comptabilité** poste les écritures en un clic, via la fonction Brindille `{{:api}}`.
   Le module retient l'`id` de chaque écriture créée (lien robuste, insensible au
   renommage : on ne relit la comptabilité que pour vérifier l'existence de nos `id`).
+- **Comptabilisation automatique** (optionnelle, deux cases en configuration) : le module
+  passe l'écriture lui-même au moment de l'action opérationnelle, sans exiger de droit
+  comptable de l'opérateur — comme le réglage équivalent de la caisse, c'est la case
+  cochée par l'admin qui vaut autorisation. Si l'écriture est refusée, l'action reste
+  enregistrée et l'élément reste dans « à comptabiliser » (voir `_record_precheck.html`).
 
 ## Deux acteurs, deux droits (section *Membres* / *Comptabilité*)
 
@@ -43,6 +47,8 @@ réservée à `config = admin`.
 - `receivable_account` — compte de créance des membres pour le non-couvert d'une
   annulation (défaut `411`).
 - `bank_account` — compte bancaire des remises (défaut `512`).
+- `auto_record_cancellations` / `auto_record_deposits` — comptabilisation automatique
+  (défaut : désactivée, les écritures attendent dans « à comptabiliser »).
 - correspondance moyen de paiement « chèque » → mois d'encaissement.
 
 ## Fichiers
@@ -55,7 +61,9 @@ réservée à `config = admin`.
 | `_list.html` | **partial pivot** : tableau des chèques, réutilisé partout |
 | `edit.html` / `edit_replacement.html` | annuler / remplacer (données module) |
 | `deposit.html` | préparer un bordereau + geler le lot + bordereau imprimable |
-| `to_record.html` | file « à comptabiliser » + écritures `{{:api}}` |
+| `to_record.html` | file « à comptabiliser » (un clic = une écriture) |
+| `_record_cancellation.html` / `_record_deposit.html` | construction + envoi des écritures `{{:api}}`, partagés par la file et le mode automatique |
+| `_record_precheck.html` | pré-validation du mode automatique (exercice, comptes) |
 | `snippets/user_details.html` | encart chèques sur la fiche membre |
 | `*.schema.json` | schémas de validation des documents `module_data` |
 
