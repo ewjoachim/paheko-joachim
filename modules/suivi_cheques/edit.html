@@ -1,9 +1,10 @@
 {{* -*- brindille -*- *}}
 
-{{* Édition opérationnelle d'un chèque de caisse. N'écrit QUE dans les données du
-    module — jamais en comptabilité (CONCEPTION §6.1/§6.2). L'écriture d'annulation
-    est passée plus tard par la comptable depuis « à comptabiliser ». Réservé à la
-    gestion des membres. *}}
+{{* Operational editing of a till cheque (CONCEPTION §6.1/§6.2). Writes to module
+    data only; the cancellation entry is normally posted later by the accounting
+    side from the "to record" queue — unless auto_record_cancellations is on, in
+    which case saving a cancellation posts it immediately (see
+    _record_cancellation.html). Reserved to member management. *}}
 {{#restrict block=true section="users" level="write"}}{{/restrict}}
 
 {{:assign pid=$_GET.payment|intval}}
@@ -107,7 +108,20 @@
 		annulation_txn_id=$cur_annul_txn
 	}}
 
-	{{:redirect to="index.html?saved=1"}}
+	{{* Automatic mode (configuration): post the cancellation entry right away,
+	    without requiring any accounting permission from whoever is typing — the
+	    checkbox an admin ticked is what authorises it, mirroring the till's own
+	    setting. quiet=true: on failure we keep the input and the cheque stays in the
+	    "to record" queue. Placed AFTER the {{:save}} calls above, because the entry
+	    is built from module data, which has to be up to date first. *}}
+	{{:assign rec_txn_id=null rec_error=null}}
+	{{if $module.config.auto_record_cancellations && $_POST.cancelled|intval}}
+		{{:include file="./_record_cancellation.html" kind="annul_pay" rid=$pid quiet=true keep="rec_txn_id,rec_error"}}
+	{{/if}}
+
+	{{:assign qs="saved=1"}}
+	{{if $rec_txn_id}}{{:assign qs="saved=1&recorded=1"}}{{elseif $rec_error}}{{:assign qs="saved=1&not_recorded=1"}}{{/if}}
+	{{:redirect to="index.html?%s"|args:$qs}}
 {{/form}}
 
 {{:admin_header title="Chèque n°%s"|args:$cheque_number|or:$pid}}
@@ -146,11 +160,20 @@
 				help="Ex. : remplacé par CB, remplacé par un autre chèque, membre parti en cours d'année."}}
 		</dl>
 
-		<p class="help">
-			En cochant « Chèque non encaissé », le chèque est retiré des remises à venir.
-			<strong>Aucune écriture comptable n'est générée ici</strong> : la comptabilité la passera ensuite,
-			en s'appuyant sur les remplacements saisis ci-dessous.
-		</p>
+		{{if $module.config.auto_record_cancellations}}
+			<p class="help">
+				En cochant « Chèque non encaissé », le chèque est retiré des remises à venir et
+				<strong>l'écriture comptable d'annulation est passée immédiatement</strong>, en
+				s'appuyant sur les remplacements saisis ci-dessous : vérifiez-les avant
+				d'enregistrer, car la fiche ne sera plus modifiable ensuite.
+			</p>
+		{{else}}
+			<p class="help">
+				En cochant « Chèque non encaissé », le chèque est retiré des remises à venir.
+				<strong>Aucune écriture comptable n'est générée ici</strong> : la comptabilité la passera ensuite,
+				en s'appuyant sur les remplacements saisis ci-dessous.
+			</p>
+		{{/if}}
 
 		{{:include file="./_replacement_methods_fields.html"}}
 

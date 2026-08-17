@@ -93,19 +93,25 @@
 				<td><strong>Accueil / caisse</strong></td>
 				<td>La personne qui tient la caisse et va à la banque</td>
 				<td>Suit les chèques du mois, planifie leur encaissement, gère les annulations et remplacements,
-					et prépare le bordereau de remise. <strong>Ne touche jamais à la comptabilité.</strong></td>
+					et prépare le bordereau de remise. <strong>N'a pas à toucher à la comptabilité.</strong></td>
 			</tr>
 			<tr>
 				<td><strong>Comptabilité</strong></td>
 				<td>La personne qui tient la comptabilité</td>
 				<td>Passe, <strong>en un clic</strong>, les écritures préparées par le module
-					(annulations et dépôts). C'est la seule à écrire en comptabilité.</td>
+					(annulations et dépôts), après vérification.</td>
 			</tr>
 		</tbody>
 	</table>
 	<div class="note">
 		<strong>Principe.</strong> Le module reflète en temps réel la réalité de la caisse. La comptabilité,
 		elle, peut être mise à jour plus tard : elle devient juste « à terme », sans jamais bloquer l'accueil.
+	</div>
+	<div class="note">
+		<strong>Si une seule personne tient les deux rôles</strong>, cette étape de validation n'apporte
+		rien. La configuration permet de la supprimer : le module passe alors les écritures
+		<strong>tout de suite</strong> (voir « Comptabilisation automatique »). Le reste de ce guide
+		décrit le fonctionnement par défaut, en deux temps.
 	</div>
 
 	<h2>Côté accueil</h2>
@@ -157,6 +163,9 @@
 	<div class="note">
 		<strong>Rien n'est écrit en comptabilité à ce stade.</strong> L'accueil décrit simplement ce qui s'est
 		passé ; la comptabilité passera l'écriture plus tard, en un clic (voir « Côté comptabilité »).
+		Sauf si la comptabilisation automatique des annulations est activée : l'écriture est alors passée
+		dès l'enregistrement, et la fiche du chèque n'est plus modifiable ensuite. La page indique
+		lequel des deux cas s'applique.
 	</div>
 
 	<h3>4. Préparer le bordereau de remise</h3>
@@ -198,6 +207,11 @@
 		un lien vers l'écriture est affiché. Si une écriture est supprimée, l'élément réapparaît simplement
 		dans la file, prêt à être re-passé.
 	</div>
+	<div class="note">
+		<strong>Avec la comptabilisation automatique</strong>, cette file ne disparaît pas : elle ne contient
+		plus que ce qui n'a pas pu être passé automatiquement (par exemple si aucun exercice ouvert ne couvre
+		la date), et ce dont l'écriture a été supprimée depuis. Elle sert alors de filet.
+	</div>
 	<div class="warn">
 		<strong>La recette n'est jamais annulée.</strong> Un chèque impayé ne « défait » pas la recette
 		enregistrée : la part non recouvrée devient une créance du membre (compte 411 par défaut), que la
@@ -228,6 +242,38 @@
 		<img src="screenshots/08-configuration.png" alt="Page de configuration du module" />
 		<figcaption>Configuration : comptes comptables et correspondance moyen de paiement → mois.</figcaption>
 	</figure>
+
+	<h3>Comptabilisation automatique</h3>
+	<p>
+		Par défaut, le module se contente de préparer les écritures : elles patientent dans
+		« Chèques à comptabiliser » jusqu'à ce que la comptabilité les valide. Deux cases de la
+		configuration suppriment cette attente — le module passe alors l'écriture lui-même, tout de
+		suite. Une case par type d'écriture :
+	</p>
+	<ul>
+		<li><strong>les annulations</strong> — l'écriture est passée dès que l'annulation est
+			enregistrée ;</li>
+		<li><strong>les remises</strong> — l'écriture de dépôt est passée dès que le bordereau est
+			généré.</li>
+	</ul>
+	<p>
+		C'est l'équivalent du réglage « créer les écritures automatiquement » de la caisse : c'est la case
+		cochée par l'administrateur qui vaut autorisation, l'écriture est donc passée même si la personne
+		qui fait l'opération n'a pas de droit d'écriture en comptabilité. À n'activer que si c'est bien
+		l'intention.
+	</p>
+	<div class="warn">
+		<strong>Sur les annulations, attention à l'ordre de saisie.</strong> L'écriture étant passée
+		aussitôt, la fiche du chèque devient immédiatement non modifiable : les remplacements doivent être
+		saisis <em>avant</em> d'enregistrer, pas après. Pour corriger, il faut supprimer l'écriture en
+		comptabilité — le chèque redevient alors modifiable et repasse dans la file. Les remises, elles,
+		sont figées de toute façon au moment de leur génération : rien ne change pour elles.
+	</div>
+	<div class="note">
+		<strong>Un échec ne fait rien perdre.</strong> Si l'écriture ne peut pas être créée (aucun exercice
+		ouvert ne couvre la date, compte inexistant…), l'annulation ou le bordereau est quand même
+		enregistré, un message le signale, et l'élément reste dans « Chèques à comptabiliser ».
+	</div>
 
 	<hr />
 	<footer>

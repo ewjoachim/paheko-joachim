@@ -54,6 +54,21 @@ def module_url() -> str:
     return f"{BASE_URL}/m/suivi_cheques"
 
 
+# seed-demo.php purges module data and the till, but not accounting: entries
+# posted by an earlier test would still be found by the `transaction` fixture, so
+# tests could not assert that nothing was posted. Wipe them here (throwaway db).
+_PURGE_ACCOUNTING_PHP = """<?php
+namespace Paheko;
+require '/var/www/paheko/include/init.php';
+$db = DB::getInstance();
+$db->exec('DELETE FROM acc_transactions_lines;
+    DELETE FROM acc_transactions_links;
+    DELETE FROM acc_transactions_users;
+    DELETE FROM acc_transactions_files;
+    DELETE FROM acc_transactions;');
+"""
+
+
 @pytest.fixture
 def reseed():
     """Reset the demo fixture to a pristine state (call at the start of a test
@@ -61,6 +76,7 @@ def reseed():
     seed_php = (REPO_ROOT / "doc-tools" / "seed-demo.php").read_text()
 
     def _do() -> None:
+        _php(_PURGE_ACCOUNTING_PHP)
         _php(seed_php)
 
     return _do
@@ -90,6 +106,30 @@ echo json_encode([
     ], $rows),
 ]);
 """
+
+
+# Patch the module configuration in place, merging into the existing JSON exactly
+# like {{:save key="config"}} does.
+_CONFIG_PHP = """<?php
+namespace Paheko;
+require '/var/www/paheko/include/init.php';
+$db = DB::getInstance();
+$patch = json_decode(base64_decode('%s'), true);
+$cur = json_decode((string) $db->firstColumn('SELECT config FROM modules WHERE name = ?', 'suivi_cheques'), true) ?: [];
+$db->preparedQuery('UPDATE modules SET config = ? WHERE name = ?', json_encode(array_merge($cur, $patch)), 'suivi_cheques');
+"""
+
+
+@pytest.fixture
+def module_config():
+    """Set suivi_cheques configuration keys. Call it after reseed(), which resets
+    the config to the demo defaults (no automatic recording)."""
+
+    def _set(**values) -> None:
+        b64 = base64.b64encode(json.dumps(values).encode()).decode()
+        _php(_CONFIG_PHP % b64)
+
+    return _set
 
 
 @pytest.fixture

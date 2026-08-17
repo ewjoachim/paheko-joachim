@@ -1,0 +1,56 @@
+{{* -*- brindille -*- *}}
+
+{{* Pre-flight check for an entry about to be posted in AUTOMATIC mode, used by
+    _record_cancellation.html / _record_deposit.html.
+
+    Why it exists: {{:api fail=false}} only swallows APIException, but
+    accounting/transaction rejects bad data with UserException /
+    ValidationException, which escapes. Inside a {{#form}} that exception rolls the
+    whole transaction back — the operational save (the cancellation, the frozen
+    slip) would be lost because of an accounting misconfiguration. So we predict
+    the two realistic refusals here and give up on the entry BEFORE calling :api,
+    leaving the item in the "to record" queue.
+
+    The checks mirror the core exactly:
+      - the year: Years::getCurrentOpenYearId() picks an open year by preference
+        for the one covering today, but does not require it — Transaction::save()
+        then refuses a date outside that year;
+      - the accounts: Transaction::importFromNewForm() resolves each line's code in
+        the chart of that very year ([Transaction.php:1136]).
+
+    Parameters:
+      $lines    the lines about to be posted (objects with an "account" key);
+      $on_date  the entry date.
+    Returns, through keep="rec_error": why we give up, or the inherited value
+    (null) when everything checks out.
+
+    Residual risk: any refusal we do not predict here still rolls the form back and
+    surfaces as a form error. Amounts are ours and balanced by construction, so
+    what is left is exotic (locked year, unusable account). *}}
+
+{{:assign pc_year=null pc_chart=null pc_covers=false}}
+{{#select id, id_chart, (start_date <= :d AND end_date >= :d) AS covers
+	FROM acc_years WHERE status = 0
+	ORDER BY start_date <= date() AND end_date >= date() DESC, start_date DESC
+	LIMIT 1; :d=$on_date}}
+	{{:assign pc_year=$id pc_chart=$id_chart pc_covers=$covers}}
+{{/select}}
+
+{{if !$pc_year}}
+	{{:assign rec_error="Aucun exercice comptable ouvert : l'écriture n'a pas pu être créée."}}
+{{elseif !$pc_covers}}
+	{{:assign rec_error="Aucun exercice ouvert ne couvre la date du jour : l'écriture n'a pas pu être créée."}}
+{{else}}
+	{{#foreach from=$lines item="pc_line"}}
+		{{if !$rec_error}}
+			{{:assign pc_found=false}}
+			{{#select 1 AS x FROM acc_accounts WHERE code = :c AND id_chart = :ch LIMIT 1;
+				:c=$pc_line.account :ch=$pc_chart}}
+				{{:assign pc_found=true}}
+			{{/select}}
+			{{if !$pc_found}}
+				{{:assign rec_error="Le compte %s n'existe pas dans le plan comptable de l'exercice : l'écriture n'a pas pu être créée."|args:$pc_line.account}}
+			{{/if}}
+		{{/if}}
+	{{/foreach}}
+{{/if}}

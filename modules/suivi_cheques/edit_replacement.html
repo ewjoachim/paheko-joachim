@@ -1,11 +1,12 @@
 {{* -*- brindille -*- *}}
 
-{{* Édition d'un chèque de remplacement (overlay cheque_rempl, clé opaque). N'écrit
-    QUE dans les données du module — jamais en comptabilité. Le n° et le montant
-    (référence/montant de la ligne 5112 une fois l'écriture passée) restent en lecture
-    seule : ils se règlent depuis la fiche du chèque parent. Ici on peut re-planifier
-    le mois, annuler, ET remplacer à son tour (chaîne A→B→C : CHAINES-REMPLACEMENT).
-    Réservé à la gestion des membres. *}}
+{{* Editing a replacement cheque (cheque_rempl overlay, opaque key). Writes to
+    module data only; as in edit.html, the cancellation entry is posted immediately
+    when auto_record_cancellations is on, otherwise it waits in the "to record"
+    queue. The number and amount (reference/amount of the 5112 line once the entry
+    is posted) stay read-only: they are set from the parent cheque. Here one can
+    re-plan the month, cancel, AND replace in turn (A→B→C chains:
+    CHAINES-REMPLACEMENT). Reserved to member management. *}}
 {{#restrict block=true section="users" level="write"}}{{/restrict}}
 
 {{:assign key=$_GET.key|trim}}
@@ -116,7 +117,15 @@
 		annulation_txn_id=$cur_annul_txn
 	}}
 
-	{{:redirect to="index.html?saved=1"}}
+	{{* Automatic mode: same contract as edit.html — see the comment there. *}}
+	{{:assign rec_txn_id=null rec_error=null}}
+	{{if $module.config.auto_record_cancellations && $_POST.cancelled|intval}}
+		{{:include file="./_record_cancellation.html" kind="annul_rempl" rid=$key quiet=true keep="rec_txn_id,rec_error"}}
+	{{/if}}
+
+	{{:assign qs="saved=1"}}
+	{{if $rec_txn_id}}{{:assign qs="saved=1&recorded=1"}}{{elseif $rec_error}}{{:assign qs="saved=1&not_recorded=1"}}{{/if}}
+	{{:redirect to="index.html?%s"|args:$qs}}
 {{/form}}
 
 {{:admin_header title="Chèque de remplacement n°%s"|args:$cheque_number|or:$key}}
@@ -158,11 +167,20 @@
 					help="Ex. : remplacé à son tour par un autre chèque, remplacé par CB, membre parti…"}}
 			</dl>
 
-			<p class="help">
-				En cochant « Chèque non encaissé », ce chèque de remplacement est retiré des remises à venir.
-				<strong>Aucune écriture comptable n'est générée ici</strong> : la comptabilité la passera ensuite,
-				en s'appuyant sur les remplacements saisis ci-dessous.
-			</p>
+			{{if $module.config.auto_record_cancellations}}
+				<p class="help">
+					En cochant « Chèque non encaissé », ce chèque de remplacement est retiré des remises
+					à venir et <strong>l'écriture comptable d'annulation est passée immédiatement</strong>,
+					en s'appuyant sur les remplacements saisis ci-dessous : vérifiez-les avant
+					d'enregistrer, car la fiche ne sera plus modifiable ensuite.
+				</p>
+			{{else}}
+				<p class="help">
+					En cochant « Chèque non encaissé », ce chèque de remplacement est retiré des remises à venir.
+					<strong>Aucune écriture comptable n'est générée ici</strong> : la comptabilité la passera ensuite,
+					en s'appuyant sur les remplacements saisis ci-dessous.
+				</p>
+			{{/if}}
 
 			{{:include file="./_replacement_methods_fields.html"}}
 

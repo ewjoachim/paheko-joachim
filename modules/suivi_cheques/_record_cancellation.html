@@ -1,0 +1,149 @@
+{{* -*- brindille -*- *}}
+
+{{* Accounting entry for a cancelled cheque (CONCEPTION §6.2) — shared by the
+    "to record" queue (to_record.html) and the automatic mode of the edit pages
+    (edit.html / edit_replacement.html). Include it INSIDE a {{#form}}.
+
+    Parameters:
+      $kind   'annul_pay' (till cheque) | 'annul_rempl' (replacement cheque);
+      $rid    till payment id, or cheque_rempl key;
+      $quiet  true = never raise an error. In automatic mode an accounting
+              failure must NOT undo the operational save (an exception inside a
+              {{#form}} rolls the whole transaction back): we give up on the
+              entry and the item simply stays in the "to record" queue.
+    Returns, through keep="rec_txn_id,rec_error": the id of the created entry (or
+    null), and why it was given up on (or null).
+
+    This is where the module WRITES to accounting: {{:api access="write"}} runs at
+    "write" level regardless of the user. AUTHORISATION is the caller's
+    responsibility — to_record.html: {{#restrict accounting write}}; automatic
+    mode: the checkbox an admin ticked in the configuration, mirroring the till's
+    own "create the accounting entries automatically" setting. *}}
+
+{{:assign rec_txn_id=null rec_error=null}}
+{{:assign api_fail=true}}
+{{if $quiet}}{{:assign api_fail=false}}{{/if}}
+
+{{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
+{{:assign receivable_account=$module.config.receivable_account|or:"411"}}
+{{:assign rec_today=null}}
+{{#select date('now', 'localtime') AS d}}{{:assign rec_today=$d}}{{/select}}
+
+{{* --- Source: till cheque or replacement cheque --- *}}
+{{:assign amount=0 cheque_number=null reason=null replacements=null uid=null already=null}}
+{{:assign parent_key=null store_key=null store_type=null}}
+
+{{if $kind === 'annul_pay'}}
+	{{:assign pid=$rid|intval}}
+	{{#select p.reference AS r, p.amount AS a, t.user_id AS u
+		FROM plugin_pos_tabs_payments p INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+		WHERE p.id = :pid LIMIT 1; :pid=$pid}}
+		{{:assign cheque_number=$r amount=$a uid=$u}}
+	{{/select}}
+	{{#load type="cheque" key="pay-%d"|args:$pid}}
+		{{:assign reason=$reason replacements=$replacements already=$annulation_txn_id}}
+	{{/load}}
+	{{:assign parent_key="pay-%d"|args:$pid store_key="pay-%d"|args:$pid store_type="cheque"}}
+{{elseif $kind === 'annul_rempl'}}
+	{{#load type="cheque_rempl" key=$rid}}
+		{{:assign amount=$amount cheque_number=$cheque_number reason=$reason replacements=$replacements already=$annulation_txn_id uid=$member_id}}
+	{{/load}}
+	{{:assign parent_key=$rid store_key=$rid store_type="cheque_rempl"}}
+{{else}}
+	{{:assign rec_error="Type d'élément inconnu."}}
+{{/if}}
+
+{{* Already recorded = we stored an id AND that entry still exists (§8): an id
+    pointing at a deleted entry does not count, the entry can be posted again. *}}
+{{if !$rec_error && $already}}
+	{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$already}}
+		{{:assign rec_error="Cette annulation est déjà comptabilisée."}}
+	{{/select}}
+{{/if}}
+{{if !$rec_error && !$amount}}
+	{{:assign rec_error="Chèque introuvable ou montant nul."}}
+{{/if}}
+
+{{if !$rec_error}}
+	{{* credit the waiting account: the cheque leaves it *}}
+	{{:assign lines=null}}
+	{{:assign var="lines[0][account]" value=$waiting_account}}
+	{{:assign var="lines[0][credit]" value=$amount|money}}
+	{{:assign var="lines[0][reference]" value=$cheque_number}}
+	{{:assign var="lines[0][label]" value="Chèque annulé n°%s"|args:$cheque_number}}
+	{{:assign li=1}}
+	{{:assign covered=0}}
+
+	{{* non-cheque replacements: debit their own account *}}
+	{{#foreach from=$replacements item="rep"}}
+		{{if $rep.amount > 0 && $rep.account}}
+			{{:assign var="lines[%d][account]"|args:$li value=$rep.account}}
+			{{:assign var="lines[%d][debit]"|args:$li value=$rep.amount|money}}
+			{{:assign var="lines[%d][label]"|args:$li value="Remplacement chèque n°%s"|args:$cheque_number}}
+			{{:assign covered="%d+%d"|math:$covered:$rep.amount}}
+			{{:assign li="%d+1"|math:$li}}
+		{{/if}}
+	{{/foreach}}
+
+	{{* replacements BY cheque (direct children, till or replacement cheque): debit
+	    the waiting account, reference = the new cheque number. Recursion is done
+	    "one level at a time" — we only look one step below (CHAINES-REMPLACEMENT §1). *}}
+	{{if $parent_key}}
+		{{#select json_extract(document, '$.cheque_number') AS n, CAST(json_extract(document, '$.amount') AS INT) AS a
+			FROM module_data_suivi_cheques
+			WHERE json_extract(document, '$.type') = 'cheque_rempl'
+				AND json_extract(document, '$.parent_key') = :pk
+				AND COALESCE(CAST(json_extract(document, '$.cancelled') AS INT), 0) = 0
+			ORDER BY n; :pk=$parent_key}}
+			{{:assign var="lines[%d][account]"|args:$li value=$waiting_account}}
+			{{:assign var="lines[%d][debit]"|args:$li value=$a|money}}
+			{{:assign var="lines[%d][reference]"|args:$li value=$n}}
+			{{:assign var="lines[%d][label]"|args:$li value="Chèque de remplacement n°%s"|args:$n}}
+			{{:assign covered="%d+%d"|math:$covered:$a}}
+			{{:assign li="%d+1"|math:$li}}
+		{{/select}}
+	{{/if}}
+
+	{{if $covered > $amount}}
+		{{:assign rec_error="Les remplacements dépassent le montant du chèque annulé."}}
+	{{/if}}
+
+	{{if !$rec_error}}
+		{{* whatever is left uncovered -> the member owes it (411) *}}
+		{{:assign remainder="%d-%d"|math:$amount:$covered}}
+		{{if $remainder > 0}}
+			{{:assign var="lines[%d][account]"|args:$li value=$receivable_account}}
+			{{:assign var="lines[%d][debit]"|args:$li value=$remainder|money}}
+			{{:assign var="lines[%d][label]"|args:$li value="Créance — chèque annulé n°%s"|args:$cheque_number}}
+			{{:assign li="%d+1"|math:$li}}
+		{{/if}}
+
+		{{:assign users=null}}
+		{{if $uid}}{{:assign var="users[0]" value=$uid|intval}}{{/if}}
+
+		{{* Automatic mode only: give up before :api rather than let a refusal roll the
+		    caller's operational save back. See _record_precheck.html. *}}
+		{{if $quiet}}
+			{{:include file="./_record_precheck.html" lines=$lines on_date=$rec_today keep="rec_error"}}
+		{{/if}}
+	{{/if}}
+
+	{{if !$rec_error}}
+		{{:assign created=null}}
+		{{:api method="POST" path="accounting/transaction" access="write" fail=$api_fail
+			id_year="current" type="advanced" date=$rec_today
+			label="Annulation chèque n°%s"|args:$cheque_number
+			reference="ANNUL-%s"|args:$rid
+			lines=$lines linked_users=$users assign="created"}}
+
+		{{if $created}}
+			{{:save type=$store_type key=$store_key annulation_txn_id=$created.id}}
+			{{:assign rec_txn_id=$created.id}}
+		{{else}}
+			{{* quiet mode: the API refused (no open exercise covering the date, …) *}}
+			{{:assign rec_error="L'écriture comptable n'a pas pu être créée."}}
+		{{/if}}
+	{{/if}}
+{{/if}}
+
+{{if $rec_error && !$quiet}}{{:error message=$rec_error}}{{/if}}

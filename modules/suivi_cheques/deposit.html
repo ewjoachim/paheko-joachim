@@ -1,12 +1,13 @@
 {{* -*- brindille -*- *}}
 
-{{* Préparation d'un bordereau de remise (CONCEPTION §6.3). Action opérationnelle de
-    Ben (il va physiquement à la banque). Trois états :
-      - GET sans ?batch : sélection des chèques à déposer ;
-      - POST : gel d'un deposit_batch + pose de batch_id sur les chèques + redirection ;
-      - GET ?batch=<id> : bordereau figé, imprimable.
-    Aucune écriture comptable ici : la comptable postera le dépôt depuis « à
-    comptabiliser ». *}}
+{{* Preparing a deposit slip (CONCEPTION §6.3). Operational action of whoever
+    physically goes to the bank. Three states:
+      - GET without ?batch: pick the cheques to deposit;
+      - POST: freeze a deposit_batch, set batch_id on the cheques, redirect;
+      - GET ?batch=<id>: the frozen, printable slip.
+    The deposit entry is normally posted later by the accounting side from the "to
+    record" queue — unless auto_record_deposits is on, in which case the POST above
+    posts it immediately (see _record_deposit.html). *}}
 {{#restrict block=true section="users" level="write"}}{{/restrict}}
 
 {{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
@@ -79,6 +80,15 @@
 	{{:admin_header title="Bordereau de remise n°%s"|args:$batch_key}}
 
 	{{:form_errors}}
+
+	{{* Feedback from the automatic mode (see the module configuration) *}}
+	{{if $_GET.recorded}}<p class="block confirm">Bordereau généré, et l'écriture comptable du dépôt a été créée.</p>{{/if}}
+	{{if $_GET.not_recorded}}
+		<p class="block alert">
+			Bordereau généré, mais l'écriture comptable du dépôt n'a pas pu être créée : elle reste
+			à passer depuis {{:link href="to_record.html" label="« Chèques à comptabiliser »"}}.
+		</p>
+	{{/if}}
 
 	{{if !$found}}
 		<p class="block error">Bordereau introuvable.</p>
@@ -230,7 +240,20 @@
 		{{/if}}
 	{{/foreach}}
 
-	{{:redirect to="deposit.html?batch=%s"|args:$batch_id}}
+	{{* Automatic mode (configuration): post the deposit entry right away, without
+	    requiring any accounting permission from whoever prepares the slip — the
+	    checkbox an admin ticked is what authorises it, mirroring the till's own
+	    setting. quiet=true: on failure the slip is still frozen and simply stays in
+	    the "to record" queue. The frozen batch above is the entry's only source, so
+	    this has to come after it. *}}
+	{{:assign rec_txn_id=null rec_error=null}}
+	{{if $module.config.auto_record_deposits}}
+		{{:include file="./_record_deposit.html" ref=$batch_id quiet=true keep="rec_txn_id,rec_error"}}
+	{{/if}}
+
+	{{:assign qs="batch=%s"|args:$batch_id}}
+	{{if $rec_txn_id}}{{:assign qs="batch=%s&recorded=1"|args:$batch_id}}{{elseif $rec_error}}{{:assign qs="batch=%s&not_recorded=1"|args:$batch_id}}{{/if}}
+	{{:redirect to="deposit.html?%s"|args:$qs}}
 {{/form}}
 
 {{*=================================================================================
@@ -252,7 +275,8 @@
 	</p>
 	<p class="help">
 		Cochez les chèques physiquement apportés à la banque (échéance jusqu'à {{$month}} incluse,
-		non annulés, pas déjà dans un lot). La génération <strong>fige</strong> le bordereau.
+		non annulés, pas déjà dans un lot). La génération <strong>fige</strong> le bordereau{{if $module.config.auto_record_deposits}}
+		et passe aussitôt l'écriture comptable du dépôt{{/if}}.
 	</p>
 
 	<form method="post" action="">
