@@ -94,9 +94,20 @@
 				</thead>
 				<tbody>
 					{{* type = 0 = Method::TYPE_TRACKED (« Suivi ») : on ignore espèces/ardoise/porte-monnaie. *}}
-					{{#select id, name FROM plugin_pos_methods WHERE enabled = 1 AND type = 0 ORDER BY name}}
-						{{:assign cur=0}}
-						{{#load type="method_month_map" where="$$.method_id = :mid" :mid=$id limit=1}}{{:assign cur=$month}}{{/load}}
+					{{* WORKAROUND (Paheko 1.3.22 regression) — the month is joined in SQL instead of
+					    being read by a #load section nested in this loop. Since 1.3.22 sections read
+					    through a separate read-only SQLite connection, so the automatic CREATE INDEX
+					    a nested #load triggers (on the main connection) hits the lock held by the
+					    still-open cursor: "database is locked", HTTP 500. Only shows up on a fresh
+					    instance, where that index does not exist yet.
+					    Once fixed upstream: git revert the commit that introduced this block to get
+					    the more readable #load version back. *}}
+					{{#select m.id AS id, m.name AS name, json_extract(d.document, '$.month') AS cur
+						FROM plugin_pos_methods m
+						LEFT JOIN module_data_suivi_cheques d
+							ON json_extract(d.document, '$.type') = 'method_month_map'
+							AND json_extract(d.document, '$.method_id') = m.id
+						WHERE m.enabled = 1 AND m.type = 0 ORDER BY m.name}}
 						<tr>
 							<td>{{$name|escape}}</td>
 							<td>
