@@ -16,11 +16,21 @@ def _totals(lines: list[dict]) -> tuple[int, int]:
     return sum(l["debit"] for l in lines), sum(l["credit"] for l in lines)
 
 
-def _cancel_cheque(page: Page, module_url: str, pid: str) -> None:
-    """Tick "cheque not cashed" on a till cheque and save."""
+def _cancel_cheque(
+    page: Page,
+    module_url: str,
+    pid: str,
+    replacement: tuple[str, str] | None = None,
+) -> None:
+    """Tick "cheque not cashed" on a till cheque and save, optionally typing a
+    (number, amount) replacement cheque in the same form."""
     page.goto(f"{module_url}/edit.html?payment={pid}", wait_until="domcontentloaded")
     page.check('input[name="cancelled"]')
     page.fill('input[name="reason"]', "Chèque perdu")
+    if replacement is not None:
+        number, amount = replacement
+        page.locator('input[name="rc_number[]"]').first.fill(number)
+        page.locator('input[name="rc_amount[]"]').first.fill(amount)
     page.get_by_role("button", name="Enregistrer").click()
     page.wait_for_load_state("domcontentloaded")
 
@@ -47,6 +57,43 @@ def test_cancellation_is_recorded_immediately(
     # Nothing left to do for the accounting side.
     admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
     expect(admin_page.locator("tr", has_text="CHQ-0140")).to_have_count(0)
+
+
+def test_cancellation_with_a_replacement_is_recorded_immediately(
+    admin_page: Page, module_url: str, reseed, module_config, transaction, seed
+):
+    """CHQ-0140 (45,00) cancelled and fully replaced by CHQ-0999, typed in the same
+    form: the amount leaves the waiting account and the replacement re-enters it,
+    so the member owes nothing — 411 stays out of the entry.
+
+    The replacement child is written and read back within a single {{#form}}, so
+    this is what catches a platform that stops showing a module its own uncommitted
+    writes: the replacement then reads as absent and the whole 45,00 is booked as
+    owed. That entry balances and looks plausible, which is exactly why it needs a
+    test rather than an eyeball."""
+    reseed()
+    module_config(auto_record_cancellations=1)
+    _cancel_cheque(
+        admin_page, module_url, seed["pay_edit"], replacement=("CHQ-0999", "45,00")
+    )
+
+    expect(admin_page.locator(".confirm")).to_contain_text("l'écriture comptable a été créée")
+
+    txn = transaction("Annulation chèque n°CHQ-0140")
+    assert txn["found"], "the entry was not posted on save"
+    debit, credit = _totals(txn["lines"])
+    assert debit == credit == 4500, txn["lines"]
+    assert any(
+        l["account"] == "5112" and l["credit"] == 4500 and l["ref"] == "CHQ-0140"
+        for l in txn["lines"]
+    ), txn["lines"]
+    assert any(
+        l["account"] == "5112" and l["debit"] == 4500 and l["ref"] == "CHQ-0999"
+        for l in txn["lines"]
+    ), txn["lines"]
+    assert not any(l["account"] == "411" for l in txn["lines"]), (
+        "fully replaced by a cheque: nothing is owed, so no receivable line"
+    )
 
 
 def test_cancellation_waits_in_the_queue_by_default(
