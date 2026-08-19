@@ -8,6 +8,7 @@ PAGES = [
     ("", "Mois courant"),
     ("upcoming.html", "Mois à venir"),
     ("exercise.html", "Année en cours"),
+    ("batches.html", "Bordereaux"),
     ("to_record.html", "À comptabiliser"),
     ("config.html", "Configuration"),
 ]

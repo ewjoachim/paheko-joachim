@@ -38,9 +38,10 @@ SHOTS = [
     ("03-annuler-remplacer.png", f"{M}/edit.html?payment={PAY_EDIT}", "form"),
     ("04-preparer-bordereau.png", f"{M}/deposit.html?month=2026-07", "table.list"),
     ("05-bordereau.png", f"{M}/deposit.html?batch=DEMO", "table.list"),
-    ("06-a-comptabiliser.png", f"{M}/to_record.html", "table.list"),
-    ("07-fiche-membre.png", f"{BASE}/admin/users/details.php?id={CAMILLE}", "table.list"),
-    ("08-configuration.png", f"{M}/config.html", "form"),
+    ("06-bordereaux.png", f"{M}/batches.html", "table.list"),
+    ("07-a-comptabiliser.png", f"{M}/to_record.html", "table.list"),
+    ("08-fiche-membre.png", f"{BASE}/admin/users/details.php?id={CAMILLE}", "table.list"),
+    ("09-configuration.png", f"{M}/config.html", "form"),
 ]
 
 
