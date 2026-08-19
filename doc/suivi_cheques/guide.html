@@ -200,7 +200,9 @@
 	<ul>
 		<li><strong>Annulations</strong> — un clic crée l'écriture : le chèque sort du compte d'attente,
 			les remplacements (CB / espèces / autre chèque) sont enregistrés, et le reste éventuel devient une
-			<strong>créance du membre</strong> (le membre nous doit encore cette somme).</li>
+			<strong>créance du membre</strong> (le membre nous doit encore cette somme). Le nom du membre
+			apparaît dans le libellé de l'écriture et sur la ligne de créance, pour qu'on sache de qui il
+			s'agit sans avoir à remonter au chèque.</li>
 		<li><strong>Remises</strong> — un clic crée l'écriture de dépôt en banque à partir du bordereau figé.</li>
 	</ul>
 	<figure>
@@ -208,9 +210,11 @@
 		<figcaption>Annulations et remises en attente. Chaque bouton « Comptabiliser » crée une écriture équilibrée.</figcaption>
 	</figure>
 	<div class="note">
-		<strong>La comptabilité reste maîtresse.</strong> Chaque écriture créée reste modifiable normalement ;
-		un lien vers l'écriture est affiché. Si une écriture est supprimée, l'élément réapparaît simplement
-		dans la file, prêt à être re-passé.
+		<strong>La comptabilité reste maîtresse.</strong> Chaque écriture créée reste modifiable normalement,
+		et le message de confirmation propose un lien direct vers elle — depuis la file, depuis une annulation
+		enregistrée, comme depuis un bordereau. Les écritures sont aussi <strong>rattachées aux membres</strong>
+		concernés, ce qui les fait apparaître dans « Comptes de membres » de la comptabilité. Si une écriture
+		est supprimée, l'élément réapparaît simplement dans la file, prêt à être re-passé.
 	</div>
 	<div class="note">
 		<strong>Avec la comptabilisation automatique</strong>, cette file ne disparaît pas : elle ne contient

@@ -112,7 +112,8 @@
 	{{/if}}
 
 	{{:assign qs="saved=1"}}
-	{{if $rec_txn_id}}{{:assign qs="saved=1&recorded=1"}}{{elseif $rec_error}}{{:assign qs="saved=1&not_recorded=1"}}{{/if}}
+	{{* Voir edit.html : l'id de l'écriture voyage dans l'URL pour le lien. *}}
+	{{if $rec_txn_id}}{{:assign qs="saved=1&recorded=%d"|args:$rec_txn_id}}{{elseif $rec_error}}{{:assign qs="saved=1&not_recorded=1"}}{{/if}}
 	{{:redirect to="index.html?%s"|args:$qs}}
 {{/form}}
 

@@ -11,6 +11,8 @@ import re
 
 from playwright.sync_api import Page, expect
 
+MEMBER = "Camille Martin"  # seeded demo member; the entry label now names them
+
 
 def _totals(lines: list[dict]) -> tuple[int, int]:
     return sum(l["debit"] for l in lines), sum(l["credit"] for l in lines)
@@ -47,7 +49,7 @@ def test_cancellation_is_recorded_immediately(
 
     expect(admin_page.locator(".confirm")).to_contain_text("l'écriture comptable a été créée")
 
-    txn = transaction("Annulation chèque n°CHQ-0140")
+    txn = transaction(f"Annulation chèque n°CHQ-0140 — {MEMBER}")
     assert txn["found"], "the entry was not posted on save"
     debit, credit = _totals(txn["lines"])
     assert debit == credit == 4500, txn["lines"]
@@ -79,7 +81,7 @@ def test_cancellation_with_a_replacement_is_recorded_immediately(
 
     expect(admin_page.locator(".confirm")).to_contain_text("l'écriture comptable a été créée")
 
-    txn = transaction("Annulation chèque n°CHQ-0140")
+    txn = transaction(f"Annulation chèque n°CHQ-0140 — {MEMBER}")
     assert txn["found"], "the entry was not posted on save"
     debit, credit = _totals(txn["lines"])
     assert debit == credit == 4500, txn["lines"]
@@ -104,7 +106,7 @@ def test_cancellation_waits_in_the_queue_by_default(
     reseed()
     _cancel_cheque(admin_page, module_url, seed["pay_edit"])
 
-    assert not transaction("Annulation chèque n°CHQ-0140")["found"]
+    assert not transaction(f"Annulation chèque n°CHQ-0140 — {MEMBER}")["found"]
 
     admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
     row = admin_page.locator("tr", has_text="CHQ-0140")
@@ -197,7 +199,7 @@ def test_failed_automatic_entry_keeps_the_operational_save(
     _cancel_cheque(admin_page, module_url, seed["pay_edit"])
 
     expect(admin_page.locator(".alert")).to_contain_text("n'a pas pu être créée")
-    assert not transaction("Annulation chèque n°CHQ-0140")["found"]
+    assert not transaction(f"Annulation chèque n°CHQ-0140 — {MEMBER}")["found"]
 
     # The cancellation itself was saved (the cheque is cancelled) and is queued.
     admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")

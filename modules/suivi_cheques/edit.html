@@ -108,7 +108,9 @@
 	{{/if}}
 
 	{{:assign qs="saved=1"}}
-	{{if $rec_txn_id}}{{:assign qs="saved=1&recorded=1"}}{{elseif $rec_error}}{{:assign qs="saved=1&not_recorded=1"}}{{/if}}
+	{{* recorded=<id de l'écriture> : reste truthy comme l'ancien recorded=1, et permet
+	    à index.html de proposer le lien vers l'écriture. *}}
+	{{if $rec_txn_id}}{{:assign qs="saved=1&recorded=%d"|args:$rec_txn_id}}{{elseif $rec_error}}{{:assign qs="saved=1&not_recorded=1"}}{{/if}}
 	{{:redirect to="index.html?%s"|args:$qs}}
 {{/form}}
 

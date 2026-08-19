@@ -53,6 +53,12 @@
 	{{:assign rec_error="Type d'élément inconnu."}}
 {{/if}}
 
+{{* Member name, for the entry label and the receivable line. A till tab can carry a
+    free-text name with no user_id (a non-member), in which case there is no name to
+    show here and the labels fall back to their plain form. *}}
+{{:assign member_name=null}}
+{{if $uid}}{{#users id=$uid}}{{:assign member_name=$_name}}{{/users}}{{/if}}
+
 {{* Already recorded = we stored an id AND that entry still exists (§8): an id
     pointing at a deleted entry does not count, the entry can be posted again. *}}
 {{if !$rec_error && $already}}
@@ -114,7 +120,9 @@
 		{{if $remainder > 0}}
 			{{:assign var="lines[%d][account]"|args:$li value=$receivable_account}}
 			{{:assign var="lines[%d][debit]"|args:$li value=$remainder|money}}
-			{{:assign var="lines[%d][label]"|args:$li value="Créance — chèque annulé n°%s"|args:$cheque_number}}
+			{{:assign rcv_label="Créance — chèque annulé n°%s"|args:$cheque_number}}
+			{{if $member_name}}{{:assign rcv_label="Créance %s — chèque annulé n°%s"|args:$member_name:$cheque_number}}{{/if}}
+			{{:assign var="lines[%d][label]"|args:$li value=$rcv_label}}
 			{{:assign li="%d+1"|math:$li}}
 		{{/if}}
 
@@ -130,9 +138,11 @@
 
 	{{if !$rec_error}}
 		{{:assign created=null}}
+		{{:assign txn_label="Annulation chèque n°%s"|args:$cheque_number}}
+		{{if $member_name}}{{:assign txn_label="Annulation chèque n°%s — %s"|args:$cheque_number:$member_name}}{{/if}}
 		{{:api method="POST" path="accounting/transaction" access="write" fail=$api_fail
 			id_year="current" type="advanced" date=$rec_today
-			label="Annulation chèque n°%s"|args:$cheque_number
+			label=$txn_label
 			reference="ANNUL-%s"|args:$rid
 			lines=$lines linked_users=$users assign="created"}}
 

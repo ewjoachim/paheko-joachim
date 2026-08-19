@@ -82,9 +82,11 @@ def reseed():
     return _do
 
 
-# Fetch the latest accounting transaction with a given label, so tests can
-# assert the module posted a balanced, correctly-split entry. Returns
-# {found, id, lines:[{account, debit, credit, ref}]} as JSON.
+# Fetch the latest accounting transaction with a given label, so tests can assert
+# the module posted a balanced, correctly-split entry. Returns
+# {found, id, lines:[{account, debit, credit, ref, label}], users:[id_user]} as JSON.
+# `users` is grouped: acc_transactions_users can hold several rows per member
+# (one per linked subscription), and only the distinct members matter here.
 _TXN_PHP = """<?php
 namespace Paheko;
 require '/var/www/paheko/include/init.php';
@@ -92,9 +94,12 @@ $db = DB::getInstance();
 $label = base64_decode('%s');
 $id = $db->firstColumn('SELECT id FROM acc_transactions WHERE label = ? ORDER BY id DESC LIMIT 1', $label);
 if (!$id) { echo json_encode(['found' => false]); exit; }
-$rows = $db->get('SELECT a.code AS account, l.debit AS debit, l.credit AS credit, l.reference AS ref
+$rows = $db->get('SELECT a.code AS account, l.debit AS debit, l.credit AS credit,
+    l.reference AS ref, l.label AS label
     FROM acc_transactions_lines l INNER JOIN acc_accounts a ON a.id = l.id_account
     WHERE l.id_transaction = ? ORDER BY l.id', $id);
+$users = $db->get('SELECT id_user FROM acc_transactions_users
+    WHERE id_transaction = ? GROUP BY id_user ORDER BY id_user', $id);
 echo json_encode([
     'found' => true,
     'id' => (int) $id,
@@ -103,7 +108,9 @@ echo json_encode([
         'debit' => (int) $r->debit,
         'credit' => (int) $r->credit,
         'ref' => $r->ref,
+        'label' => $r->label,
     ], $rows),
+    'users' => array_map(fn($r) => (int) $r->id_user, $users),
 ]);
 """
 

@@ -22,13 +22,18 @@
 	{{:assign kind=$_POST.rec_kind|trim}}
 	{{:assign rid=$_POST.rec_id|trim}}
 
+	{{* keep="rec_txn_id" : l'id de l'écriture créée remonte jusqu'ici, on le passe dans
+	    l'URL pour pouvoir proposer le lien après la redirection. *}}
+	{{:assign rec_txn_id=null}}
 	{{if $kind === 'deposit'}}
-		{{:include file="./_record_deposit.html" ref=$rid}}
-		{{:redirect to="to_record.html?done=1"}}
+		{{:include file="./_record_deposit.html" ref=$rid keep="rec_txn_id"}}
 	{{else}}
-		{{:include file="./_record_cancellation.html" kind=$kind rid=$rid}}
-		{{:redirect to="to_record.html?done=1"}}
+		{{:include file="./_record_cancellation.html" kind=$kind rid=$rid keep="rec_txn_id"}}
 	{{/if}}
+	{{* intval AVANT le formatage : dans "…%d"|args:$x|intval le modificateur porte sur
+	    le résultat de args, pas sur $x, et l'URL entière est réduite à 0. *}}
+	{{:assign done_id=$rec_txn_id|intval}}
+	{{:redirect to="to_record.html?done=%d"|args:$done_id}}
 
 {{else}}
 	{{:error message="Vous n'avez pas le droit de comptabiliser (comptabilité = écriture requis)."}}
@@ -42,7 +47,15 @@
 
 {{:form_errors}}
 
-{{if $_GET.done}}<p class="block confirm">Écriture comptable créée.</p>{{/if}}
+{{* Pas de {{#restrict}} sur le lien : cette page est réservée à comptabilité = écriture
+    (le handler ci-dessus), donc qui lit ce message a forcément accès à l'écriture. *}}
+{{if $_GET.done}}
+	{{:assign done_txn=$_GET.done|intval}}
+	<p class="block confirm">
+		Écriture comptable créée.
+		{{if $done_txn}}{{:link href="!acc/transactions/details.php?id=%d"|args:$done_txn label="Voir l'écriture n°%d"|args:$done_txn}}{{/if}}
+	</p>
+{{/if}}
 
 {{#extension name="caisse"}}
 

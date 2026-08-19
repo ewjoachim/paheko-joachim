@@ -45,11 +45,18 @@
 	{{:assign var="lines[0][debit]" value=$b_total|money}}
 	{{:assign var="lines[0][label]" value="Remise de chèques n°%s"|args:$ref}}
 	{{:assign li=1}}
+	{{* Membres concernés, pour lier l'écriture : on indexe PAR id, ce qui déduplique
+	    les membres ayant plusieurs chèques dans le lot. updateLinkedUsers() ne
+	    regarde que les valeurs (array_values), les clés sont donc sans effet.
+	    member_id est absent des lots figés avant son introduction : ceux-là ne
+	    seront simplement pas liés. *}}
+	{{:assign users=null}}
 	{{#foreach from=$b_lines item="l"}}
 		{{:assign var="lines[%d][account]"|args:$li value=$b_account|or:$waiting_account}}
 		{{:assign var="lines[%d][credit]"|args:$li value=$l.amount|money}}
 		{{:assign var="lines[%d][reference]"|args:$li value=$l.cheque_ref}}
 		{{:assign var="lines[%d][label]"|args:$li value="Chèque n°%s"|args:$l.cheque_ref}}
+		{{if $l.member_id}}{{:assign var="users[%d]"|args:$l.member_id value=$l.member_id|intval}}{{/if}}
 		{{:assign li="%d+1"|math:$li}}
 	{{/foreach}}
 
@@ -66,7 +73,7 @@
 		id_year="current" type="advanced" date=$rec_today
 		label="Remise de chèques n°%s"|args:$ref
 		reference="DEPOT-%s"|args:$ref
-		lines=$lines assign="created"}}
+		lines=$lines linked_users=$users assign="created"}}
 
 	{{if $created}}
 		{{:save type="deposit_batch" key="batch-%s"|args:$ref deposit_txn_id=$created.id}}
