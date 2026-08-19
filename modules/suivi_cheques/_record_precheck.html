@@ -12,15 +12,21 @@
     leaving the item in the "to record" queue.
 
     The checks mirror the core exactly:
-      - the year: Years::getCurrentOpenYearId() picks an open year by preference
-        for the one covering today, but does not require it — Transaction::save()
-        then refuses a date outside that year;
+      - the year: with id_year="current", Years::getCurrentOpenYearId() picks an
+        open year by preference for the one covering today, but does not require
+        it — Transaction::save() then refuses a date outside that year. With
+        id_year="match", Years::getMatchingOpenYearId() looks the year up BY the
+        entry date, and importFromAPI raises instead of returning when none
+        matches;
       - the accounts: Transaction::importFromNewForm() resolves each line's code in
         the chart of that very year ([Transaction.php:1136]).
 
     Parameters:
-      $lines    the lines about to be posted (objects with an "account" key);
-      $on_date  the entry date.
+      $lines     the lines about to be posted (objects with an "account" key);
+      $on_date   the entry date;
+      $on_match  true when the caller posts with id_year="match" (an entry dated in
+                 the past, e.g. a settlement collected before today) — the year is
+                 then selected by the date instead of by today.
     Returns, through keep="rec_error": why we give up, or the inherited value
     (null) when everything checks out.
 
@@ -29,15 +35,30 @@
     what is left is exotic (locked year, unusable account). *}}
 
 {{:assign pc_year=null pc_chart=null pc_covers=false}}
-{{#select id, id_chart, (start_date <= :d AND end_date >= :d) AS covers
-	FROM acc_years WHERE status = 0
-	ORDER BY start_date <= date() AND end_date >= date() DESC, start_date DESC
-	LIMIT 1; :d=$on_date}}
-	{{:assign pc_year=$id pc_chart=$id_chart pc_covers=$covers}}
-{{/select}}
+{{if $on_match}}
+	{{* Years::getMatchingOpenYearId : sélection PAR la date, donc un exercice trouvé
+	    couvre la date par construction. *}}
+	{{#select id, id_chart, 1 AS covers
+		FROM acc_years WHERE status = 0 AND start_date <= :d AND end_date >= :d
+		ORDER BY start_date
+		LIMIT 1; :d=$on_date}}
+		{{:assign pc_year=$id pc_chart=$id_chart pc_covers=$covers}}
+	{{/select}}
+{{else}}
+	{{#select id, id_chart, (start_date <= :d AND end_date >= :d) AS covers
+		FROM acc_years WHERE status = 0
+		ORDER BY start_date <= date() AND end_date >= date() DESC, start_date DESC
+		LIMIT 1; :d=$on_date}}
+		{{:assign pc_year=$id pc_chart=$id_chart pc_covers=$covers}}
+	{{/select}}
+{{/if}}
 
 {{if !$pc_year}}
-	{{:assign rec_error="Aucun exercice comptable ouvert : l'écriture n'a pas pu être créée."}}
+	{{if $on_match}}
+		{{:assign rec_error="Aucun exercice ouvert ne couvre cette date : l'écriture n'a pas pu être créée."}}
+	{{else}}
+		{{:assign rec_error="Aucun exercice comptable ouvert : l'écriture n'a pas pu être créée."}}
+	{{/if}}
 {{elseif !$pc_covers}}
 	{{:assign rec_error="Aucun exercice ouvert ne couvre la date du jour : l'écriture n'a pas pu être créée."}}
 {{else}}

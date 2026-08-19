@@ -51,23 +51,26 @@
 	{{:assign mp_slate=$slate|intval}}
 {{/select}}
 
-{{* Créance : solde des comptes de tiers sur les écritures liées au membre.
-    Débit - crédit, donc positif = doit. Le dédoublonnage de
-    acc_transactions_users est indispensable (clé incluant id_service_user). *}}
+{{* Créance : ce que le module porte, pas ce que la comptabilité en reflète — les
+    créances sont des documents du module (voir _creance_sync.html et debtors.html).
+    Somme des créances moins les règlements encaissés dessus, donc positif = doit,
+    et jamais négatif : settle.html refuse un règlement excédentaire. *}}
 {{:assign mp_receivable=0}}
 {{#select
-	COALESCE(SUM(l.debit - l.credit), 0) AS receivable
-	FROM (SELECT id_user, id_transaction FROM acc_transactions_users GROUP BY id_transaction, id_user) tu
-	INNER JOIN acc_transactions t ON t.id = tu.id_transaction
-	INNER JOIN acc_transactions_lines l ON l.id_transaction = t.id
-	INNER JOIN acc_accounts a ON a.id = l.id_account
-	WHERE tu.id_user = :uid AND a.type = 4;
+	COALESCE(SUM(CAST(json_extract(c.document, '$.amount') AS INT)
+		- COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
+			FROM module_data_suivi_cheques r
+			WHERE json_extract(r.document, '$.type') = 'reglement'
+				AND json_extract(r.document, '$.creance_key') = c.key), 0)), 0) AS receivable
+	FROM module_data_suivi_cheques c
+	WHERE json_extract(c.document, '$.type') = 'creance'
+		AND CAST(json_extract(c.document, '$.member_id') AS INT) = :uid;
 	:uid=$mp_user_id
 }}
 	{{:assign mp_receivable=$receivable|intval}}
 {{/select}}
 
-{{if $mp_slate < 0 || $mp_receivable != 0}}
+{{if $mp_slate < 0 || $mp_receivable > 0}}
 	<p class="help">
 		{{if $mp_slate < 0}}
 			{{* On pointe vers la LISTE des ardoises de la caisse (type 2 =
@@ -88,10 +91,15 @@
 		{{/if}}
 		{{if $mp_receivable > 0}}
 			{{:tag label="Créance" color="darkorange"}}
-			doit <strong>{{$mp_receivable|raw|money_currency}}</strong> — se solde par une écriture comptable.
-		{{elseif $mp_receivable < 0}}
-			{{:tag label="Avance" color="darkgreen"}}
-			a versé <strong>{{$mp_receivable|abs|raw|money_currency}}</strong> de trop.
+			doit <strong>{{$mp_receivable|raw|money_currency}}</strong> —
+			{{* Lien absolu : ce partial est rendu dans la fiche membre du cœur, pas dans
+			    une page du module, donc un chemin relatif ne pointerait pas ici. *}}
+			{{#restrict section="users" level="write"}}
+				{{:assign mp_settle_url="%ssettle.html?user=%d"|args:$module.url:$mp_user_id}}
+				{{:link href=$mp_settle_url label="à encaisser au bureau"}}.
+			{{else}}
+				s'encaisse au bureau.
+			{{/restrict}}
 		{{/if}}
 	</p>
 {{/if}}
@@ -114,7 +122,16 @@
 		{{#select
 			*
 			FROM (
-				-- 1. Lignes de note : achats, reglements d'ardoise, recharges porte-monnaie.
+				-- DEUX INTERDITS dans les commentaires de ce corps SQL, tous deux parce
+				-- que le decoupage du tag ignore la syntaxe -- :
+				--   * pas de point-virgule. Sections::selectStart coupe le corps au
+				--     PREMIER point-virgule (strtok) et lit la suite comme des
+				--     parametres, ce qui donne une erreur du genre "Expecting = after le".
+				--   * un nombre pair d apostrophes. Le tokenizer les compte pour suivre
+				--     les chaines SQL.
+				-- Dans les deux cas l erreur signalee tombe loin de sa cause.
+				--
+				-- 1. Lignes de note : achats, reglements ardoise, recharges porte-monnaie.
 				--    tabs_items.type et tabs_payments.type sont DEUX echelles differentes.
 				SELECT ti.added AS mdate,
 					CASE ti.type WHEN 1 THEN 'payoff' WHEN 2 THEN 'topup' ELSE 'purchase' END AS kind,
@@ -127,8 +144,8 @@
 				UNION ALL
 
 				-- 2. Encaissements caisse, tous moyens. type 2 = ardoise : report de
-				--    dette, pas un reglement. L'etat vient de l'overlay du module
-				--    quand le paiement est un cheque suivi.
+				--    dette, pas un reglement. Son etat vient de la fiche module quand
+				--    le paiement est un cheque suivi.
 				SELECT p.date AS mdate,
 					CASE p.type WHEN 2 THEN 'slate' WHEN 3 THEN 'wallet' ELSE 'payment' END AS kind,
 					m.name AS label, NULL AS detail, p.reference AS reference,
@@ -167,20 +184,44 @@
 
 				UNION ALL
 
-				-- 4. Creances : lignes d'ecriture sur un compte de tiers, liees au
-				--    membre. Les ventes en caisse n'y sont PAS : le plugin poste une
-				--    ecriture agregee par session, sans lien membre.
-				SELECT t2.date AS mdate,
-					CASE WHEN l.debit > 0 THEN 'receivable' ELSE 'receivable_paid' END AS kind,
-					COALESCE(l.label, t2.label) AS label, a.code AS detail,
-					l.reference AS reference,
-					CASE WHEN l.debit > 0 THEN l.debit ELSE l.credit END AS amount,
+				-- 4. Creances portees par le module : nees quand un cheque est annule,
+				--    donc connues avant toute comptabilisation. On ne lit PAS les comptes
+				--    de tiers ici : la comptabilite est le reflet, pas la source
+				--    (voir _creance_sync.html).
+				SELECT json_extract(c.document, '$.date') AS mdate,
+					'receivable' AS kind,
+					'Créance sur chèque annulé' AS label,
+					json_extract(c.document, '$.reason') AS detail,
+					json_extract(c.document, '$.cheque_number') AS reference,
+					CAST(json_extract(c.document, '$.amount') AS INT) AS amount,
+					CASE WHEN CAST(json_extract(c.document, '$.amount') AS INT)
+						- COALESCE((SELECT SUM(CAST(json_extract(r2.document, '$.amount') AS INT))
+							FROM module_data_suivi_cheques r2
+							WHERE json_extract(r2.document, '$.type') = 'reglement'
+								AND json_extract(r2.document, '$.creance_key') = c.key), 0) > 0
+						THEN 'owed' ELSE 'settled' END AS state
+				FROM module_data_suivi_cheques c
+				WHERE json_extract(c.document, '$.type') = 'creance'
+					AND CAST(json_extract(c.document, '$.member_id') AS INT) = :uid
+
+				UNION ALL
+
+				-- 5. Reglements encaisses sur une creance (settle.html). Le moyen est
+				--    celui choisi a la saisie, le reglement ne passant pas en caisse.
+				SELECT json_extract(rg.document, '$.date') AS mdate,
+					'receivable_paid' AS kind,
+					COALESCE(m2.name, 'Règlement de créance') AS label,
+					json_extract(rg.document, '$.notes') AS detail,
+					json_extract(cr.document, '$.cheque_number') AS reference,
+					CAST(json_extract(rg.document, '$.amount') AS INT) AS amount,
 					NULL AS state
-				FROM (SELECT id_user, id_transaction FROM acc_transactions_users GROUP BY id_transaction, id_user) tu
-				INNER JOIN acc_transactions t2 ON t2.id = tu.id_transaction
-				INNER JOIN acc_transactions_lines l ON l.id_transaction = t2.id
-				INNER JOIN acc_accounts a ON a.id = l.id_account
-				WHERE tu.id_user = :uid AND a.type = 4
+				FROM module_data_suivi_cheques rg
+				LEFT JOIN module_data_suivi_cheques cr
+					ON cr.key = json_extract(rg.document, '$.creance_key')
+				LEFT JOIN plugin_pos_methods m2
+					ON m2.id = CAST(json_extract(rg.document, '$.method_id') AS INT)
+				WHERE json_extract(rg.document, '$.type') = 'reglement'
+					AND CAST(json_extract(rg.document, '$.member_id') AS INT) = :uid
 			)
 			ORDER BY mdate DESC, kind
 			LIMIT :lim;
@@ -211,6 +252,8 @@
 					{{if $state === 'cancelled'}}{{:tag label="Annulé" color="grey"}}
 					{{elseif $state === 'deposited'}}{{:tag label="Déposé" color="darkgreen"}}
 					{{elseif $state === 'pending'}}{{:tag label="À encaisser" color="darkorange"}}
+					{{elseif $state === 'owed'}}{{:tag label="Dû" color="darkorange"}}
+					{{elseif $state === 'settled'}}{{:tag label="Soldée" color="darkgreen"}}
 					{{/if}}
 				</td>
 			</tr>

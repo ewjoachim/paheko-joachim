@@ -96,6 +96,11 @@
 		annulation_txn_id=$cur_annul_txn
 	}}
 
+	{{* Créance du membre : créée, ajustée ou supprimée tout de suite, sans attendre
+	    la comptabilisation — c'est le module qui possède la dette
+	    (voir _creance_sync.html). *}}
+	{{:include file="./_creance_sync.html" cw_kind="annul_pay" cw_rid=$pid}}
+
 	{{* Automatic mode (configuration): post the cancellation entry right away,
 	    without requiring any accounting permission from whoever is typing — the
 	    checkbox an admin ticked is what authorises it, mirroring the till's own

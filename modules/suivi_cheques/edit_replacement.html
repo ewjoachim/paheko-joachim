@@ -105,6 +105,9 @@
 		annulation_txn_id=$cur_annul_txn
 	}}
 
+	{{* Créance du membre : voir edit.html et _creance_sync.html. *}}
+	{{:include file="./_creance_sync.html" cw_kind="annul_rempl" cw_rid=$key}}
+
 	{{* Automatic mode: same contract as edit.html — see the comment there. *}}
 	{{:assign rec_txn_id=null rec_error=null}}
 	{{if $module.config.auto_record_cancellations && $_POST.cancelled|intval}}

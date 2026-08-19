@@ -215,6 +215,45 @@ def orphan_slate_debt():
     return _add
 
 
+# An entry the module did not create, moving a third-party account and linked to a
+# member — a subscription typed straight into accounting, say. The debtors page
+# cannot show it (it does not own it), so it has to announce the gap instead of
+# implying its table is exhaustive. Same path as the API endpoint the module uses.
+_MANUAL_RECEIVABLE_PHP = """<?php
+namespace Paheko;
+use Paheko\\Entities\\Accounting\\Transaction;
+require '/var/www/paheko/include/init.php';
+$p = json_decode(base64_decode('%s'), true);
+$t = new Transaction;
+$t->importFromAPI([
+    'id_year' => 'current',
+    'type' => 'advanced',
+    'date' => $p['date'],
+    'label' => 'Cotisation saisie a la main',
+    'lines' => [
+        ['account' => '411', 'debit' => $p['amount'], 'credit' => '0'],
+        ['account' => '756', 'debit' => '0', 'credit' => $p['amount']],
+    ],
+]);
+$t->save();
+$t->updateLinkedUsers([(int) $p['user']]);
+echo (int) $t->id();
+"""
+
+
+@pytest.fixture
+def manual_receivable():
+    """Post a third-party entry outside the module, linked to a member."""
+
+    def _add(user: int, amount: str, date: str = "2026-07-10") -> int:
+        b64 = base64.b64encode(
+            json.dumps({"user": user, "amount": amount, "date": date}).encode()
+        ).decode()
+        return int(_php(_MANUAL_RECEIVABLE_PHP % b64).strip())
+
+    return _add
+
+
 @pytest.fixture
 def transaction():
     def _get(label: str) -> dict:
