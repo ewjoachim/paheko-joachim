@@ -226,7 +226,8 @@
 		<li>ne pas payer assez à l'inscription&nbsp;: le reste part en <strong>ardoise</strong>, prise à la
 			caisse — et c'est à la caisse qu'elle se solde, d'où le bouton de la dernière colonne&nbsp;;</li>
 		<li>un chèque qui revient impayé plus tard&nbsp;: la part non recouvrée devient une
-			<strong>créance</strong>, posée par ce module, qui se solde par une écriture comptable.</li>
+			<strong>créance</strong>, suivie par ce module — et c'est ici qu'on l'encaisse, avec le bouton
+			de la dernière colonne.</li>
 	</ul>
 	<p class="muted">
 		C'est pourquoi les deux colonnes restent séparées&nbsp;: un solde unique ne dirait pas quoi faire.
@@ -235,9 +236,33 @@
 		la page l'annonce alors séparément, plutôt que de laisser son total sous-estimer ce qui est dû.
 	</p>
 
+	<h3>7. Encaisser une créance</h3>
+	<p>
+		Quand la personne revient payer, le bouton <em>Régler la créance</em> ouvre une page qui liste ce
+		qu'elle doit encore, chèque annulé par chèque annulé. On saisit le <strong>montant reçu</strong>
+		(un règlement partiel est permis&nbsp;: la créance garde le reste), la <strong>date</strong> de
+		l'encaissement et le <strong>moyen de paiement</strong>. C'est tout&nbsp;: la créance diminue
+		aussitôt, et l'écriture correspondante part vers la comptabilité comme le reste.
+	</p>
+	<div class="note">
+		<strong>Pourquoi ne pas simplement passer l'écriture en comptabilité&nbsp;?</strong> Parce que le
+		formulaire d'écriture n'oblige pas à renseigner «&nbsp;membres associés&nbsp;». L'oublier une fois
+		suffit à laisser quelqu'un débiteur pour toujours dans cette page, sans que personne ne comprenne
+		pourquoi. En passant par ici, le membre est toujours lié — et la créance est à jour même avant que
+		l'écriture existe.
+	</div>
+	<div class="warn">
+		<strong>Un chèque n'est pas un bon moyen de règlement ici.</strong> Les moyens «&nbsp;chèque à
+		encaissement différé&nbsp;» ne sont pas proposés&nbsp;: un tel chèque devrait être suivi et remis en
+		banque, ce que cette page ne sait pas faire. Si la personne rend un chèque, le bon geste est de le
+		saisir comme <em>remplacement</em> sur le chèque annulé, avant que son annulation soit comptabilisée.
+		L'ardoise et le porte-monnaie sont exclus pour une autre raison&nbsp;: ils déplaceraient la dette au
+		lieu de l'éteindre.
+	</div>
+
 	<h2>Côté comptabilité</h2>
 
-	<h3>6. Chèques à comptabiliser</h3>
+	<h3>8. Chèques à comptabiliser</h3>
 	<p>
 		Cette page regroupe tout ce que l'accueil a préparé et qui attend une écriture comptable :
 	</p>
@@ -247,8 +272,16 @@
 			<strong>créance du membre</strong> (le membre nous doit encore cette somme). Le nom du membre
 			apparaît dans le libellé de l'écriture et sur la ligne de créance, pour qu'on sache de qui il
 			s'agit sans avoir à remonter au chèque.</li>
+		<li><strong>Règlements de créances</strong> — un clic crée l'écriture de l'argent encaissé au
+			bureau : le compte encaissé au débit, le compte de créance au crédit, le membre lié.</li>
 		<li><strong>Remises</strong> — un clic crée l'écriture de dépôt en banque à partir du bordereau figé.</li>
 	</ul>
+	<p class="muted">
+		La <em>naissance</em> d'une créance n'a pas de ligne à elle dans cette file&nbsp;: elle est déjà
+		portée par la ligne de créance de l'écriture d'annulation. Seule son extinction demande une écriture
+		propre. Autrement dit, cette file est exactement l'écart entre ce que le module sait et ce que la
+		comptabilité en reflète&nbsp;: quand elle est vide, les deux disent la même chose.
+	</p>
 	<figure>
 		<img src="screenshots/08-a-comptabiliser.png" alt="File des chèques à comptabiliser" />
 		<figcaption>Annulations et remises en attente. Chaque bouton « Comptabiliser » crée une écriture équilibrée.</figcaption>
@@ -267,16 +300,17 @@
 	</div>
 	<div class="warn">
 		<strong>La recette n'est jamais annulée.</strong> Un chèque impayé ne « défait » pas la recette
-		enregistrée : la part non recouvrée devient une créance du membre (compte 411 par défaut), que la
-		comptabilité solde ensuite (le membre repaie, ou passage en perte).
+		enregistrée : la part non recouvrée devient une créance du membre (compte 411 par défaut). Si le
+		membre repaie, l'accueil l'encaisse depuis <em>Impayés</em> et l'écriture arrive ici. S'il faut
+		passer la somme en perte, cela se fait en comptabilité — le module ne connaît que l'encaissement.
 	</div>
 
 	<h2>Sur la fiche d'un membre</h2>
 	<p>
 		Un encart « Paiements » apparaît sur la fiche de chaque adhérent concerné. Il ne se limite pas aux
 		chèques : c'est le journal de tout ce que la personne a acheté et réglé — achats en caisse, paiements
-		de tous moyens (espèces, chèques suivis, chèques de remplacement), ardoise, et créances comptables.
-		En lecture seule — pour agir, un lien renvoie vers le module.
+		de tous moyens (espèces, chèques suivis, chèques de remplacement), ardoise, créances et leurs
+		règlements. En lecture seule — pour agir, un lien renvoie vers le module.
 	</p>
 	<figure>
 		<img src="screenshots/09-fiche-membre.png" alt="Encart paiements sur la fiche membre" />
@@ -284,8 +318,9 @@
 	</figure>
 	<p>
 		En tête de l'encart, les <strong>dettes éventuelles</strong>, séparées parce qu'elles ne se règlent pas
-		de la même façon : l'<strong>ardoise</strong> se solde à la caisse, la <strong>créance</strong> par une
-		écriture comptable. Elles ne sont donc jamais additionnées en un seul chiffre.
+		de la même façon : l'<strong>ardoise</strong> se solde à la caisse, la <strong>créance</strong>
+		s'encaisse au bureau (le lien mène directement à la page de règlement de cette personne). Elles ne
+		sont donc jamais additionnées en un seul chiffre.
 	</p>
 	<div class="note">
 		<strong>Une ligne « portée en ardoise » n'est pas un paiement.</strong> C'est un report : la note est
@@ -298,9 +333,11 @@
 		clôturer une session tant qu'une note comportant une <em>inscription à une activité</em> n'est pas
 		liée à un membre, donc les inscriptions sont toujours rattachées ; seules les notes de pure vente
 		peuvent échapper. Seconde limite : les achats en caisse ne sont pas attribués aux membres
-		<em>en comptabilité</em>, la caisse passant une seule écriture par session. C'est pourquoi le journal
-		lit les notes directement, et pourquoi la colonne des créances, elle, ne montre que les écritures
-		explicitement liées à la personne — comme celles que ce module crée en annulant un chèque.
+		<em>en comptabilité</em>, la caisse passant une seule écriture par session. C'est pourquoi rien ici
+		ne se lit dans la comptabilité : chaque dette est lue dans l'outil qui la possède réellement —
+		l'ardoise dans la caisse, la créance dans ce module. Un mouvement de créance saisi directement en
+		comptabilité n'apparaît donc pas dans cet encart ; la page <em>Impayés</em> le signale au moins
+		globalement.
 	</p>
 
 	<h2>Configuration (administrateur)</h2>
@@ -321,13 +358,15 @@
 	<h3>Comptabilisation automatique</h3>
 	<p>
 		Par défaut, le module se contente de préparer les écritures : elles patientent dans
-		« Chèques à comptabiliser » jusqu'à ce que la comptabilité les valide. Deux cases de la
+		« Chèques à comptabiliser » jusqu'à ce que la comptabilité les valide. Trois cases de la
 		configuration suppriment cette attente — le module passe alors l'écriture lui-même, tout de
 		suite. Une case par type d'écriture :
 	</p>
 	<ul>
 		<li><strong>les annulations</strong> — l'écriture est passée dès que l'annulation est
 			enregistrée ;</li>
+		<li><strong>les règlements de créances</strong> — l'écriture est passée dès que l'argent est
+			encaissé ;</li>
 		<li><strong>les remises</strong> — l'écriture de dépôt est passée dès que le bordereau est
 			généré.</li>
 	</ul>
@@ -341,8 +380,8 @@
 		<strong>Sur les annulations, attention à l'ordre de saisie.</strong> L'écriture étant passée
 		aussitôt, la fiche du chèque devient immédiatement non modifiable : les remplacements doivent être
 		saisis <em>avant</em> d'enregistrer, pas après. Pour corriger, il faut supprimer l'écriture en
-		comptabilité — le chèque redevient alors modifiable et repasse dans la file. Les remises, elles,
-		sont figées de toute façon au moment de leur génération : rien ne change pour elles.
+		comptabilité — le chèque redevient alors modifiable et repasse dans la file. Les remises et les
+		règlements, eux, sont figés de toute façon au moment de leur saisie : rien ne change pour eux.
 	</div>
 	<div class="note">
 		<strong>Un échec ne fait rien perdre.</strong> Si l'écriture ne peut pas être créée (aucun exercice
