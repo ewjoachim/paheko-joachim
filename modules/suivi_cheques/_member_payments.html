@@ -1,0 +1,215 @@
+{{* -*- brindille -*- *}}
+{{*
+	Journal des paiements d'un membre, toutes sources confondues. Utilisé par
+	snippets/user_details.html.
+
+	Paramètres :
+	  $mp_user_id  identifiant du membre ;
+	  $mp_limit    nombre maximum de mouvements affichés (toujours > 0 : la clause
+	               LIMIT ne peut pas être conditionnelle, un {{if}} ne s'interpole
+	               pas dans le corps SQL d'un {{#select}}) ;
+	  $mp_total    nombre total de mouvements, pour savoir si l'affichage est tronqué
+	               (comparer le nombre de lignes rendues au plafond dirait « tronqué »
+	               quand il y en a exactement autant que le plafond).
+
+	C'est un JOURNAL, pas un grand livre : une seule colonne « Montant », et
+	c'est la colonne « Type » qui porte le sens. Raison : une ardoise n'est ni
+	une charge ni un règlement — c'est un report de dette — et l'additionner
+	avec les paiements donnerait un solde faux. Les soldes sont donc calculés
+	à part, chacun avec sa propre convention (voir plus bas).
+
+	Le rattachement au membre n'existe que par plugin_pos_tabs.user_id : une note
+	ouverte au NOM de quelqu'un sans lien vers sa fiche est invisible ici. C'est
+	une limite de la caisse, pas du module — et elle est étroite : Session::close()
+	refuse de clôturer tant qu'une note portant un id_fee n'a pas de user_id
+	(listTabIdsWithFeesButNoUser), donc toute inscription à une activité est
+	forcément rattachée. Seules les notes de pure vente peuvent échapper.
+
+	Il n'y a rien à récupérer du côté des notes restées ouvertes : close() refuse
+	aussi de clôturer une session qui en contient (hasOpenNotes), donc une note
+	ouverte est un panier en cours, jamais une dette oubliée.
+*}}
+
+{{* ---------------------------------------------------------------------------
+    Soldes. Deux dettes distinctes, deux mécanismes de règlement : l'ardoise se
+    solde à la caisse, la créance par une écriture. On ne les additionne donc pas.
+--------------------------------------------------------------------------- *}}
+
+{{* Ardoise : même convention que Tabs::getUserBalancesQuery du plugin caisse —
+    ardoise consommée en négatif, règlement en positif, donc négatif = doit. *}}
+{{:assign mp_slate=0}}
+{{#select
+	COALESCE((SELECT SUM(p.amount) FROM plugin_pos_tabs_payments p
+		INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+		WHERE t.user_id = :uid AND p.type = 2), 0) * -1
+	+ COALESCE((SELECT SUM(ti.total) FROM plugin_pos_tabs_items ti
+		INNER JOIN plugin_pos_tabs t ON t.id = ti.tab
+		WHERE t.user_id = :uid AND ti.type = 1), 0)
+	AS slate;
+	:uid=$mp_user_id
+}}
+	{{:assign mp_slate=$slate|intval}}
+{{/select}}
+
+{{* Créance : solde des comptes de tiers sur les écritures liées au membre.
+    Débit - crédit, donc positif = doit. Le dédoublonnage de
+    acc_transactions_users est indispensable (clé incluant id_service_user). *}}
+{{:assign mp_receivable=0}}
+{{#select
+	COALESCE(SUM(l.debit - l.credit), 0) AS receivable
+	FROM (SELECT id_user, id_transaction FROM acc_transactions_users GROUP BY id_transaction, id_user) tu
+	INNER JOIN acc_transactions t ON t.id = tu.id_transaction
+	INNER JOIN acc_transactions_lines l ON l.id_transaction = t.id
+	INNER JOIN acc_accounts a ON a.id = l.id_account
+	WHERE tu.id_user = :uid AND a.type = 4;
+	:uid=$mp_user_id
+}}
+	{{:assign mp_receivable=$receivable|intval}}
+{{/select}}
+
+{{if $mp_slate < 0 || $mp_receivable != 0}}
+	<p class="help">
+		{{if $mp_slate < 0}}
+			{{:tag label="Ardoise" color="darkorange"}}
+			doit <strong>{{$mp_slate|abs|raw|money_currency}}</strong> — se solde à la caisse.
+		{{/if}}
+		{{if $mp_receivable > 0}}
+			{{:tag label="Créance" color="darkorange"}}
+			doit <strong>{{$mp_receivable|raw|money_currency}}</strong> — se solde par une écriture comptable.
+		{{elseif $mp_receivable < 0}}
+			{{:tag label="Avance" color="darkgreen"}}
+			a versé <strong>{{$mp_receivable|abs|raw|money_currency}}</strong> de trop.
+		{{/if}}
+	</p>
+{{/if}}
+
+{{* ---------------------------------------------------------------------------
+    Journal chronologique.
+--------------------------------------------------------------------------- *}}
+<table class="list">
+	<thead>
+		<tr>
+			<th>Date</th>
+			<th>Type</th>
+			<th>Libellé</th>
+			<th>Référence</th>
+			<th class="money">Montant</th>
+			<th>État</th>
+		</tr>
+	</thead>
+	<tbody>
+		{{#select
+			*
+			FROM (
+				-- 1. Lignes de note : achats, reglements d'ardoise, recharges porte-monnaie.
+				--    tabs_items.type et tabs_payments.type sont DEUX echelles differentes.
+				SELECT ti.added AS mdate,
+					CASE ti.type WHEN 1 THEN 'payoff' WHEN 2 THEN 'topup' ELSE 'purchase' END AS kind,
+					ti.name AS label, ti.category_name AS detail, NULL AS reference,
+					ti.total AS amount, NULL AS state
+				FROM plugin_pos_tabs_items ti
+				INNER JOIN plugin_pos_tabs t ON t.id = ti.tab
+				WHERE t.user_id = :uid
+
+				UNION ALL
+
+				-- 2. Encaissements caisse, tous moyens. type 2 = ardoise : report de
+				--    dette, pas un reglement. L'etat vient de l'overlay du module
+				--    quand le paiement est un cheque suivi.
+				SELECT p.date AS mdate,
+					CASE p.type WHEN 2 THEN 'slate' WHEN 3 THEN 'wallet' ELSE 'payment' END AS kind,
+					m.name AS label, NULL AS detail, p.reference AS reference,
+					p.amount AS amount,
+					CASE
+						WHEN ov.key IS NULL THEN NULL
+						WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
+						WHEN json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'deposited'
+						ELSE 'pending'
+					END AS state
+				FROM plugin_pos_tabs_payments p
+				INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+				LEFT JOIN plugin_pos_methods m ON m.id = p.method
+				LEFT JOIN module_data_suivi_cheques ov
+					ON json_extract(ov.document, '$.type') = 'cheque'
+					AND CAST(json_extract(ov.document, '$.payment_id') AS INT) = p.id
+				WHERE t.user_id = :uid
+
+				UNION ALL
+
+				-- 3. Cheques de remplacement : suivis par le module, jamais passes en
+				--    caisse (ils remplacent un cheque revenu impaye).
+				SELECT json_extract(r.document, '$.received_date') AS mdate,
+					'replacement' AS kind,
+					'Chèque de remplacement' AS label, NULL AS detail,
+					json_extract(r.document, '$.cheque_number') AS reference,
+					CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
+					CASE
+						WHEN COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
+						WHEN json_extract(r.document, '$.batch_id') IS NOT NULL THEN 'deposited'
+						ELSE 'pending'
+					END AS state
+				FROM module_data_suivi_cheques r
+				WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
+					AND CAST(json_extract(r.document, '$.member_id') AS INT) = :uid
+
+				UNION ALL
+
+				-- 4. Creances : lignes d'ecriture sur un compte de tiers, liees au
+				--    membre. Les ventes en caisse n'y sont PAS : le plugin poste une
+				--    ecriture agregee par session, sans lien membre.
+				SELECT t2.date AS mdate,
+					CASE WHEN l.debit > 0 THEN 'receivable' ELSE 'receivable_paid' END AS kind,
+					COALESCE(l.label, t2.label) AS label, a.code AS detail,
+					l.reference AS reference,
+					CASE WHEN l.debit > 0 THEN l.debit ELSE l.credit END AS amount,
+					NULL AS state
+				FROM (SELECT id_user, id_transaction FROM acc_transactions_users GROUP BY id_transaction, id_user) tu
+				INNER JOIN acc_transactions t2 ON t2.id = tu.id_transaction
+				INNER JOIN acc_transactions_lines l ON l.id_transaction = t2.id
+				INNER JOIN acc_accounts a ON a.id = l.id_account
+				WHERE tu.id_user = :uid AND a.type = 4
+			)
+			ORDER BY mdate DESC, kind
+			LIMIT :lim;
+			:uid=$mp_user_id
+			:lim=$mp_limit
+		}}
+			<tr>
+				<td>{{$mdate|date_short}}</td>
+				<td>
+					{{if $kind === 'purchase'}}Achat
+					{{elseif $kind === 'payment'}}Paiement
+					{{elseif $kind === 'payoff'}}Règlement d'ardoise
+					{{elseif $kind === 'topup'}}Recharge porte-monnaie
+					{{elseif $kind === 'slate'}}{{:tag label="Porté en ardoise" color="darkorange"}}
+					{{elseif $kind === 'wallet'}}Porte-monnaie
+					{{elseif $kind === 'replacement'}}{{:tag label="Remplacement" color="darkcyan"}}
+					{{elseif $kind === 'receivable'}}{{:tag label="Créance" color="darkorange"}}
+					{{elseif $kind === 'receivable_paid'}}{{:tag label="Créance réglée" color="darkgreen"}}
+					{{/if}}
+				</td>
+				<td>
+					{{$label|escape|or:'—'}}
+					{{if $detail}}<br /><small>{{$detail|escape}}</small>{{/if}}
+				</td>
+				<td>{{$reference|escape|or:'—'}}</td>
+				<td class="money">{{$amount|raw|money_currency}}</td>
+				<td>
+					{{if $state === 'cancelled'}}{{:tag label="Annulé" color="grey"}}
+					{{elseif $state === 'deposited'}}{{:tag label="Déposé" color="darkgreen"}}
+					{{elseif $state === 'pending'}}{{:tag label="À encaisser" color="darkorange"}}
+					{{/if}}
+				</td>
+			</tr>
+		{{else}}
+			<tr><td colspan="6">Aucun paiement.</td></tr>
+		{{/select}}
+	</tbody>
+</table>
+
+{{if $mp_total > $mp_limit}}
+	<p class="help">
+		{{$mp_total}} mouvements en tout, seuls les {{$mp_limit}} plus récents sont affichés.
+		{{:link href="?id=%d&all=1"|args:$mp_user_id label="Tout afficher"}}
+	</p>
+{{/if}}

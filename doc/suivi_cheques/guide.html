@@ -246,13 +246,35 @@
 
 	<h2>Sur la fiche d'un membre</h2>
 	<p>
-		Un encart « Chèques » apparaît sur la fiche de chaque adhérent concerné : il récapitule ses chèques et
-		leur état. En lecture seule — pour agir, un lien renvoie vers le module.
+		Un encart « Paiements » apparaît sur la fiche de chaque adhérent concerné. Il ne se limite pas aux
+		chèques : c'est le journal de tout ce que la personne a acheté et réglé — achats en caisse, paiements
+		de tous moyens (espèces, chèques suivis, chèques de remplacement), ardoise, et créances comptables.
+		En lecture seule — pour agir, un lien renvoie vers le module.
 	</p>
 	<figure>
-		<img src="screenshots/08-fiche-membre.png" alt="Encart chèques sur la fiche membre" />
-		<figcaption>Récapitulatif des chèques d'un membre, directement sur sa fiche.</figcaption>
+		<img src="screenshots/08-fiche-membre.png" alt="Encart paiements sur la fiche membre" />
+		<figcaption>Tout ce qu'un membre a acheté et réglé, directement sur sa fiche.</figcaption>
 	</figure>
+	<p>
+		En tête de l'encart, les <strong>dettes éventuelles</strong>, séparées parce qu'elles ne se règlent pas
+		de la même façon : l'<strong>ardoise</strong> se solde à la caisse, la <strong>créance</strong> par une
+		écriture comptable. Elles ne sont donc jamais additionnées en un seul chiffre.
+	</p>
+	<div class="note">
+		<strong>Une ligne « portée en ardoise » n'est pas un paiement.</strong> C'est un report : la note est
+		soldée à la caisse, mais le membre doit encore la somme. Elle apparaît donc avec sa propre étiquette et
+		alimente le solde d'ardoise, sans être comptée parmi les règlements.
+	</div>
+	<p class="muted">
+		Deux limites à connaître. Le rattachement passe par la note de caisse : une note ouverte à un simple
+		nom, sans lien vers une fiche, n'apparaît pas ici. Le point aveugle est étroit — la caisse refuse de
+		clôturer une session tant qu'une note comportant une <em>inscription à une activité</em> n'est pas
+		liée à un membre, donc les inscriptions sont toujours rattachées ; seules les notes de pure vente
+		peuvent échapper. Seconde limite : les achats en caisse ne sont pas attribués aux membres
+		<em>en comptabilité</em>, la caisse passant une seule écriture par session. C'est pourquoi le journal
+		lit les notes directement, et pourquoi la colonne des créances, elle, ne montre que les écritures
+		explicitement liées à la personne — comme celles que ce module crée en annulant un chèque.
+	</p>
 
 	<h2>Configuration (administrateur)</h2>
 	<p>
