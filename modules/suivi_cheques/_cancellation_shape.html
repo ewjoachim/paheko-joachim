@@ -96,12 +96,19 @@
 	{{* remplacements PAR chèque (enfants directs, de caisse ou de remplacement) : on
 	    débite le compte d'attente, référence = le nouveau numéro. La récursion se fait
 	    « un niveau à la fois » — on ne regarde qu'un cran plus bas
-	    (CHAINES-REMPLACEMENT §1). *}}
+	    (CHAINES-REMPLACEMENT §1).
+
+	    Les enfants ANNULÉS comptent aussi. Un chèque de remplacement annulé a quand
+	    même été remis : il couvre son parent, et son propre rejet est l'affaire de sa
+	    propre écriture d'annulation, qui recrédite le compte d'attente et pose sa
+	    créance. L'exclure laisserait le crédit du parent sans le débit que l'écriture
+	    de l'enfant vient contrepasser, et ferait devoir la même somme deux fois — une
+	    fois par chèque. Un enfant SUPPRIMÉ (ligne vidée), lui, disparaît vraiment :
+	    supprimer n'est pas annuler. *}}
 	{{#select json_extract(document, '$.cheque_number') AS n, CAST(json_extract(document, '$.amount') AS INT) AS a
 		FROM module_data_suivi_cheques
 		WHERE json_extract(document, '$.type') = 'cheque_rempl'
 			AND json_extract(document, '$.parent_key') = :pk
-			AND COALESCE(CAST(json_extract(document, '$.cancelled') AS INT), 0) = 0
 		ORDER BY n; :pk=$cs_parent_key}}
 		{{:assign var="cs_lines[%d][account]"|args:$cs_li value=$cs_waiting_account}}
 		{{:assign var="cs_lines[%d][debit]"|args:$cs_li value=$a|money}}
