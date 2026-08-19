@@ -70,8 +70,21 @@
 {{if $mp_slate < 0 || $mp_receivable != 0}}
 	<p class="help">
 		{{if $mp_slate < 0}}
+			{{* On pointe vers la LISTE des ardoises de la caisse (type 2 =
+			    Method::TYPE_DEBT), pas vers l'action de règlement. Le bouton
+			    « Rembourser » de la caisse est un lien GET qui ÉCRIT
+			    (tab.php?id_user=…&payoff=<montant>&id_method=<méthode>) : il ouvre une
+			    note et y ajoute le règlement. Le refaire ici supposerait de choisir à
+			    la place de la caisse le moyen et le montant, et ça échouerait de façon
+			    obscure sans session de caisse ouverte. La page de règlement exige
+			    users=write (plugin.ini de la caisse), d'où le restrict. *}}
 			{{:tag label="Ardoise" color="darkorange"}}
-			doit <strong>{{$mp_slate|abs|raw|money_currency}}</strong> — se solde à la caisse.
+			doit <strong>{{$mp_slate|abs|raw|money_currency}}</strong> —
+			{{#restrict section="users" level="write"}}
+				{{:link href="!p/caisse/balances.php?type=2" label="à régler à la caisse"}}.
+			{{else}}
+				se solde à la caisse.
+			{{/restrict}}
 		{{/if}}
 		{{if $mp_receivable > 0}}
 			{{:tag label="Créance" color="darkorange"}}

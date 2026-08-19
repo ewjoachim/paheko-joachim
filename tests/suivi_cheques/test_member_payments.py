@@ -59,6 +59,22 @@ def test_slate_is_not_counted_as_a_payment(member_sheet, reseed):
     expect(payments_table(page).locator("tr", has_text="Ardoise")).to_contain_text("Porté en ardoise")
 
 
+def test_slate_balance_links_to_where_it_is_settled(member_sheet, reseed, admin_page):
+    """The link has to land on the caisse page that carries the "Rembourser"
+    button. Following it for real is the point: it catches the plugin moving its
+    URL, which a href-only assertion would not."""
+    reseed()
+    page = member_sheet()
+
+    link = page.get_by_role("link", name="à régler à la caisse")
+    expect(link).to_have_count(1)
+
+    resp = admin_page.goto(link.first.get_attribute("href"), wait_until="domcontentloaded")
+    assert resp.status == 200, f"dead link to the caisse: HTTP {resp.status}"
+    expect(admin_page.locator("h1, h2").first).to_contain_text("Ardoises en cours")
+    expect(admin_page.get_by_role("link", name="Rembourser")).to_have_count(1)
+
+
 def test_cancelled_cheque_shows_up_as_a_receivable(
     member_sheet, reseed, admin_page, module_url
 ):
