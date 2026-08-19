@@ -150,6 +150,22 @@ $item($tab_debt, '2026-07-04 17:01:00', "Location d'instrument — trimestre", '
 $db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, 1, '2026-07-04', 8000, NULL, '530', 1);", $tab_debt);
 $db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, 3, '2026-07-04', 4000, NULL, '4110', 2);", $tab_debt);
 
+// --- 6c. A second member, owing on the slate only -----------------------------
+// So the debtors page has more than one row, and shows a member who owes on one
+// side only — the whole point of keeping the two columns apart.
+$uid2 = $db->firstColumn("SELECT id FROM users WHERE numero = 'DEMO-SOFIA'");
+
+if (!$uid2) {
+	$db->preparedQuery("INSERT INTO users (id_category, numero, nom, is_parent, lettre_infos) VALUES (1, 'DEMO-SOFIA', 'Sofia Nkemelu', 0, 0);");
+	$uid2 = $db->lastInsertId();
+}
+
+$db->preparedQuery("INSERT INTO plugin_pos_tabs (session, name, user_id, opened, closed) VALUES (?, 'Sofia Nkemelu', ?, '2026-07-04 18:00:00', '2026-07-04 18:05:00');", $sid, $uid2);
+$tab_sofia = $db->lastInsertId();
+$item($tab_sofia, '2026-07-04 18:01:00', 'Cours de piano — trimestre', 'Cours', 9000, '706');
+$db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, 1, '2026-07-04', 3000, NULL, '530', 1);", $tab_sofia);
+$db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, 3, '2026-07-04', 6000, NULL, '4110', 2);", $tab_sofia);
+
 // --- 7. Deterministic admin password (throwaway db) --------------------------
 // Lets the Playwright script log in without guessing credentials.
 $admin = $db->first('SELECT id, email FROM users WHERE id_category IN (SELECT id FROM users_categories WHERE perm_config = 9) ORDER BY id LIMIT 1');
@@ -159,8 +175,9 @@ $db->preparedQuery('UPDATE users SET password = ? WHERE id = ?;', $hash, $admin-
 $db->commit();
 
 printf("Demo seeded: member #%d (Camille Martin), tabs #%d and #%d, 2 purchases, 9 cheques,"
-	. " 1 cancellation+replacement, 1 cancellation+card, 1 frozen slip, 1 slate debt of 40,00.\n",
-	$uid, $tab, $tab_debt);
+	. " 1 cancellation+replacement, 1 cancellation+card, 1 frozen slip, 1 slate debt of 40,00"
+	. " — plus member #%d (Sofia Nkemelu) owing 60,00 on the slate only.\n",
+	$uid, $tab, $tab_debt, $uid2);
 printf("ADMIN_EMAIL=%s\n", $admin->email);
 printf("ADMIN_PASSWORD=demo-screenshots-2026\n");
 printf("CAMILLE_ID=%d\n", $uid);
