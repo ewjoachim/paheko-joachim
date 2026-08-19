@@ -11,6 +11,7 @@
 			<li{{if $tab === 'upcoming'}} class="current"{{/if}}><a href="upcoming.html">Mois à venir</a></li>
 			<li{{if $tab === 'exercise'}} class="current"{{/if}}><a href="exercise.html">Année en cours</a></li>
 			<li{{if $tab === 'batches'}} class="current"{{/if}}><a href="batches.html">Bordereaux</a></li>
+			<li{{if $tab === 'debtors'}} class="current"{{/if}}><a href="debtors.html">Impayés</a></li>
 		{{/restrict}}
 		{{#restrict section="accounting" level="read"}}
 			<li{{if $tab === 'to_record'}} class="current"{{/if}}><a href="to_record.html">À comptabiliser</a></li>

@@ -1,0 +1,158 @@
+{{* -*- brindille -*- *}}
+
+{{* Qui nous doit de l'argent, toutes causes confondues. Jusqu'ici la réponse
+    demandait deux pages et une addition de tête : « Ardoises en cours » de la
+    caisse d'un côté, « Comptes de membres » de la comptabilité de l'autre.
+
+    DEUX COLONNES, PAS UN SOLDE NET. Les deux dettes ne se règlent pas de la même
+    façon — l'ardoise par un règlement à la caisse, la créance par une écriture
+    comptable — donc les confondre en un chiffre unique rendrait la page
+    inactionnable pour la personne qui relance. Le total n'est là que pour
+    l'ordre de grandeur.
+
+    Les deux mécanismes correspondent aux deux façons de se retrouver débiteur :
+    ne pas payer assez à l'inscription (ardoise, prise à la caisse), ou un chèque
+    qui revient impayé plus tard (créance, posée par ce module). Voir aussi
+    _member_payments.html, qui calcule les mêmes soldes pour un seul membre.
+
+    Asymétrie à connaître : les ardoises n'existent par membre QUE dans les tables
+    de la caisse. Le plugin poste une écriture agrégée par session sans jamais
+    écrire dans acc_transactions_users, donc la comptabilité, elle, ne sait
+    attribuer que les créances. C'est pourquoi cette page lit les deux sources
+    plutôt qu'un seul solde comptable.
+
+    Droits : membres = lecture, comme les autres listes — c'est une page
+    opérationnelle de relance. Les liens sortants sont gardés par le droit
+    qu'exige leur cible (convention de _tabs.html). *}}
+{{#restrict block=true section="users" level="read"}}{{/restrict}}
+
+{{:admin_header title="Impayés" current="module_suivi_cheques"}}
+
+{{#extension name="caisse"}}
+
+	{{:include file="./_tabs.html" tab="debtors"}}
+
+	<p class="help">
+		Les membres qui doivent encore quelque chose, du plus gros montant au plus petit.
+		L'<strong>ardoise</strong> se règle à la caisse, la <strong>créance</strong> par une
+		écriture comptable : les deux colonnes restent donc séparées.
+	</p>
+
+	{{:assign n=0}}
+	{{:assign total_slate=0}}
+	{{:assign total_recv=0}}
+
+	<table class="list">
+		<thead>
+			<tr>
+				<th>Membre</th>
+				<th class="money">Ardoise</th>
+				<th class="money">Créance</th>
+				<th class="money">Total dû</th>
+				<th class="actions"></th>
+			</tr>
+		</thead>
+		<tbody>
+			{{* Positif = doit. Ardoise : consommée (paiements type 2) moins réglée
+			    (lignes de note type 1) — même appariement que Tabs::getUserBalancesQuery
+			    de la caisse. Créance : débit - crédit sur les comptes de tiers (type 4),
+			    avec le dédoublonnage obligatoire de acc_transactions_users, dont la clé
+			    inclut id_service_user. *}}
+			{{#select
+				uid,
+				SUM(slate_owed) AS slate_owed,
+				SUM(recv_owed) AS recv_owed,
+				SUM(slate_owed) + SUM(recv_owed) AS total_owed
+				FROM (
+					SELECT t.user_id AS uid, SUM(p.amount) AS slate_owed, 0 AS recv_owed
+						FROM plugin_pos_tabs_payments p
+						INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+						WHERE p.type = 2 AND t.user_id IS NOT NULL
+						GROUP BY t.user_id
+					UNION ALL
+					SELECT t.user_id, -SUM(ti.total), 0
+						FROM plugin_pos_tabs_items ti
+						INNER JOIN plugin_pos_tabs t ON t.id = ti.tab
+						WHERE ti.type = 1 AND t.user_id IS NOT NULL
+						GROUP BY t.user_id
+					UNION ALL
+					SELECT tu.id_user, 0, SUM(l.debit - l.credit)
+						FROM (SELECT id_user, id_transaction FROM acc_transactions_users GROUP BY id_transaction, id_user) tu
+						INNER JOIN acc_transactions_lines l ON l.id_transaction = tu.id_transaction
+						INNER JOIN acc_accounts a ON a.id = l.id_account
+						WHERE a.type = 4
+						GROUP BY tu.id_user
+				)
+				GROUP BY uid
+				HAVING SUM(slate_owed) > 0 OR SUM(recv_owed) > 0
+				ORDER BY total_owed DESC, uid
+			}}
+				{{:assign n="%d+1"|math:$n}}
+				{{:assign total_slate="%d+%d"|math:$total_slate:$slate_owed}}
+				{{:assign total_recv="%d+%d"|math:$total_recv:$recv_owed}}
+				<tr>
+					<td>{{#users id=$uid}}{{:link href="!users/details.php?id=%d"|args:$uid label=$_name}}{{/users}}</td>
+					<td class="money">{{if $slate_owed > 0}}{{$slate_owed|raw|money_currency}}{{else}}—{{/if}}</td>
+					<td class="money">{{if $recv_owed != 0}}{{$recv_owed|raw|money_currency}}{{else}}—{{/if}}</td>
+					<td class="money"><strong>{{$total_owed|raw|money_currency}}</strong></td>
+					<td class="actions">
+						{{if $slate_owed > 0}}
+							{{#restrict section="users" level="write"}}
+								{{:linkbutton href="!p/caisse/balances.php?type=2" label="Régler l'ardoise" shape="money"}}
+							{{/restrict}}
+						{{/if}}
+					</td>
+				</tr>
+			{{else}}
+				<tr><td colspan="5">Personne ne doit rien. 🎉</td></tr>
+			{{/select}}
+		</tbody>
+		{{if $n > 0}}
+			<tfoot>
+				<tr>
+					<th>{{$n}} membre(s)</th>
+					<td class="money">{{$total_slate|raw|money_currency}}</td>
+					<td class="money">{{$total_recv|raw|money_currency}}</td>
+					<td class="money"><strong>{{"%d+%d"|math:$total_slate:$total_recv|raw|money_currency}}</strong></td>
+					<td></td>
+				</tr>
+			</tfoot>
+		{{/if}}
+	</table>
+
+	{{* Une ardoise prise sur une note ouverte à un simple nom est une dette réelle,
+	    mais elle n'appartient à aucune fiche : elle ne peut pas figurer dans une liste
+	    par membre. On l'annonce à part plutôt que de laisser le total mentir. Le cas
+	    est étroit — la caisse refuse de clôturer une session tant qu'une note portant
+	    une inscription à une activité n'est pas liée à un membre. *}}
+	{{:assign orphan=0}}
+	{{#select
+		COALESCE((SELECT SUM(p.amount) FROM plugin_pos_tabs_payments p
+			INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+			WHERE p.type = 2 AND t.user_id IS NULL), 0)
+		- COALESCE((SELECT SUM(ti.total) FROM plugin_pos_tabs_items ti
+			INNER JOIN plugin_pos_tabs t ON t.id = ti.tab
+			WHERE ti.type = 1 AND t.user_id IS NULL), 0)
+		AS orphan
+	}}
+		{{:assign orphan=$orphan|intval}}
+	{{/select}}
+
+	{{if $orphan > 0}}
+		<p class="block alert">
+			<strong>{{$orphan|raw|money_currency}}</strong> d'ardoises ne sont rattachées à aucune
+			fiche membre : elles ont été prises sur une note ouverte à un simple nom, donc elles
+			n'apparaissent pas ci-dessus.
+			{{#restrict section="users" level="write"}}
+				{{:link href="!p/caisse/balances.php?type=2" label="Les voir dans la caisse"}}
+			{{/restrict}}
+		</p>
+	{{/if}}
+
+{{else}}
+	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
+{{/extension}}
+
+{{:include file="./_doc_footer.html"}}
+
+{{:admin_footer}}
