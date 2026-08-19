@@ -6,7 +6,7 @@
     Paramètres :
       $parent_key  clé du parent posée sur chaque enfant créé ;
       $member_id   membre hérité par les enfants.
-    Hérités du parent : $_POST, $today, $ex_start_year, $ex_start_month.
+    Hérités du parent : $_POST, $today.
 
     Upsert par clé : mise à jour des enfants encore présents, création des nouveaux
     (clé uuid), suppression des lignes vidées — sans JAMAIS toucher un enfant
@@ -17,10 +17,16 @@
 	{{:assign var="rc_mon" from="_POST.rc_month.%s"|args:$k}}
 	{{:assign var="rc_key" from="_POST.rc_key.%s"|args:$k}}
 	{{:assign rc_key=$rc_key|trim}}
-	{{* mois choisi (1-12) -> YYYY-MM via l'exercice courant *}}
+	{{* mois choisi (1-12) -> YYYY-MM, ancré sur la date de réception de CET enfant :
+	    celle déjà figée s'il existe, sinon aujourd'hui puisqu'on le crée à l'instant.
+	    Ré-éditer une ligne sans toucher son mois redonne donc le même YYYY-MM. *}}
 	{{:assign rc_mnum=$rc_mon|intval}}
-	{{:assign rc_ym=null}}
-	{{if $rc_mnum >= 1 && $ex_start_month}}{{if $rc_mnum >= $ex_start_month}}{{:assign rc_yr=$ex_start_year}}{{else}}{{:assign rc_yr="%d+1"|math:$ex_start_year}}{{/if}}{{:assign rc_ym="%04d-%02d"|args:$rc_yr:$rc_mnum}}{{/if}}
+	{{:assign rc_recv=$today}}
+	{{if $rc_key}}
+		{{#load type="cheque_rempl" key=$rc_key}}{{:assign rc_recv=$received_date|or:$today}}{{/load}}
+	{{/if}}
+	{{:include file="./_resolve_month.html" rm_month=$rc_mnum rm_from=$rc_recv keep="rm_ym"}}
+	{{:assign rc_ym=$rm_ym}}
 	{{if $num|trim && $rc_amt > 0}}
 		{{if $rc_key}}
 			{{* mise à jour (merge : parent_key, member_id, liens compta préservés) *}}

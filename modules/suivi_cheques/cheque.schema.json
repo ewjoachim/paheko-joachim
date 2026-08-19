@@ -12,7 +12,7 @@
 		},
 		"planned_month": {
 			"type": ["null", "string"],
-			"description": "Surcharge du mois d'encaissement (YYYY-MM). NULL = déduit du moyen de paiement + exercice."
+			"description": "Surcharge du mois d'encaissement (YYYY-MM). NULL = déduit du moyen de paiement et de la date de réception."
 		},
 		"cancelled": {
 			"type": "integer",

@@ -37,7 +37,9 @@ réservée à `config = admin`.
 
 - Extension **Caisse** active, avec des moyens de paiement « chèque » (idéalement datés :
   « Chèque janvier », « Chèque février »…).
-- Un exercice comptable ouvert (il fixe l'année d'encaissement des chèques).
+- Un exercice comptable ouvert couvrant la date du jour, pour les écritures. Il ne joue
+  aucun rôle dans la planification : l'année d'encaissement d'un chèque se déduit de sa
+  date de réception (cf. `_resolve_month.html`).
 - Désactiver le module natif **`cheque_deposit`** : ce module produit ses propres
   bordereaux et écritures de dépôt.
 
@@ -64,6 +66,7 @@ réservée à `config = admin`.
 | `to_record.html` | file « à comptabiliser » (un clic = une écriture) |
 | `_record_cancellation.html` / `_record_deposit.html` | construction + envoi des écritures `{{:api}}`, partagés par la file et le mode automatique |
 | `_record_precheck.html` | pré-validation du mode automatique (exercice, comptes) |
+| `_resolve_month.html` | mois d'encaissement (1-12) → mois absolu `YYYY-MM` |
 | `snippets/user_details.html` | encart chèques sur la fiche membre |
 | `*.schema.json` | schémas de validation des documents `module_data` |
 

@@ -132,6 +132,43 @@ def module_config():
     return _set
 
 
+# Add a till cheque with NO module overlay, so its collection month comes from the
+# payment method mapping — the branch seed-demo.php never exercises, since every
+# seeded cheque carries an explicit planned_month.
+_PAYMENT_PHP = """<?php
+namespace Paheko;
+require '/var/www/paheko/include/init.php';
+$db = DB::getInstance();
+$p = json_decode(base64_decode('%s'), true);
+$tab = $db->firstColumn('SELECT id FROM plugin_pos_tabs ORDER BY id DESC LIMIT 1');
+$db->preparedQuery(
+    "INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, ?, ?, ?, ?, '5112', 0);",
+    $tab, $p['method'], $p['date'], $p['amount'], $p['reference']
+);
+echo (int) $db->lastInsertId();
+"""
+
+
+@pytest.fixture
+def till_payment():
+    """Insert a till cheque on the seeded tab. Call it after reseed()."""
+
+    def _add(method: int, date: str, amount: int, reference: str) -> int:
+        b64 = base64.b64encode(
+            json.dumps(
+                {
+                    "method": method,
+                    "date": date,
+                    "amount": amount,
+                    "reference": reference,
+                }
+            ).encode()
+        ).decode()
+        return int(_php(_PAYMENT_PHP % b64).strip())
+
+    return _add
+
+
 @pytest.fixture
 def transaction():
     def _get(label: str) -> dict:
