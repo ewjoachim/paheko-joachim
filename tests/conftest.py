@@ -70,13 +70,24 @@ $db->exec('DELETE FROM acc_transactions_lines;
 
 
 @pytest.fixture
-def reseed():
+def purge_accounting():
+    """Delete every accounting entry, leaving module data untouched — lets a test
+    simulate the accountant deleting an entry the module still points to."""
+
+    def _do() -> None:
+        _php(_PURGE_ACCOUNTING_PHP)
+
+    return _do
+
+
+@pytest.fixture
+def reseed(purge_accounting):
     """Reset the demo fixture to a pristine state (call at the start of a test
     that mutates data, so it doesn't depend on other tests' order)."""
     seed_php = (REPO_ROOT / "doc-tools" / "seed-demo.php").read_text()
 
     def _do() -> None:
-        _php(_PURGE_ACCOUNTING_PHP)
+        purge_accounting()
         _php(seed_php)
 
     return _do

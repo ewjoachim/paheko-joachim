@@ -1,0 +1,105 @@
+{{* -*- brindille -*- *}}
+
+{{* Historique des bordereaux de remise figés (type deposit_batch, cf. deposit.html
+    §6.3). Jusqu'ici un bordereau n'était atteignable qu'en connaissant sa référence
+    (deposit.html?batch=...) ou tant qu'il restait dans « à comptabiliser » : passé
+    cette étape il devenait introuvable. Cette page est cet index manquant.
+
+    Lecture seule : aucune action ici, la génération se fait dans deposit.html et
+    l'annulation d'un lot depuis le bordereau lui-même.
+
+    Droits : la page s'ouvre à membres = lecture, comme les autres listes. Mais
+    deposit.html est gardé membres = ÉCRITURE, donc le lien vers le bordereau n'est
+    posé que sous ce droit — sinon on afficherait un lien menant à un accès refusé,
+    ce que la convention des onglets (_tabs.html) interdit. Même raison pour le lien
+    vers l'écriture, réservé à comptabilité = lecture. *}}
+{{#restrict block=true section="users" level="read"}}{{/restrict}}
+
+{{:admin_header title="Bordereaux de remise" current="module_suivi_cheques"}}
+
+{{#extension name="caisse"}}
+
+	{{:include file="./_tabs.html" tab="batches"}}
+
+	<p class="help">
+		Tous les bordereaux générés, du plus récent au plus ancien. Un bordereau est
+		<strong>figé</strong> : il reflète ce qui est physiquement parti à la banque.
+	</p>
+
+	{{:assign n=0}}
+	{{:assign grand_total=0}}
+
+	<table class="list">
+		<thead>
+			<tr>
+				<th>Référence</th>
+				<th>Date de dépôt</th>
+				<th>Chèques</th>
+				<th class="money">Total</th>
+				<th>Comptabilisation</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{* « Comptabilisé » = id d'écriture présent ET écriture existante, même
+			    définition robuste que to_record.html et deposit.html : un id pointant sur
+			    une écriture supprimée depuis ne compte pas, et le lot est bien de retour
+			    dans la file « à comptabiliser ». *}}
+			{{#select
+				json_extract(document, '$.ref') AS ref,
+				json_extract(document, '$.date') AS bdate,
+				json_array_length(json_extract(document, '$.lines')) AS nb_cheques,
+				CAST(json_extract(document, '$.total') AS INT) AS total,
+				CAST(json_extract(document, '$.deposit_txn_id') AS INT) AS txn_id,
+				EXISTS (SELECT 1 FROM acc_transactions a
+					WHERE a.id = CAST(json_extract(document, '$.deposit_txn_id') AS INT)) AS txn_exists
+				FROM module_data_suivi_cheques
+				WHERE json_extract(document, '$.type') = 'deposit_batch'
+				ORDER BY bdate DESC, ref DESC
+			}}
+				{{:assign n="%d+1"|math:$n}}
+				{{:assign grand_total="%d+%d"|math:$grand_total:$total}}
+				<tr>
+					<td>
+						{{#restrict section="users" level="write"}}
+							{{:link href="deposit.html?batch=%s"|args:$ref label=$ref}}
+						{{else}}
+							{{$ref|escape}}
+						{{/restrict}}
+					</td>
+					<td>{{$bdate|date_short}}</td>
+					<td>{{$nb_cheques}}</td>
+					<td class="money">{{$total|raw|money_currency}}</td>
+					<td>
+						{{if $txn_exists}}
+							{{:tag label="Comptabilisé" color="darkgreen"}}
+							{{#restrict section="accounting" level="read"}}
+								{{:link href="!acc/transactions/details.php?id=%d"|args:$txn_id label="Voir l'écriture"}}
+							{{/restrict}}
+						{{else}}
+							{{:tag label="À comptabiliser" color="darkorange"}}
+							{{#restrict section="accounting" level="read"}}
+								{{:link href="to_record.html" label="Passer l'écriture"}}
+							{{/restrict}}
+						{{/if}}
+					</td>
+				</tr>
+			{{else}}
+				<tr><td colspan="5">Aucun bordereau généré pour l'instant.</td></tr>
+			{{/select}}
+		</tbody>
+	</table>
+
+	{{if $n > 0}}
+		<p class="help">
+			<strong>{{$n}}</strong> bordereau(x) — total remis
+			<strong>{{$grand_total|raw|money_currency}}</strong>
+		</p>
+	{{/if}}
+
+{{else}}
+	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>
+{{/extension}}
+
+{{:include file="./_doc_footer.html"}}
+
+{{:admin_footer}}

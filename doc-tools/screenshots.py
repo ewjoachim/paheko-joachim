@@ -22,8 +22,11 @@ from playwright.sync_api import sync_playwright
 BASE = os.environ.get("BASE_URL", "http://localhost:8095").rstrip("/")
 EMAIL = os.environ.get("ADMIN_EMAIL", "admin@example.org")
 PASSWORD = os.environ.get("ADMIN_PASSWORD", "demo-screenshots-2026")
-CAMILLE = os.environ.get("CAMILLE_ID", "")
-PAY_EDIT = os.environ.get("PAY_EDIT", "")
+# Same defaults as tests/conftest.py: what seed-demo.php produces on a fresh
+# instance. Without them the ids were empty, and two shots silently captured an
+# error page and an empty form — neither workflow passes these variables.
+CAMILLE = os.environ.get("CAMILLE_ID", "2")
+PAY_EDIT = os.environ.get("PAY_EDIT", "1")
 
 OUT = Path(__file__).resolve().parent.parent / "doc" / "suivi_cheques" / "screenshots"
 M = f"{BASE}/m/suivi_cheques"
@@ -35,9 +38,10 @@ SHOTS = [
     ("03-annuler-remplacer.png", f"{M}/edit.html?payment={PAY_EDIT}", "form"),
     ("04-preparer-bordereau.png", f"{M}/deposit.html?month=2026-07", "table.list"),
     ("05-bordereau.png", f"{M}/deposit.html?batch=DEMO", "table.list"),
-    ("06-a-comptabiliser.png", f"{M}/to_record.html", "table.list"),
-    ("07-fiche-membre.png", f"{BASE}/admin/users/details.php?id={CAMILLE}", "table.list"),
-    ("08-configuration.png", f"{M}/config.html", "form"),
+    ("06-bordereaux.png", f"{M}/batches.html", "table.list"),
+    ("07-a-comptabiliser.png", f"{M}/to_record.html", "table.list"),
+    ("08-fiche-membre.png", f"{BASE}/admin/users/details.php?id={CAMILLE}", "table.list"),
+    ("09-configuration.png", f"{M}/config.html", "form"),
 ]
 
 
@@ -77,20 +81,28 @@ def main() -> int:
             return 1
         print("Logged in.")
 
+        failed = []
+
         for name, url, wait_for in SHOTS:
             try:
                 page.goto(url, wait_until="domcontentloaded")
+                # A missing selector means the page did not render what we came for
+                # (renamed page, error page, permission denied). Letting it through
+                # would publish that error straight into the user guide, so it has
+                # to fail — loudly, and with a non-zero exit for CI.
                 if wait_for:
-                    try:
-                        page.wait_for_selector(wait_for, timeout=5000)
-                    except Exception:
-                        pass
+                    page.wait_for_selector(wait_for, timeout=5000)
                 page.screenshot(path=str(OUT / name), full_page=True)
                 print(f"✓ {name}")
-            except Exception as e:  # noqa: BLE001 — best-effort, report and continue
+            except Exception as e:  # noqa: BLE001 — report every shot, fail at the end
                 print(f"✗ {name} : {e}", file=sys.stderr)
+                failed.append(name)
 
         browser.close()
+
+    if failed:
+        print(f"\n{len(failed)} capture(s) en échec : {', '.join(failed)}", file=sys.stderr)
+        return 1
 
     print(f"\nScreenshots written to {OUT}")
     return 0

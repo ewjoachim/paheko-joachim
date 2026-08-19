@@ -63,6 +63,7 @@ réservée à `config = admin`.
 | `_list.html` | **partial pivot** : tableau des chèques, réutilisé partout |
 | `edit.html` / `edit_replacement.html` | annuler / remplacer (données module) |
 | `deposit.html` | préparer un bordereau + geler le lot + bordereau imprimable |
+| `batches.html` | index des bordereaux générés + état de leur comptabilisation |
 | `to_record.html` | file « à comptabiliser » (un clic = une écriture) |
 | `_record_cancellation.html` / `_record_deposit.html` | construction + envoi des écritures `{{:api}}`, partagés par la file et le mode automatique |
 | `_record_precheck.html` | pré-validation du mode automatique (exercice, comptes) |
