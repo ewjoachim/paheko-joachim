@@ -1,0 +1,128 @@
+{{* -*- brindille -*- *}}
+
+{{* Forme d'une annulation de chèque : ce qu'elle vaut, par quoi elle est couverte,
+    ce qui reste dû, et les lignes de l'écriture correspondante (CONCEPTION §6.2).
+
+    POURQUOI CE PARTIAL EXISTE. Deux choses naissent d'une annulation : la créance
+    du membre (un document module, posé tout de suite par _creance_sync.html) et
+    l'écriture comptable (posée plus tard, ou aussitôt en mode automatique, par
+    _record_cancellation.html). Les deux reposent sur le même calcul — le reste non
+    couvert — et si ce calcul existait en deux endroits, la dette et l'écriture
+    pourraient annoncer des montants différents. Il vit donc ici, une fois.
+
+    Paramètres :
+      $cs_kind  'annul_pay' (chèque de caisse) | 'annul_rempl' (chèque de remplacement) ;
+      $cs_rid   id du paiement de caisse, ou clé du cheque_rempl.
+
+    Renvoie, via keep :
+      cs_error         pourquoi la forme est inexploitable (chèque introuvable,
+                       remplacements supérieurs au chèque…), sinon null ;
+      cs_amount        montant du chèque annulé ;
+      cs_cheque_number son numéro ;
+      cs_member_id     membre concerné (null si la note n'était liée à personne) ;
+      cs_member_name   son nom, pour les libellés ;
+      cs_reason        motif saisi ;
+      cs_cancelled     1 si le chèque est bien marqué non encaissé (lu dans le
+                       document, donc à jour après le {{:save}} de l'appelant) ;
+      cs_covered       part couverte par des remplacements ;
+      cs_remainder     part non couverte : ce que le membre doit ;
+      cs_lines         lignes de l'écriture d'annulation, équilibrées ;
+      cs_already       id de l'écriture d'annulation déjà stockée (peut pointer vers
+                       une écriture supprimée : au caller de vérifier) ;
+      cs_store_type / cs_store_key  type et clé du document d'origine ;
+      cs_parent_key    clé servant à retrouver les enfants directs.
+
+    Ne fait AUCUNE écriture : c'est un calcul, appelable hors {{#form}}. *}}
+
+{{:assign cs_error=null cs_amount=0 cs_cheque_number=null cs_member_id=null cs_member_name=null}}
+{{:assign cs_reason=null cs_cancelled=0 cs_covered=0 cs_remainder=0 cs_lines=null cs_already=null}}
+{{:assign cs_replacements=null cs_parent_key=null cs_store_key=null cs_store_type=null}}
+
+{{:assign cs_waiting_account=$module.config.waiting_account|or:"5112"}}
+{{:assign cs_receivable_account=$module.config.receivable_account|or:"411"}}
+
+{{* --- Source : chèque de caisse ou chèque de remplacement --- *}}
+{{if $cs_kind === 'annul_pay'}}
+	{{:assign cs_pid=$cs_rid|intval}}
+	{{#select p.reference AS r, p.amount AS a, t.user_id AS u
+		FROM plugin_pos_tabs_payments p INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+		WHERE p.id = :pid LIMIT 1; :pid=$cs_pid}}
+		{{:assign cs_cheque_number=$r cs_amount=$a cs_member_id=$u}}
+	{{/select}}
+	{{#load type="cheque" key="pay-%d"|args:$cs_pid}}
+		{{:assign cs_reason=$reason cs_replacements=$replacements cs_already=$annulation_txn_id}}
+		{{:assign cs_cancelled=$cancelled|intval}}
+	{{/load}}
+	{{:assign cs_parent_key="pay-%d"|args:$cs_pid cs_store_key="pay-%d"|args:$cs_pid cs_store_type="cheque"}}
+{{elseif $cs_kind === 'annul_rempl'}}
+	{{#load type="cheque_rempl" key=$cs_rid}}
+		{{:assign cs_amount=$amount cs_cheque_number=$cheque_number cs_reason=$reason}}
+		{{:assign cs_replacements=$replacements cs_already=$annulation_txn_id cs_member_id=$member_id}}
+		{{:assign cs_cancelled=$cancelled|intval}}
+	{{/load}}
+	{{:assign cs_parent_key=$cs_rid cs_store_key=$cs_rid cs_store_type="cheque_rempl"}}
+{{else}}
+	{{:assign cs_error="Type d'élément inconnu."}}
+{{/if}}
+
+{{* Nom du membre, pour le libellé de l'écriture et la ligne de créance. Une note de
+    caisse peut porter un nom libre sans user_id (un non-adhérent) : il n'y a alors
+    pas de nom à afficher et les libellés retombent sur leur forme simple. *}}
+{{if $cs_member_id}}{{#users id=$cs_member_id}}{{:assign cs_member_name=$_name}}{{/users}}{{/if}}
+
+{{if !$cs_error && !$cs_amount}}
+	{{:assign cs_error="Chèque introuvable ou montant nul."}}
+{{/if}}
+
+{{if !$cs_error}}
+	{{* on crédite le compte d'attente : le chèque en sort *}}
+	{{:assign var="cs_lines[0][account]" value=$cs_waiting_account}}
+	{{:assign var="cs_lines[0][credit]" value=$cs_amount|money}}
+	{{:assign var="cs_lines[0][reference]" value=$cs_cheque_number}}
+	{{:assign var="cs_lines[0][label]" value="Chèque annulé n°%s"|args:$cs_cheque_number}}
+	{{:assign cs_li=1}}
+
+	{{* remplacements non-chèque : on débite leur propre compte *}}
+	{{#foreach from=$cs_replacements item="cs_rep"}}
+		{{if $cs_rep.amount > 0 && $cs_rep.account}}
+			{{:assign var="cs_lines[%d][account]"|args:$cs_li value=$cs_rep.account}}
+			{{:assign var="cs_lines[%d][debit]"|args:$cs_li value=$cs_rep.amount|money}}
+			{{:assign var="cs_lines[%d][label]"|args:$cs_li value="Remplacement chèque n°%s"|args:$cs_cheque_number}}
+			{{:assign cs_covered="%d+%d"|math:$cs_covered:$cs_rep.amount}}
+			{{:assign cs_li="%d+1"|math:$cs_li}}
+		{{/if}}
+	{{/foreach}}
+
+	{{* remplacements PAR chèque (enfants directs, de caisse ou de remplacement) : on
+	    débite le compte d'attente, référence = le nouveau numéro. La récursion se fait
+	    « un niveau à la fois » — on ne regarde qu'un cran plus bas
+	    (CHAINES-REMPLACEMENT §1). *}}
+	{{#select json_extract(document, '$.cheque_number') AS n, CAST(json_extract(document, '$.amount') AS INT) AS a
+		FROM module_data_suivi_cheques
+		WHERE json_extract(document, '$.type') = 'cheque_rempl'
+			AND json_extract(document, '$.parent_key') = :pk
+			AND COALESCE(CAST(json_extract(document, '$.cancelled') AS INT), 0) = 0
+		ORDER BY n; :pk=$cs_parent_key}}
+		{{:assign var="cs_lines[%d][account]"|args:$cs_li value=$cs_waiting_account}}
+		{{:assign var="cs_lines[%d][debit]"|args:$cs_li value=$a|money}}
+		{{:assign var="cs_lines[%d][reference]"|args:$cs_li value=$n}}
+		{{:assign var="cs_lines[%d][label]"|args:$cs_li value="Chèque de remplacement n°%s"|args:$n}}
+		{{:assign cs_covered="%d+%d"|math:$cs_covered:$a}}
+		{{:assign cs_li="%d+1"|math:$cs_li}}
+	{{/select}}
+
+	{{if $cs_covered > $cs_amount}}
+		{{:assign cs_error="Les remplacements dépassent le montant du chèque annulé."}}
+	{{else}}
+		{{* tout ce qui reste non couvert -> le membre le doit (411) *}}
+		{{:assign cs_remainder="%d-%d"|math:$cs_amount:$cs_covered}}
+		{{if $cs_remainder > 0}}
+			{{:assign var="cs_lines[%d][account]"|args:$cs_li value=$cs_receivable_account}}
+			{{:assign var="cs_lines[%d][debit]"|args:$cs_li value=$cs_remainder|money}}
+			{{:assign cs_rcv_label="Créance — chèque annulé n°%s"|args:$cs_cheque_number}}
+			{{if $cs_member_name}}{{:assign cs_rcv_label="Créance %s — chèque annulé n°%s"|args:$cs_member_name:$cs_cheque_number}}{{/if}}
+			{{:assign var="cs_lines[%d][label]"|args:$cs_li value=$cs_rcv_label}}
+			{{:assign cs_li="%d+1"|math:$cs_li}}
+		{{/if}}
+	{{/if}}
+{{/if}}
