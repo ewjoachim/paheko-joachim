@@ -39,17 +39,16 @@ SHOTS = [
     ("04-preparer-bordereau.png", f"{M}/deposit.html?month=2026-07", "table.list"),
     ("05-bordereau.png", f"{M}/deposit.html?batch=DEMO", "table.list"),
     ("06-bordereaux.png", f"{M}/batches.html", "table.list"),
-    ("08-a-comptabiliser.png", f"{M}/to_record.html", "table.list"),
-    ("09-fiche-membre.png", f"{BASE}/admin/users/details.php?id={CAMILLE}", "table.list"),
-    ("10-configuration.png", f"{M}/config.html", "form"),
+    # The seeded cancellation leaves Camille a receivable on top of her slate, so
+    # this shows a member owing on both sides with nothing posted to accounting —
+    # which is the point the page makes. It used to need a "Comptabiliser" click
+    # first, back when a receivable only existed as an accounting line.
+    ("07-impayes.png", f"{M}/debtors.html", "table.list"),
+    ("08-regler-creance.png", f"{M}/settle.html?user={CAMILLE}", "form"),
+    ("09-a-comptabiliser.png", f"{M}/to_record.html", "table.list"),
+    ("10-fiche-membre.png", f"{BASE}/admin/users/details.php?id={CAMILLE}", "table.list"),
+    ("11-configuration.png", f"{M}/config.html", "form"),
 ]
-
-# 07-impayes.png is captured after the loop, not in SHOTS: its point is to show a
-# member owing on BOTH sides, and a receivable only exists once a cancellation has
-# been posted to accounting — which the seed deliberately does not do. Posting it
-# removes a row from "à comptabiliser", so it has to happen after that shot.
-# Numbering follows the guide's reading order, not the capture order.
-SETTLE_SHOT = ("07-impayes.png", f"{M}/debtors.html", "table.list")
 
 
 def main() -> int:
@@ -104,25 +103,6 @@ def main() -> int:
             except Exception as e:  # noqa: BLE001 — report every shot, fail at the end
                 print(f"✗ {name} : {e}", file=sys.stderr)
                 failed.append(name)
-
-        # Give one member a receivable, so the debtors page shows both columns
-        # filled instead of a wall of dashes. Same click the accountant makes:
-        # CHQ-0142 is the seeded cancellation with a partial card replacement, the
-        # only one leaving an uncovered part.
-        name, url, wait_for = SETTLE_SHOT
-        try:
-            page.goto(f"{M}/to_record.html", wait_until="domcontentloaded")
-            row = page.locator("tr", has_text="CHQ-0142")
-            row.get_by_role("button", name="Comptabiliser").click()
-            page.wait_for_load_state("domcontentloaded")
-
-            page.goto(url, wait_until="domcontentloaded")
-            page.wait_for_selector(wait_for, timeout=5000)
-            page.screenshot(path=str(OUT / name), full_page=True)
-            print(f"✓ {name}")
-        except Exception as e:  # noqa: BLE001
-            print(f"✗ {name} : {e}", file=sys.stderr)
-            failed.append(name)
 
         browser.close()
 

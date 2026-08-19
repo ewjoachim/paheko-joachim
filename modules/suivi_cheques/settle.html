@@ -121,6 +121,9 @@
 	<p class="block error">Membre introuvable.</p>
 {{else}}
 
+	{{* Sous-page d'Impayés : l'onglet reste surligné là, c'est de là qu'on vient. *}}
+	{{:include file="./_tabs.html" tab="debtors"}}
+
 	{{:assign n=0}}
 
 	{{* Créances encore dues de ce membre. Le reste à payer se calcule en retranchant
@@ -154,8 +157,8 @@
 			Chèque annulé n°{{$number|escape|or:'—'}} — reste {{$remaining|raw|money_currency}}
 		</h2>
 		<p class="help">
-			Créance née le {{$cdate|date_short}} sur un chèque de {{$amount|raw|money_currency}}
-			{{if $settled > 0}}(déjà réglé : {{$settled|raw|money_currency}}){{/if}}.
+			Créance de {{$amount|raw|money_currency}} née le {{$cdate|date_short}}{{if $settled > 0}},
+			déjà réglée à hauteur de {{$settled|raw|money_currency}}{{/if}}.
 			{{if $reason}}Motif : {{$reason|escape}}.{{/if}}
 			{{if $okind === 'cheque_rempl'}}
 				{{:link href="edit_replacement.html?key=%s"|args:$okey label="Voir le chèque de remplacement"}}
