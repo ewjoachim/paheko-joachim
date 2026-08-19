@@ -3,7 +3,8 @@
     Paramètres :
       $selected     numéro de mois pré-sélectionné (int) ou null
       $empty_label  si fourni, ajoute une option vide en tête avec ce libellé
-    L'année n'est pas saisie : elle est déduite de l'exercice à l'enregistrement. *}}
+    L'année n'est pas saisie : elle est déduite de la date de réception du chèque à
+    l'enregistrement (cf. _resolve_month.html). *}}
 {{if $empty_label}}<option value="">{{$empty_label|escape}}</option>{{/if}}
 <option value="1"{{if $selected == 1}} selected="selected"{{/if}}>Janvier</option>
 <option value="2"{{if $selected == 2}} selected="selected"{{/if}}>Février</option>

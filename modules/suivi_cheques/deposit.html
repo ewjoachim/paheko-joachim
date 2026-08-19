@@ -14,19 +14,6 @@
 {{:assign today=null}}
 {{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
 
-{{* Bornes de l'exercice courant pour résoudre mois -> année (cf. _list.html / §6.1) *}}
-{{:assign ex_start_year=null ex_start_month=null}}
-{{#select
-	CAST(strftime('%Y', start_date) AS INT) AS sy,
-	CAST(strftime('%m', start_date) AS INT) AS sm
-	FROM acc_years
-	WHERE status = 0
-	ORDER BY (date('now') BETWEEN start_date AND end_date) DESC, start_date DESC
-	LIMIT 1
-}}
-	{{:assign ex_start_year=$sy ex_start_month=$sm}}
-{{/select}}
-
 {{:assign batch_key=$_GET.batch|trim}}
 
 {{*=================================================================================
@@ -291,12 +278,14 @@
 					FROM (
 						SELECT 'pay-' || p.id AS skey, p.reference AS cheque_number, p.amount AS amount,
 							t.user_id AS user_id, t.name AS tab_name,
+							-- Meme resolution mois -> mois absolu que _list.html
 							COALESCE(
 								json_extract(ov.document, '$.planned_month'),
-								CASE WHEN :ex_start_month IS NULL THEN NULL
+								CASE WHEN json_extract(mm.document, '$.month') IS NULL OR p.date IS NULL THEN NULL
 									ELSE printf('%04d-%02d',
-										CASE WHEN CAST(json_extract(mm.document, '$.month') AS INT) >= :ex_start_month
-											THEN :ex_start_year ELSE :ex_start_year + 1 END,
+										CAST(strftime('%Y', p.date) AS INT)
+											+ CASE WHEN CAST(json_extract(mm.document, '$.month') AS INT) < CAST(strftime('%m', p.date) AS INT)
+												THEN 1 ELSE 0 END,
 										CAST(json_extract(mm.document, '$.month') AS INT))
 								END
 							) AS planned_month,
@@ -324,8 +313,6 @@
 						AND planned_month IS NOT NULL AND planned_month <= :month
 					ORDER BY planned_month ASC, cheque_number ASC;
 					:month=$month
-					:ex_start_year=$ex_start_year
-					:ex_start_month=$ex_start_month
 				}}
 					{{:assign _n="%d+1"|math:$_n}}
 					<tr>

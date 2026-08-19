@@ -15,16 +15,13 @@
 	NB : la table module_data_suivi_cheques doit correspondre au dossier du module.
 *}}
 
-{{* Exercice courant : ses bornes résolvent mois -> année (CONCEPTION §6.1).
-    L'année n'est JAMAIS déduite de la date de réception. On prend l'exercice ouvert
-    contenant aujourd'hui, sinon le plus récent ouvert. *}}
-{{:assign ex_start_year=null}}
-{{:assign ex_start_month=null}}
+{{* Bornes de l'exercice comptable courant — utilisées uniquement pour délimiter le
+    mode 'exercise'. La résolution mois -> année ne s'en sert pas : elle est ancrée
+    sur la date de réception de chaque chèque (cf. _resolve_month.html), sinon les
+    mois affichés se décaleraient d'un an à chaque changement d'exercice. *}}
 {{:assign ex_start_ym=null}}
 {{:assign ex_end_ym=null}}
 {{#select
-	CAST(strftime('%Y', start_date) AS INT) AS sy,
-	CAST(strftime('%m', start_date) AS INT) AS sm,
 	strftime('%Y-%m', start_date) AS sym,
 	strftime('%Y-%m', end_date) AS eym
 	FROM acc_years
@@ -32,7 +29,7 @@
 	ORDER BY (date('now') BETWEEN start_date AND end_date) DESC, start_date DESC
 	LIMIT 1
 }}
-	{{:assign ex_start_year=$sy ex_start_month=$sm ex_start_ym=$sym ex_end_ym=$eym}}
+	{{:assign ex_start_ym=$sym ex_end_ym=$eym}}
 {{/select}}
 
 {{:assign _n=0}}
@@ -69,12 +66,15 @@
 					p.date AS received_date,
 					t.user_id AS user_id,
 					t.name AS tab_name,
+					-- Mois du moyen de paiement -> mois absolu : prochaine occurrence de ce
+					-- mois a partir de la reception (cf. _resolve_month.html).
 					COALESCE(
 						json_extract(ov.document, '$.planned_month'),
-						CASE WHEN :ex_start_month IS NULL THEN NULL
+						CASE WHEN json_extract(mm.document, '$.month') IS NULL OR p.date IS NULL THEN NULL
 							ELSE printf('%04d-%02d',
-								CASE WHEN CAST(json_extract(mm.document, '$.month') AS INT) >= :ex_start_month
-									THEN :ex_start_year ELSE :ex_start_year + 1 END,
+								CAST(strftime('%Y', p.date) AS INT)
+									+ CASE WHEN CAST(json_extract(mm.document, '$.month') AS INT) < CAST(strftime('%m', p.date) AS INT)
+										THEN 1 ELSE 0 END,
 								CAST(json_extract(mm.document, '$.month') AS INT))
 						END
 					) AS planned_month,
@@ -134,8 +134,6 @@
 			:month=$month
 			:q=$q_like
 			:user_id=$user_id
-			:ex_start_year=$ex_start_year
-			:ex_start_month=$ex_start_month
 			:ex_start_ym=$ex_start_ym
 			:ex_end_ym=$ex_end_ym
 		}}

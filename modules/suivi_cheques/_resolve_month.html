@@ -1,0 +1,28 @@
+{{* -*- brindille -*- *}}
+
+{{* Résout un mois d'encaissement (1-12) en mois absolu YYYY-MM.
+
+    Règle : on ne remet jamais un chèque pour un mois d'encaissement déjà passé,
+    donc l'année est celle de la prochaine occurrence du mois à partir de la date
+    de réception — mois identique ou postérieur : année de réception ; mois
+    antérieur : année suivante. Un chèque « septembre » reçu fin août part donc en
+    septembre suivant, y compris pendant les inscriptions ouvertes avant le début
+    de l'exercice.
+
+    L'ancre est la date de réception, jamais l'exercice comptable courant : elle
+    est immuable, donc le mois résolu ne bouge plus à chaque changement
+    d'exercice. La même règle est écrite en SQL dans _list.html et deposit.html,
+    où elle porte sur p.date (impossible de partager une expression SQL entre
+    deux {{#select}}).
+
+    Paramètres :
+      $rm_month  numéro de mois (1-12) ; 0 ou null = pas de mois prévu ;
+      $rm_from   date de réception, format YYYY-MM-DD.
+    Renvoie, via keep="rm_ym" : le mois au format YYYY-MM, ou null. *}}
+{{:assign rm_ym=null}}
+{{if $rm_month >= 1 && $rm_from}}
+	{{:assign rm_year=$rm_from|date:'Y'|intval}}
+	{{:assign rm_from_month=$rm_from|date:'m'|intval}}
+	{{if $rm_month < $rm_from_month}}{{:assign rm_year="%d+1"|math:$rm_year}}{{/if}}
+	{{:assign rm_ym="%04d-%02d"|args:$rm_year:$rm_month}}
+{{/if}}
