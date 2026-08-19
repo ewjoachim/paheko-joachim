@@ -27,6 +27,7 @@
 					"source_key": { "type": "string", "description": "Clé module du chèque (pay-<id> pour un chèque de caisse, ou clé opaque d'un cheque_rempl)." },
 					"cheque_ref": { "type": ["null", "string"], "description": "Numéro du chèque." },
 					"member": { "type": ["null", "string"], "description": "Nom du membre, figé à la génération du bordereau." },
+					"member_id": { "type": ["null", "integer"], "description": "Identifiant du membre, figé à la génération : sert à lier l'écriture de dépôt aux membres concernés. Absent des lots gelés avant son introduction, d'où le type nullable." },
 					"amount": { "type": "integer", "description": "Montant en centimes." }
 				},
 				"required": ["source_key", "amount"]

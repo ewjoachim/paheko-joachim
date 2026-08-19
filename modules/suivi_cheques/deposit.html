@@ -69,7 +69,17 @@
 	{{:form_errors}}
 
 	{{* Feedback from the automatic mode (see the module configuration) *}}
-	{{if $_GET.recorded}}<p class="block confirm">Bordereau généré, et l'écriture comptable du dépôt a été créée.</p>{{/if}}
+	{{* Comme dans index.html : le lien est sous {{#restrict}}, car en mode automatique
+	    l'écriture est passée sans regarder les droits de l'opérateur. Pas besoin de
+	    passer l'id dans l'URL, la page relit le lot et donc $b_txn. *}}
+	{{if $_GET.recorded}}
+		<p class="block confirm">
+			Bordereau généré, et l'écriture comptable du dépôt a été créée.
+			{{#restrict section="accounting" level="read"}}
+				{{if $b_txn}}{{:link href="!acc/transactions/details.php?id=%d"|args:$b_txn label="Voir l'écriture n°%d"|args:$b_txn}}{{/if}}
+			{{/restrict}}
+		</p>
+	{{/if}}
 	{{if $_GET.not_recorded}}
 		<p class="block alert">
 			Bordereau généré, mais l'écriture comptable du dépôt n'a pas pu être créée : elle reste
@@ -122,7 +132,9 @@
 		<p class="help no-print">
 			{{if $b_txn}}
 				{{:tag label="Dépôt comptabilisé" color="darkgreen"}}
-				{{:link href="!acc/transactions/details.php?id=%d"|args:$b_txn label="Voir l'écriture"}}
+				{{#restrict section="accounting" level="read"}}
+					{{:link href="!acc/transactions/details.php?id=%d"|args:$b_txn label="Voir l'écriture"}}
+				{{/restrict}}
 			{{else}}
 				Dépôt <strong>pas encore comptabilisé</strong> — la comptabilité le passera depuis
 				{{:link href="to_record.html" label="« Chèques à comptabiliser »"}}.
@@ -185,6 +197,9 @@
 			{{:assign var="lines[%d][source_key]"|args:$n value=$skey}}
 			{{:assign var="lines[%d][cheque_ref]"|args:$n value=$ref}}
 			{{:assign var="lines[%d][member]"|args:$n value=$mname}}
+			{{* L'id en plus du nom : le nom est ce qu'on imprime, l'id est ce qui permet de
+			    lier l'écriture de dépôt aux membres concernés (cf. _record_deposit.html). *}}
+			{{:assign var="lines[%d][member_id]"|args:$n value=$uid|intval}}
 			{{:assign var="lines[%d][amount]"|args:$n value=$amt|intval}}
 			{{:assign var="sel[%d][key]"|args:$n value=$skey}}
 			{{:assign var="sel[%d][type]"|args:$n value=$src_type}}

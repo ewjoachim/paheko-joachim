@@ -9,6 +9,8 @@ Amounts are in cents (Paheko stores integers): 5000 = 50,00 €.
 
 from playwright.sync_api import Page, expect
 
+MEMBER = "Camille Martin"  # seeded demo member; the entry label now names them
+
 
 def _totals(lines: list[dict]) -> tuple[int, int]:
     return sum(l["debit"] for l in lines), sum(l["credit"] for l in lines)
@@ -54,7 +56,7 @@ def test_record_cancellation_with_card_and_receivable(
 
     expect(admin_page.locator(".confirm")).to_contain_text("Écriture comptable créée")
 
-    txn = transaction("Annulation chèque n°CHQ-0142")
+    txn = transaction(f"Annulation chèque n°CHQ-0142 — {MEMBER}")
     assert txn["found"]
     debit, credit = _totals(txn["lines"])
     assert debit == credit == 4500, txn["lines"]
@@ -77,7 +79,7 @@ def test_record_cancellation_replaced_by_cheque(
     row.get_by_role("button", name="Comptabiliser").click()
     admin_page.wait_for_load_state("domcontentloaded")
 
-    txn = transaction("Annulation chèque n°CHQ-0141")
+    txn = transaction(f"Annulation chèque n°CHQ-0141 — {MEMBER}")
     assert txn["found"]
     debit, credit = _totals(txn["lines"])
     assert debit == credit == 3000, txn["lines"]
