@@ -187,6 +187,34 @@ def till_payment():
     return _add
 
 
+# A slate debt on a tab that was never linked to a member's record. Real money
+# owed, but it cannot appear in a per-member list — the debtors page has to
+# announce it separately rather than let its total lie.
+_ORPHAN_SLATE_PHP = """<?php
+namespace Paheko;
+require '/var/www/paheko/include/init.php';
+$db = DB::getInstance();
+$sid = $db->firstColumn('SELECT id FROM plugin_pos_sessions ORDER BY id LIMIT 1');
+$db->preparedQuery("INSERT INTO plugin_pos_tabs (session, name, user_id, opened, closed)
+    VALUES (?, 'Passant sans fiche', NULL, '2026-07-05 10:00:00', '2026-07-05 10:05:00');", $sid);
+$tab = $db->lastInsertId();
+$db->preparedQuery("INSERT INTO plugin_pos_tabs_items (tab, added, qty, price, total, name, category_name, account, type)
+    VALUES (?, '2026-07-05 10:01:00', 1, %d, %d, 'Vente au comptoir', 'Vente', '707', 0);", $tab);
+$db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type)
+    VALUES (?, 3, '2026-07-05', %d, NULL, '4110', 2);", $tab);
+"""
+
+
+@pytest.fixture
+def orphan_slate_debt():
+    """Add a slate debt on a tab with no member link. Call after reseed()."""
+
+    def _add(cents: int) -> None:
+        _php(_ORPHAN_SLATE_PHP % (cents, cents, cents))
+
+    return _add
+
+
 @pytest.fixture
 def transaction():
     def _get(label: str) -> dict:

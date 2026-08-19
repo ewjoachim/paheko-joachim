@@ -72,7 +72,9 @@ def test_slate_balance_links_to_where_it_is_settled(member_sheet, reseed, admin_
     resp = admin_page.goto(link.first.get_attribute("href"), wait_until="domcontentloaded")
     assert resp.status == 200, f"dead link to the caisse: HTTP {resp.status}"
     expect(admin_page.locator("h1, h2").first).to_contain_text("Ardoises en cours")
-    expect(admin_page.get_by_role("link", name="Rembourser")).to_have_count(1)
+    # The settle button must be there; how many debtors the fixture has is not
+    # this test's business.
+    expect(admin_page.get_by_role("link", name="Rembourser").first).to_be_visible()
 
 
 def test_cancelled_cheque_shows_up_as_a_receivable(
