@@ -1,44 +1,48 @@
 {{* -*- brindille -*- *}}
 
-{{* Encart « Chèques » sur la fiche membre. Inclut le MÊME partial que le module
-    (_list.html) — aucune requête dupliquée (CONCEPTION §9.3). En lecture seule
-    (show_actions=false) : pour agir, un lien renvoie vers le module.
+{{* Encart « Paiements » sur la fiche membre : journal de tout ce que ce membre a
+    acheté et réglé, toutes sources confondues (caisse, chèques suivis, chèques de
+    remplacement, ardoise, créances comptables). Voir _member_payments.html pour la
+    règle de présentation et les limites du rattachement au membre.
 
     Visibilité : le rendu des snippets n'applique pas le restrict du module ; elle est
     donc bornée par le droit d'accès à la fiche membre (membres = lecture), ce qui est
-    le bon public. Aucune garde supplémentaire posée ici. *}}
+    le bon public. La partie créances lit la comptabilité, mais uniquement les
+    écritures explicitement liées à CE membre : rien de plus que ce que la fiche
+    montre déjà via son compteur d'écritures liées. *}}
 {{#extension name="caisse"}}
-	{{:assign configured=false}}
-	{{#load type="method_month_map" limit=1}}{{:assign configured=true}}{{/load}}
+	{{* Y a-t-il quelque chose à montrer ? Une seule requête de comptage, pour ne pas
+	    afficher un encart vide sur la fiche d'un membre qui n'est jamais passé en caisse. *}}
+	{{:assign nm=0}}
+	{{#select (
+			(SELECT COUNT(*) FROM plugin_pos_tabs_items ti
+				INNER JOIN plugin_pos_tabs t ON t.id = ti.tab WHERE t.user_id = :uid)
+			+
+			(SELECT COUNT(*) FROM plugin_pos_tabs_payments p
+				INNER JOIN plugin_pos_tabs t ON t.id = p.tab WHERE t.user_id = :uid)
+			+
+			(SELECT COUNT(*) FROM module_data_suivi_cheques r
+				WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
+					AND CAST(json_extract(r.document, '$.member_id') AS INT) = :uid)
+			+
+			(SELECT COUNT(*) FROM (SELECT id_user, id_transaction FROM acc_transactions_users GROUP BY id_transaction, id_user) tu
+				INNER JOIN acc_transactions_lines l ON l.id_transaction = tu.id_transaction
+				INNER JOIN acc_accounts a ON a.id = l.id_account
+				WHERE tu.id_user = :uid AND a.type = 4)
+		) AS n;
+		:uid=$user.id
+	}}
+		{{:assign nm=$n}}
+	{{/select}}
 
-	{{if $configured}}
-		{{* Ne montrer l'encart que si le membre a au moins un chèque (caisse ou remplacement). *}}
-		{{:assign nc=0}}
-		{{#select (
-				(SELECT COUNT(*) FROM plugin_pos_tabs_payments p
-					INNER JOIN plugin_pos_tabs t ON t.id = p.tab
-					INNER JOIN module_data_suivi_cheques mm
-						ON json_extract(mm.document, '$.type') = 'method_month_map'
-						AND CAST(json_extract(mm.document, '$.method_id') AS INT) = p.method
-					WHERE t.user_id = :uid)
-				+
-				(SELECT COUNT(*) FROM module_data_suivi_cheques r
-					WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
-						AND CAST(json_extract(r.document, '$.member_id') AS INT) = :uid)
-			) AS n;
-			:uid=$user.id
-		}}
-			{{:assign nc=$n}}
-		{{/select}}
-
-		{{if $nc > 0}}
-			<h2 class="ruler">Chèques</h2>
-			{{:include file="../_list.html"
-				mode="all" month="0000-00" q_like=null user_id=$user.id
-				show_month_col=true show_deposit_button=false show_actions=false}}
-			<p class="help">
-				{{:link href="%sindex.html"|args:$module.url label="Gérer ces chèques dans le suivi des chèques"}}
-			</p>
-		{{/if}}
+	{{if $nm > 0}}
+		<h2 class="ruler">Paiements</h2>
+		{{* ?all=1 sur l'URL de la fiche membre lève le plafond d'affichage. *}}
+		{{:assign mp_limit=15}}
+		{{if $_GET.all}}{{:assign mp_limit=10000}}{{/if}}
+		{{:include file="../_member_payments.html" mp_user_id=$user.id mp_limit=$mp_limit mp_total=$nm}}
+		<p class="help">
+			{{:link href="%sindex.html"|args:$module.url label="Suivre les chèques de ce membre"}}
+		</p>
 	{{/if}}
 {{/extension}}

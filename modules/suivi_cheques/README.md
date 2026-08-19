@@ -68,7 +68,8 @@ réservée à `config = admin`.
 | `_record_cancellation.html` / `_record_deposit.html` | construction + envoi des écritures `{{:api}}`, partagés par la file et le mode automatique |
 | `_record_precheck.html` | pré-validation du mode automatique (exercice, comptes) |
 | `_resolve_month.html` | mois d'encaissement (1-12) → mois absolu `YYYY-MM` |
-| `snippets/user_details.html` | encart chèques sur la fiche membre |
+| `snippets/user_details.html` | encart paiements sur la fiche membre |
+| `_member_payments.html` | journal des paiements d'un membre (caisse, chèques, ardoise, créances) |
 | `*.schema.json` | schémas de validation des documents `module_data` |
 
 ## Remplacement en cascade (chaînes A→B→C)

@@ -39,15 +39,19 @@ $db->update('modules', ['config' => json_encode([
 	'bank_account'       => '512',
 ])], 'name = :n', ['n' => $module]);
 
-// "cheque" payment method -> collection month mapping
+// "cheque" payment method -> collection month mapping.
+// Only method 2 ("Chèque", Method::TYPE_TRACKED) may be mapped: the module's
+// configuration page lists type 0 methods only, and mapping "Espèces" (1) or
+// "Ardoise" (3) would make those payments show up as tracked cheques.
 $db->exec(sprintf('DELETE FROM %s WHERE json_extract(document, \'$.type\') = \'method_month_map\';', $mdt));
-foreach ([1 => 7, 2 => 1, 3 => 12] as $mid => $month) {
+foreach ([2 => 1] as $mid => $month) {
 	$put('mm-' . $mid, ['type' => 'method_month_map', 'method_id' => $mid, 'month' => $month]);
 }
 
 // --- 2. Purge (throwaway db): start from an empty caisse for clean captures
 $db->exec(sprintf('DELETE FROM %s WHERE json_extract(document, \'$.type\') IN (\'cheque\', \'cheque_rempl\', \'deposit_batch\');', $mdt));
 $db->exec('DELETE FROM plugin_pos_tabs_payments;');
+$db->exec('DELETE FROM plugin_pos_tabs_items;');
 $db->exec('DELETE FROM plugin_pos_tabs;');
 
 // demo member (identified by their number)
@@ -68,11 +72,23 @@ if (!$sid) {
 $db->preparedQuery("INSERT INTO plugin_pos_tabs (session, name, user_id, opened, closed) VALUES (?, 'Camille Martin', ?, '2026-07-01 10:05:00', '2026-07-01 10:10:00');", $sid, $uid);
 $tab = $db->lastInsertId();
 
-// --- 5. Caisse cheques (method 1 = "Chèque juillet", account 5112) -----------
-// Insert 9 cheques; force the collection month via the overlay to tell the
-// story of a member's "10 monthly cheques".
+// --- 5. Caisse: what was bought, then how it was paid ------------------------
+// The tab items are what the member owes; the payments are how they settled it.
+// Kept in balance (39500 = 9500 + 30000) so the member sheet reads correctly.
+$item = function (int $tab, string $added, string $name, string $category, int $total, string $account, int $type = 0) use ($db) {
+	$db->preparedQuery("INSERT INTO plugin_pos_tabs_items
+		(tab, added, qty, price, total, name, category_name, account, type)
+		VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?);",
+		$tab, $added, $total, $total, $name, $category, $account, $type);
+	return (int) $db->lastInsertId();
+};
+
+$item($tab, '2026-07-01 10:06:00', 'Cotisation annuelle', 'Adhésion', 9500, '756');
+$item($tab, '2026-07-01 10:06:00', 'Cours de guitare — année', 'Cours', 30000, '706');
+
+// Method 2 = "Chèque" (Method::TYPE_TRACKED, account 5112) — the tracked ones.
 $pay = function (string $ref, int $amount) use ($db, $tab) {
-	$db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, 1, '2026-07-01', ?, ?, '5112', 0);", $tab, $amount, $ref);
+	$db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, 2, '2026-07-01', ?, ?, '5112', 0);", $tab, $amount, $ref);
 	return (int) $db->lastInsertId();
 };
 
@@ -123,6 +139,17 @@ $put('batch-DEMO', [
 	'total' => 5000,
 ]);
 
+// --- 6b. A second tab, settled partly on the slate ---------------------------
+// The other way a member ends up owing money: they did not pay enough at the
+// counter, so the remainder went on the slate (Method::TYPE_DEBT). This debt
+// lives ONLY in the till tables — the caisse posts one aggregated entry per
+// session and never links it to a member, so accounting cannot attribute it.
+$db->preparedQuery("INSERT INTO plugin_pos_tabs (session, name, user_id, opened, closed) VALUES (?, 'Camille Martin', ?, '2026-07-04 17:00:00', '2026-07-04 17:05:00');", $sid, $uid);
+$tab_debt = $db->lastInsertId();
+$item($tab_debt, '2026-07-04 17:01:00', "Location d'instrument — trimestre", 'Location', 12000, '706');
+$db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, 1, '2026-07-04', 8000, NULL, '530', 1);", $tab_debt);
+$db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, 3, '2026-07-04', 4000, NULL, '4110', 2);", $tab_debt);
+
 // --- 7. Deterministic admin password (throwaway db) --------------------------
 // Lets the Playwright script log in without guessing credentials.
 $admin = $db->first('SELECT id, email FROM users WHERE id_category IN (SELECT id FROM users_categories WHERE perm_config = 9) ORDER BY id LIMIT 1');
@@ -131,7 +158,9 @@ $db->preparedQuery('UPDATE users SET password = ? WHERE id = ?;', $hash, $admin-
 
 $db->commit();
 
-printf("Demo seeded: member #%d (Camille Martin), tab #%d, 9 cheques, 1 cancellation+replacement, 1 cancellation+card, 1 frozen slip.\n", $uid, $tab);
+printf("Demo seeded: member #%d (Camille Martin), tabs #%d and #%d, 2 purchases, 9 cheques,"
+	. " 1 cancellation+replacement, 1 cancellation+card, 1 frozen slip, 1 slate debt of 40,00.\n",
+	$uid, $tab, $tab_debt);
 printf("ADMIN_EMAIL=%s\n", $admin->email);
 printf("ADMIN_PASSWORD=demo-screenshots-2026\n");
 printf("CAMILLE_ID=%d\n", $uid);
