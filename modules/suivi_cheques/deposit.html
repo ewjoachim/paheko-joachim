@@ -262,14 +262,21 @@
 	</p>
 	<p class="help">
 		Cochez les chèques physiquement apportés à la banque (échéance jusqu'à {{$month}} incluse,
-		non annulés, pas déjà dans un lot). La génération <strong>fige</strong> le bordereau{{if $module.config.auto_record_deposits}}
+		non annulés, pas déjà dans un lot) — la case d'en-tête coche ou décoche toute la liste.
+		La génération <strong>fige</strong> le bordereau{{if $module.config.auto_record_deposits}}
 		et passe aussitôt l'écriture comptable du dépôt{{/if}}.
 	</p>
 
 	<form method="post" action="">
 		<table class="list">
 			<thead>
-				<tr><th></th><th>Mois prévu</th><th>N° de chèque</th><th>Membre</th><th class="money">Montant</th></tr>
+				{{* La case d'en-tête coche/décoche toute la liste : Paheko lie globalement
+				    tout `table thead input[type=checkbox]` à son helper checkUncheck
+				    (static/scripts/global.js), il n'y a donc pas de JS à écrire ici. *}}
+					<tr>
+						<td class="check"><input type="checkbox" id="f_all" title="Tout cocher / décocher" aria-label="Tout cocher / décocher" /><label for="f_all" title="Tout cocher / décocher"></label></td>
+						<th>Mois prévu</th><th>N° de chèque</th><th>Membre</th><th class="money">Montant</th>
+					</tr>
 			</thead>
 			<tbody>
 				{{:assign _n=0}}
@@ -316,7 +323,11 @@
 				}}
 					{{:assign _n="%d+1"|math:$_n}}
 					<tr>
-						<td><input type="checkbox" name="deposit[{{$skey|escape}}]" value="1" checked="checked" /></td>
+						{{* `class="check"` + le helper `input` : Paheko masque l'`<input>` réelle
+						    (opacity: 0) et dessine la case via le `<label>` que le helper produit.
+						    Une `<input>` nue dans un `<td>` sans classe reste donc invisible.
+						    Aucun `default` : on part décoché, cocher est un acte explicite. *}}
+						<td class="check">{{:input type="checkbox" name="deposit[%s]"|args:$skey value="1"}}</td>
 						<td>{{$planned_month|escape}}</td>
 						<td>{{$cheque_number|escape|or:'—'}}</td>
 						<td>{{if $user_id}}{{#users id=$user_id}}{{$_name|escape}}{{/users}}{{else}}{{$tab_name|escape|or:'—'}}{{/if}}</td>

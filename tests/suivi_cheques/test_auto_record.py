@@ -121,6 +121,8 @@ def test_deposit_slip_is_recorded_immediately(
     module_config(auto_record_deposits=1)
 
     admin_page.goto(f"{module_url}/deposit.html?month=2026-07", wait_until="domcontentloaded")
+    # Cheques are unticked by default: take the whole slip via the header toggle.
+    admin_page.locator("table.list thead td.check input[type=checkbox]").check()
     admin_page.get_by_role("button", name="Générer le bordereau").click()
     admin_page.wait_for_load_state("domcontentloaded")
 
@@ -149,6 +151,8 @@ def test_deposit_slip_waits_in_the_queue_by_default(
 ):
     reseed()
     admin_page.goto(f"{module_url}/deposit.html?month=2026-07", wait_until="domcontentloaded")
+    # Cheques are unticked by default: take the whole slip via the header toggle.
+    admin_page.locator("table.list thead td.check input[type=checkbox]").check()
     admin_page.get_by_role("button", name="Générer le bordereau").click()
     admin_page.wait_for_load_state("domcontentloaded")
 
@@ -211,6 +215,8 @@ def test_failed_automatic_entry_keeps_the_frozen_slip(
     module_config(auto_record_deposits=1, bank_account="999999")
 
     admin_page.goto(f"{module_url}/deposit.html?month=2026-07", wait_until="domcontentloaded")
+    # Cheques are unticked by default: take the whole slip via the header toggle.
+    admin_page.locator("table.list thead td.check input[type=checkbox]").check()
     admin_page.get_by_role("button", name="Générer le bordereau").click()
     admin_page.wait_for_load_state("domcontentloaded")
 
