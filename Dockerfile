@@ -25,7 +25,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
  && docker-php-ext-enable sodium
 
 # Paheko core, KD2, www/.htaccess and the bundled plugins (incl. caisse).
-COPY --from=docker.io/paheko/paheko:1.3.21@sha256:e9011f923a40161fd4748c90bf597a4a9c2d5562e5dabe4de566b12846311dae /var/www/paheko /var/www/paheko
+COPY --from=docker.io/paheko/paheko:1.3.22.1@sha256:ef1b6bad664cd52e7bffd255f2ea8ebb1db48eede5eacdae7f512845747494ae /var/www/paheko /var/www/paheko
 WORKDIR /var/www/paheko
 
 # This repo's modules and the test config. Locally these paths are bind-mounted
