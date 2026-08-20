@@ -242,20 +242,42 @@
 		{{/if}}
 	{{/foreach}}
 
-	{{* Automatic mode (configuration): post the deposit entry right away, without
-	    requiring any accounting permission from whoever prepares the slip — the
-	    checkbox an admin ticked is what authorises it, mirroring the till's own
-	    setting. quiet=true: on failure the slip is still frozen and simply stays in
-	    the "to record" queue. The frozen batch above is the entry's only source, so
-	    this has to come after it. *}}
-	{{:assign rec_txn_id=null rec_error=null}}
-	{{if $module.config.auto_record_deposits}}
-		{{:include file="./_record_deposit.html" ref=$batch_id quiet=true keep="rec_txn_id,rec_error"}}
-	{{/if}}
+	{{* L'écriture du dépôt est passée dans le second {{#form}} ci-dessous (voir le
+	    commentaire WORKAROUND qui s'y trouve). *}}
+	{{:assign posted_batch_id=$batch_id}}
+{{/form}}
 
-	{{:assign qs="batch=%s"|args:$batch_id}}
-	{{if $rec_txn_id}}{{:assign qs="batch=%s&recorded=1"|args:$batch_id}}{{elseif $rec_error}}{{:assign qs="batch=%s&not_recorded=1"|args:$batch_id}}{{/if}}
-	{{:redirect to="deposit.html?%s"|args:$qs}}
+{{* WORKAROUND (Paheko 1.3.22 regression) — l'écriture était passée dans le {{#form}}
+    ci-dessus, après le gel du lot. Depuis 1.3.22 les sections lisent sur une
+    connexion SQLite séparée, en lecture seule, alors que {{:save}} écrit sur la
+    connexion principale — dont {{#form}} tient la transaction ouverte jusqu'au
+    {{/form}}. Le bordereau figé quelques lignes plus haut se lit donc comme absent
+    (« Bordereau introuvable ou vide ») et aucune écriture n'est passée : le lot
+    retombe silencieusement dans la file « à comptabiliser ».
+
+    Un second {{#form}}, sur le même POST, ouvre une NOUVELLE transaction : ses
+    lectures voient les écritures du premier, et l'écriture comptable reste atomique
+    avec le deposit_txn_id que _record_deposit.html repose sur le lot. Même forme
+    qu'edit.html, où le raisonnement complet est écrit.
+
+    Corrigé en amont : git revert le commit qui a introduit ce bloc. *}}
+{{#form on="save"}}
+	{{if $posted_batch_id}}
+		{{* Automatic mode (configuration): post the deposit entry right away, without
+		    requiring any accounting permission from whoever prepares the slip — the
+		    checkbox an admin ticked is what authorises it, mirroring the till's own
+		    setting. quiet=true: on failure the slip is still frozen and simply stays in
+		    the "to record" queue. The frozen batch above is the entry's only source, so
+		    this has to come after it. *}}
+		{{:assign rec_txn_id=null rec_error=null}}
+		{{if $module.config.auto_record_deposits}}
+			{{:include file="./_record_deposit.html" ref=$posted_batch_id quiet=true keep="rec_txn_id,rec_error"}}
+		{{/if}}
+
+		{{:assign qs="batch=%s"|args:$posted_batch_id}}
+		{{if $rec_txn_id}}{{:assign qs="batch=%s&recorded=1"|args:$posted_batch_id}}{{elseif $rec_error}}{{:assign qs="batch=%s&not_recorded=1"|args:$posted_batch_id}}{{/if}}
+		{{:redirect to="deposit.html?%s"|args:$qs}}
+	{{/if}}
 {{/form}}
 
 {{*=================================================================================
