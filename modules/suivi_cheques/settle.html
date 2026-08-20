@@ -79,20 +79,35 @@
 		notes=$_POST.notes|trim|or:null
 	}}
 
-	{{* Mode automatique : même contrat que les annulations — un refus comptable ne
-	    doit pas annuler l'encaissement, qui reste alors dans la file. *}}
-	{{:assign rec_txn_id=null rec_error=null}}
-	{{if $module.config.auto_record_settlements}}
-		{{:include file="./_record_settlement.html" rid=$rkey quiet=true keep="rec_txn_id,rec_error"}}
-	{{/if}}
+	{{* L'écriture est passée dans le second {{#form}} ci-dessous. *}}
+	{{:assign posted_rkey=$rkey}}
+{{/form}}
 
-	{{:assign qs="user=%d&saved=1"|args:$uid}}
-	{{if $rec_txn_id}}
-		{{:assign qs="user=%d&saved=1&recorded=%d"|args:$uid:$rec_txn_id}}
-	{{elseif $rec_error}}
-		{{:assign qs="user=%d&saved=1&not_recorded=1"|args:$uid}}
+{{* WORKAROUND (Paheko 1.3.22 regression) — même chose qu'edit.html, où le raisonnement
+    complet est écrit : depuis 1.3.22 un {{#load}} ne voit plus ce qu'un {{:save}} a
+    écrit plus tôt dans le même {{#form}}. _record_settlement.html relit le règlement
+    par sa clé pour en construire l'écriture ; dans le formulaire ci-dessus il le
+    lisait comme absent (« Règlement introuvable ou montant nul ») et, en mode
+    silencieux, aucune écriture n'était passée — sans le moindre message. Un second
+    {{#form}} ouvre une nouvelle transaction, dont les lectures voient le règlement.
+    Revert le commit qui a introduit ce bloc une fois corrigé en amont. *}}
+{{#form on="settle"}}
+	{{if $posted_rkey}}
+		{{* Mode automatique : même contrat que les annulations — un refus comptable ne
+		    doit pas annuler l'encaissement, qui reste alors dans la file. *}}
+		{{:assign rec_txn_id=null rec_error=null}}
+		{{if $module.config.auto_record_settlements}}
+			{{:include file="./_record_settlement.html" rid=$posted_rkey quiet=true keep="rec_txn_id,rec_error"}}
+		{{/if}}
+
+		{{:assign qs="user=%d&saved=1"|args:$uid}}
+		{{if $rec_txn_id}}
+			{{:assign qs="user=%d&saved=1&recorded=%d"|args:$uid:$rec_txn_id}}
+		{{elseif $rec_error}}
+			{{:assign qs="user=%d&saved=1&not_recorded=1"|args:$uid}}
+		{{/if}}
+		{{:redirect to="settle.html?%s"|args:$qs}}
 	{{/if}}
-	{{:redirect to="settle.html?%s"|args:$qs}}
 {{/form}}
 
 {{:assign member_name=null}}
