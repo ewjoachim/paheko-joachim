@@ -105,19 +105,31 @@
 		annulation_txn_id=$cur_annul_txn
 	}}
 
-	{{* Créance du membre : voir edit.html et _creance_sync.html. *}}
-	{{:include file="./_creance_sync.html" cw_kind="annul_rempl" cw_rid=$key}}
+	{{* Créance et écriture : dans le second {{#form}} ci-dessous, comme edit.html. *}}
+	{{:assign posted_key=$key}}
+{{/form}}
 
-	{{* Automatic mode: same contract as edit.html — see the comment there. *}}
-	{{:assign rec_txn_id=null rec_error=null}}
-	{{if $module.config.auto_record_cancellations && $_POST.cancelled|intval}}
-		{{:include file="./_record_cancellation.html" kind="annul_rempl" rid=$key quiet=true keep="rec_txn_id,rec_error"}}
+{{* WORKAROUND (Paheko 1.3.22 regression) — même chose qu'edit.html, où le raisonnement
+    complet est écrit : depuis 1.3.22 un {{#load}}/{{#select}} ne voit plus ce qu'un
+    {{:save}} a écrit plus tôt dans le même {{#form}}, donc la créance et l'écriture
+    sont posées dans un second {{#form}}, dont la transaction voit ces écritures.
+    Revert le commit qui a introduit ce bloc une fois corrigé en amont. *}}
+{{#form on="save"}}
+	{{if $posted_key}}
+		{{* Créance du membre : voir edit.html et _creance_sync.html. *}}
+		{{:include file="./_creance_sync.html" cw_kind="annul_rempl" cw_rid=$posted_key}}
+
+		{{* Automatic mode: same contract as edit.html — see the comment there. *}}
+		{{:assign rec_txn_id=null rec_error=null}}
+		{{if $module.config.auto_record_cancellations && $_POST.cancelled|intval}}
+			{{:include file="./_record_cancellation.html" kind="annul_rempl" rid=$posted_key quiet=true keep="rec_txn_id,rec_error"}}
+		{{/if}}
+
+		{{:assign qs="saved=1"}}
+		{{* Voir edit.html : l'id de l'écriture voyage dans l'URL pour le lien. *}}
+		{{if $rec_txn_id}}{{:assign qs="saved=1&recorded=%d"|args:$rec_txn_id}}{{elseif $rec_error}}{{:assign qs="saved=1&not_recorded=1"}}{{/if}}
+		{{:redirect to="index.html?%s"|args:$qs}}
 	{{/if}}
-
-	{{:assign qs="saved=1"}}
-	{{* Voir edit.html : l'id de l'écriture voyage dans l'URL pour le lien. *}}
-	{{if $rec_txn_id}}{{:assign qs="saved=1&recorded=%d"|args:$rec_txn_id}}{{elseif $rec_error}}{{:assign qs="saved=1&not_recorded=1"}}{{/if}}
-	{{:redirect to="index.html?%s"|args:$qs}}
 {{/form}}
 
 {{:admin_header title="Chèque de remplacement n°%s"|args:$cheque_number|or:$key}}

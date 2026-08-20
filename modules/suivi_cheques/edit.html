@@ -96,27 +96,58 @@
 		annulation_txn_id=$cur_annul_txn
 	}}
 
-	{{* Créance du membre : créée, ajustée ou supprimée tout de suite, sans attendre
-	    la comptabilisation — c'est le module qui possède la dette
-	    (voir _creance_sync.html). *}}
-	{{:include file="./_creance_sync.html" cw_kind="annul_pay" cw_rid=$pid}}
+	{{* Ce qui découle de l'annulation — créance et écriture — est posé dans le second
+	    {{#form}} ci-dessous (voir le commentaire WORKAROUND qui s'y trouve). *}}
+	{{:assign posted_pid=$pid}}
+{{/form}}
 
-	{{* Automatic mode (configuration): post the cancellation entry right away,
-	    without requiring any accounting permission from whoever is typing — the
-	    checkbox an admin ticked is what authorises it, mirroring the till's own
-	    setting. quiet=true: on failure we keep the input and the cheque stays in the
-	    "to record" queue. Placed AFTER the {{:save}} calls above, because the entry
-	    is built from module data, which has to be up to date first. *}}
-	{{:assign rec_txn_id=null rec_error=null}}
-	{{if $module.config.auto_record_cancellations && $_POST.cancelled|intval}}
-		{{:include file="./_record_cancellation.html" kind="annul_pay" rid=$pid quiet=true keep="rec_txn_id,rec_error"}}
+{{* WORKAROUND (Paheko 1.3.22 regression) — la créance et l'écriture étaient posées
+    dans le {{#form}} ci-dessus, après les {{:save}} du chèque et de ses enfants.
+    Depuis 1.3.22 les sections lisent sur une connexion SQLite séparée, en lecture
+    seule, alors que {{:save}} écrit sur la connexion principale — dont {{#form}}
+    tient la transaction ouverte jusqu'au {{/form}}. Un {{#load}}/{{#select}} placé
+    après un {{:save}} ne voit donc plus ce qui vient d'être écrit, et
+    _cancellation_shape.html (dont dépendent ET la créance ET l'écriture) relit
+    l'état pré-POST : un remplacement saisi dans ce même formulaire est invisible,
+    et la totalité du montant est portée en créance. Le résultat est équilibré et
+    plausible, donc silencieux.
+
+    Un second {{#form}}, sur le même POST, ouvre une NOUVELLE transaction : ses
+    lectures voient les écritures du premier. La clé CSRF est dérivée de l'URL
+    ('form_' . md5($uri)) et le jeton n'est pas consommé, les deux blocs valident
+    donc le même jeton.
+
+    Ce qu'on y perd : le garde-fou « créance déjà réglée » de _creance_sync.html ne
+    rollback plus que ce second bloc — l'édition du chèque, elle, reste enregistrée.
+    Le refus reste visible, et re-sauver après avoir supprimé le règlement
+    resynchronise tout.
+
+    Corrigé en amont : git revert le commit qui a introduit ce bloc, et tout
+    retourne dans le formulaire unique, où la lecture est naturelle. *}}
+{{#form on="save"}}
+	{{if $posted_pid}}
+		{{* Créance du membre : créée, ajustée ou supprimée tout de suite, sans attendre
+		    la comptabilisation — c'est le module qui possède la dette
+		    (voir _creance_sync.html). *}}
+		{{:include file="./_creance_sync.html" cw_kind="annul_pay" cw_rid=$posted_pid}}
+
+		{{* Automatic mode (configuration): post the cancellation entry right away,
+		    without requiring any accounting permission from whoever is typing — the
+		    checkbox an admin ticked is what authorises it, mirroring the till's own
+		    setting. quiet=true: on failure we keep the input and the cheque stays in the
+		    "to record" queue. Placed AFTER the {{:save}} calls above, because the entry
+		    is built from module data, which has to be up to date first. *}}
+		{{:assign rec_txn_id=null rec_error=null}}
+		{{if $module.config.auto_record_cancellations && $_POST.cancelled|intval}}
+			{{:include file="./_record_cancellation.html" kind="annul_pay" rid=$posted_pid quiet=true keep="rec_txn_id,rec_error"}}
+		{{/if}}
+
+		{{:assign qs="saved=1"}}
+		{{* recorded=<id de l'écriture> : reste truthy comme l'ancien recorded=1, et permet
+		    à index.html de proposer le lien vers l'écriture. *}}
+		{{if $rec_txn_id}}{{:assign qs="saved=1&recorded=%d"|args:$rec_txn_id}}{{elseif $rec_error}}{{:assign qs="saved=1&not_recorded=1"}}{{/if}}
+		{{:redirect to="index.html?%s"|args:$qs}}
 	{{/if}}
-
-	{{:assign qs="saved=1"}}
-	{{* recorded=<id de l'écriture> : reste truthy comme l'ancien recorded=1, et permet
-	    à index.html de proposer le lien vers l'écriture. *}}
-	{{if $rec_txn_id}}{{:assign qs="saved=1&recorded=%d"|args:$rec_txn_id}}{{elseif $rec_error}}{{:assign qs="saved=1&not_recorded=1"}}{{/if}}
-	{{:redirect to="index.html?%s"|args:$qs}}
 {{/form}}
 
 {{:admin_header title="Chèque n°%s"|args:$cheque_number|or:$pid}}
