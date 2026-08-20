@@ -1,7 +1,8 @@
 # prek config. Uses `repo: builtin` for the hygiene checks (native, no clone,
 # no Python env) — this makes the file prek-only, not the standard pre-commit
 # tool. External-tool hooks keep their repos; Renovate (:enablePreCommit) bumps
-# their rev. No Brindille linter exists, so templates aren't linted here.
+# their rev. No Brindille linter exists; the local hook below covers the one
+# template trap that has cost us time twice.
 repos:
   - repo: builtin
     hooks:
@@ -32,3 +33,14 @@ repos:
     rev: v1.29.0
     hooks:
       - id: zizmor
+
+  # Inside a {{#select}}, a ';' in a SQL comment ends the query there, and an odd
+  # number of apostrophes across its comments desynchronises the tokeniser. Both
+  # errors point somewhere else entirely. See the script for the measurements.
+  - repo: local
+    hooks:
+      - id: brindille-sql-comments
+        name: "SQL comments in a Brindille {{#select}}"
+        entry: tools/lint-brindille-sql.py
+        language: script
+        files: ^modules/.*\.html$
