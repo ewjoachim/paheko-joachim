@@ -25,7 +25,7 @@
 		},
 		"amount": {
 			"type": "integer",
-			"description": "Montant dû à la création, en centimes : la part du chèque annulé qu'aucun remplacement ne couvre. Ce qui reste à payer se calcule en retranchant les documents 'reglement' qui pointent vers cette créance."
+			"description": "Montant dû à la création, en centimes : le montant du chèque annulé. Ce qui reste à payer se calcule en retranchant les documents 'reglement' qui pointent vers cette créance."
 		},
 		"date": {
 			"type": ["null", "string"],

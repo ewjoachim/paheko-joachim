@@ -60,41 +60,19 @@ def test_cancelling_creates_the_debt_with_no_entry(
     assert owed(admin_page, module_url) == "70,00 €"
 
 
-def test_a_replacement_shrinks_the_debt_to_nothing(
-    admin_page: Page, module_url, reseed, seed
-):
-    """The debt is the uncovered remainder, so it follows the replacements — the
-    same computation the cancellation entry uses (_cancellation_shape.html), which
-    is why they cannot disagree."""
-    reseed()
-    admin_page.goto(
-        f"{module_url}/edit.html?payment={seed['pay_edit']}", wait_until="domcontentloaded"
-    )
-    admin_page.check('input[name="cancelled"]')
-    admin_page.locator('input[name="rc_number[]"]').first.fill("CHQ-0301")
-    admin_page.locator('input[name="rc_amount[]"]').first.fill("45,00")
-    admin_page.locator('select[name="rc_month[]"]').first.select_option("9")
-    admin_page.get_by_role("button", name="Enregistrer").click()
-    admin_page.wait_for_load_state("domcontentloaded")
+def test_a_settling_cheque_that_bounces_owes_once(admin_page: Page, module_url, reseed):
+    """CHQ-0141 (30,00) bounced and was settled by CHQ-0200, which bounces in turn.
+    CHQ-0200 owes 30,00 — and CHQ-0141 must NOT also owe 30,00: the money went
+    missing once, not twice.
 
-    # Fully replaced: only the seeded 25,00 remains.
-    assert owed(admin_page, module_url) == "25,00 €"
-
-
-def test_a_cancelled_replacement_still_covers_its_parent(
-    admin_page: Page, module_url, reseed
-):
-    """CHQ-0141 (30,00) was cancelled and fully replaced by CHQ-0200, which then
-    bounces too. CHQ-0200 owes 30,00 — and CHQ-0141 must NOT also owe 30,00: the
-    money went missing once, not twice.
-
-    The cheque was really handed over, so it still covers its parent; its own
-    bouncing is its own cancellation's business. That is what "one level at a
-    time" means, and re-saving the parent must not change the total."""
+    This used to need a rule ("a cancelled child still covers its parent") and the
+    reasoning that went with it. Now it falls out of the model: the cheque was
+    handed over, so it settled the first receivable for good, and its own bouncing
+    opens its own. Re-saving the first cheque's sheet changes nothing either."""
     reseed()
 
     admin_page.goto(
-        f"{module_url}/edit_replacement.html?key=rempl-demo-0200",
+        f"{module_url}/edit_replacement.html?key=chq-regl-demo-0200",
         wait_until="domcontentloaded",
     )
     admin_page.check('input[name="cancelled"]')

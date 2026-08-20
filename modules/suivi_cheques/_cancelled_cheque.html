@@ -1,0 +1,59 @@
+{{* -*- brindille -*- *}}
+
+{{* Le chèque annulé, lu là où il vit : la caisse pour un chèque de caisse, le
+    document module pour un chèque que le module possède. Deux choses en naissent —
+    la créance du membre (_creance_sync.html) et l'écriture d'annulation
+    (_record_cancellation.html) — et toutes deux ont besoin des mêmes champs.
+
+    Paramètres :
+      $cs_kind  'annul_pay' (chèque de caisse) | 'annul_rempl' (chèque module) ;
+      $cs_rid   id du paiement de caisse, ou clé du document.
+
+    Renvoie, via keep :
+      cs_error         chèque introuvable ou montant nul, sinon null ;
+      cs_amount        montant du chèque, en centimes : c'est aussi ce que le membre
+                       devra, une annulation ouvrant toujours une créance du montant
+                       plein — ce qu'il rend ensuite est un règlement de cette
+                       créance, pas une soustraction ici ;
+      cs_cheque_number son numéro ;
+      cs_member_id     membre concerné (null si la note n'était liée à personne) ;
+      cs_member_name   son nom, pour les libellés ;
+      cs_reason        motif saisi ;
+      cs_cancelled     1 si le chèque est marqué non encaissé ;
+      cs_already       id de l'écriture d'annulation déjà stockée (peut pointer vers
+                       une écriture supprimée : au caller de vérifier) ;
+      cs_store_type / cs_store_key  type et clé du document d'origine.
+
+    Ne fait AUCUNE écriture : c'est une lecture, appelable hors {{#form}}. *}}
+
+{{:assign cs_error=null cs_amount=0 cs_cheque_number=null cs_member_id=null cs_member_name=null}}
+{{:assign cs_reason=null cs_cancelled=0 cs_already=null cs_store_key=null cs_store_type=null}}
+
+{{if $cs_kind === 'annul_pay'}}
+	{{:assign cs_pid=$cs_rid|intval}}
+	{{#select p.reference AS r, p.amount AS a, t.user_id AS u
+		FROM plugin_pos_tabs_payments p INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+		WHERE p.id = :pid LIMIT 1; :pid=$cs_pid}}
+		{{:assign cs_cheque_number=$r cs_amount=$a cs_member_id=$u}}
+	{{/select}}
+	{{#load type="cheque" key="pay-%d"|args:$cs_pid}}
+		{{:assign cs_reason=$reason cs_already=$annulation_txn_id cs_cancelled=$cancelled|intval}}
+	{{/load}}
+	{{:assign cs_store_key="pay-%d"|args:$cs_pid cs_store_type="cheque"}}
+{{elseif $cs_kind === 'annul_rempl'}}
+	{{#load type="cheque_rempl" key=$cs_rid}}
+		{{:assign cs_amount=$amount cs_cheque_number=$cheque_number cs_reason=$reason}}
+		{{:assign cs_already=$annulation_txn_id cs_member_id=$member_id cs_cancelled=$cancelled|intval}}
+	{{/load}}
+	{{:assign cs_store_key=$cs_rid cs_store_type="cheque_rempl"}}
+{{else}}
+	{{:assign cs_error="Type d'élément inconnu."}}
+{{/if}}
+
+{{* Une note de caisse peut porter un nom libre sans user_id (un non-adhérent) : il
+    n'y a alors pas de nom, et les libellés retombent sur leur forme simple. *}}
+{{if $cs_member_id}}{{#users id=$cs_member_id}}{{:assign cs_member_name=$_name}}{{/users}}{{/if}}
+
+{{if !$cs_error && !$cs_amount}}
+	{{:assign cs_error="Chèque introuvable ou montant nul."}}
+{{/if}}

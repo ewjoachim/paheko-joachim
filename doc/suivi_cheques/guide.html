@@ -79,7 +79,7 @@
 
 	<p class="lead">
 		Ce module suit chaque chèque encaissé <strong>en caisse</strong> : quand il sera déposé en banque,
-		s'il est annulé ou remplacé, et il prépare pour la comptabilité des écritures « prêtes à valider ».
+		s'il revient impayé et ce que le membre doit alors, et il prépare pour la comptabilité des écritures « prêtes à valider ».
 		Il s'adresse à deux personnes aux rôles bien distincts.
 	</p>
 
@@ -92,8 +92,9 @@
 			<tr>
 				<td><strong>Accueil / caisse</strong></td>
 				<td>La personne qui tient la caisse et va à la banque</td>
-				<td>Suit les chèques du mois, planifie leur encaissement, gère les annulations et remplacements,
-					et prépare le bordereau de remise. <strong>N'a pas à toucher à la comptabilité.</strong></td>
+				<td>Suit les chèques du mois, planifie leur encaissement, gère les annulations et encaisse
+					ce qui reste dû, et prépare le bordereau de remise.
+					<strong>N'a pas à toucher à la comptabilité.</strong></td>
 			</tr>
 			<tr>
 				<td><strong>Comptabilité</strong></td>
@@ -149,26 +150,21 @@
 		au cas par cas (voir ci-dessous).
 	</p>
 
-	<h3>3. Annuler ou remplacer un chèque</h3>
+	<h3>3. Annuler un chèque</h3>
 	<p>
-		Depuis un chèque, le bouton <em>Modifier / annuler</em> ouvre cette fiche. On peut :
+		Depuis un chèque, le bouton <em>Modifier / annuler</em> ouvre cette fiche. On peut changer le
+		mois d'encaissement prévu, et marquer le chèque comme <strong>non encaissé</strong>, avec un
+		motif. Le membre <strong>doit alors son montant</strong> : la créance apparaît aussitôt dans
+		<em>Impayés</em>, où on l'encaisse quand il repaie — en espèces, en carte, ou par un nouveau
+		chèque, qui sera suivi comme celui-ci (voir l'étape 7).
 	</p>
-	<ol class="steps">
-		<li>changer le mois d'encaissement prévu ;</li>
-		<li>marquer le chèque comme <strong>non encaissé</strong> (annulé), avec un motif ;</li>
-		<li>saisir le(s) remplacement(s) reçus au comptoir : soit en <strong>CB / espèces</strong>,
-			soit par un <strong>autre chèque</strong> (qui devient alors un chèque suivi à part entière).</li>
-	</ol>
 	<figure>
-		<img src="screenshots/03-annuler-remplacer.png" alt="Fiche d'annulation / remplacement d'un chèque" />
-		<figcaption>Annulation d'un chèque et saisie des remplacements. Aucune écriture comptable n'est créée ici.</figcaption>
+		<img src="screenshots/03-annuler.png" alt="Fiche d'annulation d'un chèque" />
+		<figcaption>Annulation d'un chèque. Aucune écriture comptable n'est créée ici.</figcaption>
 	</figure>
 	<div class="note">
-		<strong>Rien n'est écrit en comptabilité à ce stade.</strong> L'accueil décrit simplement ce qui s'est
-		passé ; la comptabilité passera l'écriture plus tard, en un clic (voir « Côté comptabilité »).
-		Sauf si la comptabilisation automatique des annulations est activée : l'écriture est alors passée
-		dès l'enregistrement, et la fiche du chèque n'est plus modifiable ensuite. La page indique
-		lequel des deux cas s'applique.
+		<strong>Rien n'est écrit en comptabilité à ce stade</strong>, sauf si la comptabilisation
+		automatique des annulations est activée — la page indique lequel des deux cas s'applique.
 	</div>
 
 	<h3>4. Préparer le bordereau de remise</h3>
@@ -272,11 +268,10 @@
 		Cette page regroupe tout ce que l'accueil a préparé et qui attend une écriture comptable :
 	</p>
 	<ul>
-		<li><strong>Annulations</strong> — un clic crée l'écriture : le chèque sort du compte d'attente,
-			les remplacements (CB / espèces / autre chèque) sont enregistrés, et le reste éventuel devient une
-			<strong>créance du membre</strong> (le membre nous doit encore cette somme). Le nom du membre
-			apparaît dans le libellé de l'écriture et sur la ligne de créance, pour qu'on sache de qui il
-			s'agit sans avoir à remonter au chèque.</li>
+		<li><strong>Annulations</strong> — un clic crée l'écriture : le chèque sort du compte d'attente
+			et devient une <strong>créance du membre</strong>. Le nom du membre apparaît dans le libellé
+			de l'écriture et sur la ligne de créance, pour qu'on sache de qui il s'agit sans avoir à
+			remonter au chèque.</li>
 		<li><strong>Règlements de créances</strong> — un clic crée l'écriture de l'argent encaissé au
 			bureau : le compte encaissé au débit, le compte de créance au crédit, le membre lié.</li>
 		<li><strong>Remises</strong> — un clic crée l'écriture de dépôt en banque à partir du bordereau figé.</li>
@@ -314,7 +309,7 @@
 	<p>
 		Un encart « Paiements » apparaît sur la fiche de chaque adhérent concerné. Il ne se limite pas aux
 		chèques : c'est le journal de tout ce que la personne a acheté et réglé — achats en caisse, paiements
-		de tous moyens (espèces, chèques suivis, chèques de remplacement), ardoise, créances et leurs
+		de tous moyens (espèces, chèques suivis, chèques reçus en règlement), ardoise, créances et leurs
 		règlements. En lecture seule — pour agir, un lien renvoie vers le module.
 	</p>
 	<figure>
@@ -382,11 +377,9 @@
 		l'intention.
 	</p>
 	<div class="warn">
-		<strong>Sur les annulations, attention à l'ordre de saisie.</strong> L'écriture étant passée
-		aussitôt, la fiche du chèque devient immédiatement non modifiable : les remplacements doivent être
-		saisis <em>avant</em> d'enregistrer, pas après. Pour corriger, il faut supprimer l'écriture en
-		comptabilité — le chèque redevient alors modifiable et repasse dans la file. Les remises et les
-		règlements, eux, sont figés de toute façon au moment de leur saisie : rien ne change pour eux.
+		<strong>Sur les annulations, la fiche se verrouille aussitôt.</strong> L'écriture étant passée
+		immédiatement, le chèque n'est plus modifiable. Pour corriger, supprimer l'écriture en
+		comptabilité : le chèque redevient modifiable et repasse dans la file.
 	</div>
 	<div class="note">
 		<strong>Un échec ne fait rien perdre.</strong> Si l'écriture ne peut pas être créée (aucun exercice

@@ -113,31 +113,51 @@ foreach ($months as $ref => $month) {
 	$put('pay-' . $p[$ref], ['type' => 'cheque', 'payment_id' => $p[$ref], 'planned_month' => $month]);
 }
 
-// 0141: cancelled, replaced BY A CHEQUE (CHQ-0200) -> to record (cancellation)
+// A cancellation always opens a receivable of the whole cheque. What the member
+// hands over afterwards is a settlement of that receivable, never a subtraction
+// from the cancellation. The two cancellations below are the two shapes of that:
+// settled in full by a new cheque, and settled in part by cash.
+//
+// The receivable is a MODULE document, born with the cancellation and not with the
+// accounting entry (see _creance_sync.html). The seed writes it for the same reason
+// it writes the overlays: it stands in for an operator having saved the form.
+
+// 0141 (30.00): cancelled, then settled in full by a cheque (CHQ-0200), which is
+// tracked like any other -> to record (cancellation + settlement)
 $put('pay-' . $p['0141'], [
 	'type' => 'cheque', 'payment_id' => $p['0141'], 'planned_month' => '2026-07',
-	'cancelled' => 1, 'reason' => 'Chèque remplacé par un autre chèque',
+	'cancelled' => 1, 'reason' => 'Chèque sans provision',
 ]);
-$put('rempl-demo-0200', [
-	'type' => 'cheque_rempl', 'parent_key' => 'pay-' . $p['0141'], 'member_id' => (int) $uid,
+$put('creance-pay-' . $p['0141'], [
+	'type' => 'creance', 'origin_kind' => 'cheque', 'origin_key' => 'pay-' . $p['0141'],
+	'member_id' => (int) $uid, 'cheque_number' => 'CHQ-0141', 'amount' => 3000,
+	'date' => '2026-07-01', 'reason' => 'Chèque sans provision',
+]);
+$put('regl-demo-0200', [
+	'type' => 'reglement', 'creance_key' => 'creance-pay-' . $p['0141'],
+	'member_id' => (int) $uid, 'amount' => 3000, 'date' => '2026-07-01',
+	'method_id' => 2, 'account' => '5112',
+]);
+$put('chq-regl-demo-0200', [
+	'type' => 'cheque_rempl', 'reglement_key' => 'regl-demo-0200', 'member_id' => (int) $uid,
 	'cheque_number' => 'CHQ-0200', 'amount' => 3000,
 	'planned_month' => '2026-09', 'received_date' => '2026-07-01', 'cancelled' => 0,
 ]);
 
-// 0142: cancelled, partially replaced by card (20.00) -> 25.00 left as receivable 411
+// 0142 (45.00): cancelled, settled in part by cash (20.00) -> 25.00 still owed
 $put('pay-' . $p['0142'], [
 	'type' => 'cheque', 'payment_id' => $p['0142'], 'planned_month' => '2026-07',
 	'cancelled' => 1, 'reason' => 'Compte bancaire clôturé',
-	'replacements' => [['method_id' => 7, 'account' => '512', 'amount' => 2000]],
 ]);
-// The debt that cancellation leaves behind is a MODULE document, born with the
-// cancellation and not with the accounting entry (see _creance_sync.html). The
-// seed writes it for the same reason it writes the overlay above: it stands in
-// for an operator having saved the form.
 $put('creance-pay-' . $p['0142'], [
 	'type' => 'creance', 'origin_kind' => 'cheque', 'origin_key' => 'pay-' . $p['0142'],
-	'member_id' => (int) $uid, 'cheque_number' => 'CHQ-0142', 'amount' => 2500,
+	'member_id' => (int) $uid, 'cheque_number' => 'CHQ-0142', 'amount' => 4500,
 	'date' => '2026-07-02', 'reason' => 'Compte bancaire clôturé',
+]);
+$put('regl-demo-0142', [
+	'type' => 'reglement', 'creance_key' => 'creance-pay-' . $p['0142'],
+	'member_id' => (int) $uid, 'amount' => 2000, 'date' => '2026-07-03',
+	'method_id' => 1, 'account' => '530',
 ]);
 
 // 0143: frozen in a deposit slip (batch) -> to record (deposit)
@@ -184,7 +204,7 @@ $db->preparedQuery('UPDATE users SET password = ? WHERE id = ?;', $hash, $admin-
 $db->commit();
 
 printf("Demo seeded: member #%d (Camille Martin), tabs #%d and #%d, 2 purchases, 9 cheques,"
-	. " 1 cancellation+replacement, 1 cancellation+card leaving a 25,00 receivable,"
+	. " 1 cancellation settled by a new cheque, 1 cancellation settled in part leaving 25,00 owed,"
 	. " 1 frozen slip, 1 slate debt of 40,00"
 	. " — plus member #%d (Sofia Nkemelu) owing 60,00 on the slate only.\n",
 	$uid, $tab, $tab_debt, $uid2);

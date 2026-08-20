@@ -41,93 +41,58 @@ def test_record_deposit(admin_page: Page, module_url: str, reseed, transaction):
     assert sum(l["credit"] for l in txn["lines"] if l["account"] == "5112") == 5000
 
 
-def test_record_cancellation_with_card_and_receivable(
-    admin_page: Page, module_url: str, reseed, transaction
-):
-    """CHQ-0142 (45,00) cancelled, 20,00 replaced by card, 25,00 left owed:
-    credit waiting 5112 = 4500; debit card 512 = 2000; debit receivable 411 = 2500."""
-    reseed()
-    admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
-
-    row = admin_page.locator("tr", has_text="CHQ-0142")
+def _record(page: Page, module_url: str, kind: str, row_text: str):
+    """Click "Comptabiliser" on the queue row of that kind (the queue has one table
+    per kind, and a cancellation and its settlement both name the same cheque)."""
+    page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
+    row = page.locator(f'tr:has(input[name="rec_kind"][value="{kind}"])').filter(
+        has_text=row_text
+    )
     expect(row).to_have_count(1)
     row.get_by_role("button", name="Comptabiliser").click()
-    admin_page.wait_for_load_state("domcontentloaded")
-
-    expect(admin_page.locator(".confirm")).to_contain_text("Écriture comptable créée")
-
-    txn = transaction(f"Annulation chèque n°CHQ-0142 — {MEMBER}")
-    assert txn["found"]
-    debit, credit = _totals(txn["lines"])
-    assert debit == credit == 4500, txn["lines"]
-    assert sum(l["credit"] for l in txn["lines"] if l["account"] == "5112") == 4500
-    assert any(l["account"] == "512" and l["debit"] == 2000 for l in txn["lines"])
-    assert any(l["account"] == "411" and l["debit"] == 2500 for l in txn["lines"])
+    page.wait_for_load_state("domcontentloaded")
 
 
-def test_record_cancellation_replaced_by_cheque(
+def test_a_cancellation_and_its_settlement_are_two_entries(
     admin_page: Page, module_url: str, reseed, transaction
 ):
-    """CHQ-0141 (30,00) cancelled, fully replaced by another cheque (CHQ-0200):
-    the amount leaves the waiting account and the replacement re-enters it, so
-    5112 is both credited and debited 3000 (net zero), no receivable."""
-    reseed()
-    admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
+    """CHQ-0141 (30,00) bounced and was settled by a new cheque, CHQ-0200. Each fact
+    gets its own entry, dated when it happened:
 
-    row = admin_page.locator("tr", has_text="CHQ-0141")
-    expect(row).to_have_count(1)
-    row.get_by_role("button", name="Comptabiliser").click()
-    admin_page.wait_for_load_state("domcontentloaded")
+      - the cancellation: the cheque leaves the waiting account, the member owes it
+        (credit 5112 = 3000, debit 411 = 3000);
+      - the settlement: the new cheque enters the waiting account and the debt is
+        extinguished (debit 5112 = 3000, credit 411 = 3000).
 
-    txn = transaction(f"Annulation chèque n°CHQ-0141 — {MEMBER}")
-    assert txn["found"]
-    debit, credit = _totals(txn["lines"])
-    assert debit == credit == 3000, txn["lines"]
-    waiting = [l for l in txn["lines"] if l["account"] == "5112"]
-    assert sum(l["credit"] for l in waiting) == 3000
-    assert sum(l["debit"] for l in waiting) == 3000
-    # The replacement debit line carries the new cheque number.
-    assert any(l["debit"] == 3000 and l["ref"] == "CHQ-0200" for l in waiting)
-    assert not any(l["account"] == "411" for l in txn["lines"])
-
-
-def test_a_cancelled_replacement_still_covers_its_parent(
-    admin_page: Page, module_url: str, reseed, transaction
-):
-    """CHQ-0200 replaced CHQ-0141 and then bounced too. CHQ-0141's entry must still
-    debit the waiting account for CHQ-0200, exactly as if it had not bounced.
-
-    The cheque was really handed over: it covers its parent, and its own bouncing
-    is its own entry's business (which credits the waiting account back and posts
-    the receivable). Dropping it here would credit 5112 for CHQ-0141 with no
-    matching debit while CHQ-0200's entry credits a debit that never existed — and
-    the same money would be owed twice, once per cheque. This is what recording
-    "one level at a time" requires."""
+    Both nets to zero on 5112 and on 411, which is what a single entry used to say
+    in one go — for a cancellation whose replacement was typed at the same moment,
+    and only then."""
     reseed()
 
-    admin_page.goto(
-        f"{module_url}/edit_replacement.html?key=rempl-demo-0200",
-        wait_until="domcontentloaded",
-    )
-    admin_page.check('input[name="cancelled"]')
-    admin_page.get_by_role("button", name="Enregistrer").click()
-    admin_page.wait_for_load_state("domcontentloaded")
+    _record(admin_page, module_url, "annul_pay", "CHQ-0141")
+    cancellation = transaction(f"Annulation chèque n°CHQ-0141 — {MEMBER}")
+    assert cancellation["found"]
+    debit, credit = _totals(cancellation["lines"])
+    assert debit == credit == 3000, cancellation["lines"]
+    assert any(
+        l["account"] == "5112" and l["credit"] == 3000 and l["ref"] == "CHQ-0141"
+        for l in cancellation["lines"]
+    ), cancellation["lines"]
+    assert any(
+        l["account"] == "411" and l["debit"] == 3000 for l in cancellation["lines"]
+    ), cancellation["lines"]
 
-    admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
-    admin_page.locator("tr", has_text="CHQ-0141").get_by_role(
-        "button", name="Comptabiliser"
-    ).click()
-    admin_page.wait_for_load_state("domcontentloaded")
-
-    txn = transaction(f"Annulation chèque n°CHQ-0141 — {MEMBER}")
-    assert txn["found"]
-    waiting = [l for l in txn["lines"] if l["account"] == "5112"]
-    assert any(l["debit"] == 3000 and l["ref"] == "CHQ-0200" for l in waiting), (
-        f"the cancelled replacement must still cover its parent: {txn['lines']}"
-    )
-    assert not any(l["account"] == "411" for l in txn["lines"]), (
-        "nothing is left uncovered on CHQ-0141 — the debt belongs to CHQ-0200"
-    )
+    _record(admin_page, module_url, "settlement", "CHQ-0141")
+    settlement = transaction(f"Règlement créance — chèque annulé n°CHQ-0141 — {MEMBER}")
+    assert settlement["found"]
+    debit, credit = _totals(settlement["lines"])
+    assert debit == credit == 3000, settlement["lines"]
+    assert any(
+        l["account"] == "5112" and l["debit"] == 3000 for l in settlement["lines"]
+    ), "the settling cheque enters the waiting account"
+    assert any(
+        l["account"] == "411" and l["credit"] == 3000 for l in settlement["lines"]
+    ), "and the debt is extinguished"
 
 
 def test_cancel_deposit_slip_unlocks_cheques(

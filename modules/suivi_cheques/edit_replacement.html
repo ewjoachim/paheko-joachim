@@ -1,42 +1,28 @@
 {{* -*- brindille -*- *}}
 
-{{* Editing a replacement cheque (cheque_rempl overlay, opaque key). Writes to
-    module data only; as in edit.html, the cancellation entry is posted immediately
-    when auto_record_cancellations is on, otherwise it waits in the "to record"
-    queue. The number and amount (reference/amount of the 5112 line once the entry
-    is posted) stay read-only: they are set from the parent cheque. Here one can
-    re-plan the month, cancel, AND replace in turn (A→B→C chains:
-    CHAINES-REMPLACEMENT). Reserved to member management. *}}
+{{* Editing a cheque the module owns (cheque_rempl, opaque key) — one received in
+    settlement of a receivable, which the till never saw. Writes to module data
+    only; as in edit.html, the cancellation entry is posted immediately when
+    auto_record_cancellations is on, otherwise it waits in the "to record" queue.
+    Number and amount stay read-only: they are what was written on the cheque.
+    Reserved to member management. *}}
 {{#restrict block=true section="users" level="write"}}{{/restrict}}
 
 {{:assign key=$_GET.key|trim}}
 {{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
 
-{{* Date du jour, pour figer la date d'enregistrement d'un nouveau remplacement *}}
 {{:assign today=null}}
 {{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
 
-{{* Charger le chèque de remplacement *}}
-{{:assign found=false cheque_number=null amount=0 cur_parent_key=null cur_member_id=null received_date=null}}
-{{:assign cur_month=null cur_cancelled=0 cur_reason=null cur_notes=null cur_replacements=null}}
+{{:assign found=false cheque_number=null amount=0 cur_member_id=null received_date=null}}
+{{:assign cur_month=null cur_cancelled=0 cur_reason=null cur_notes=null}}
 {{:assign cur_batch_id=null cur_annul_txn=null}}
 {{#load type="cheque_rempl" key=$key}}
 	{{:assign found=true}}
-	{{:assign cheque_number=$cheque_number amount=$amount cur_parent_key=$parent_key cur_member_id=$member_id received_date=$received_date}}
-	{{:assign cur_month=$planned_month cur_cancelled=$cancelled cur_reason=$reason cur_notes=$notes cur_replacements=$replacements}}
+	{{:assign cheque_number=$cheque_number amount=$amount cur_member_id=$member_id received_date=$received_date}}
+	{{:assign cur_month=$planned_month cur_cancelled=$cancelled cur_reason=$reason cur_notes=$notes}}
 	{{:assign cur_batch_id=$batch_id cur_annul_txn=$annulation_txn_id}}
 {{/load}}
-
-{{* Chèque parent (n° affiché) : caisse (parent_key = pay-<id>) ou autre remplacement.
-    Un chèque reçu en règlement d'une créance (settle.html) n'a pas de parent. *}}
-{{:assign parent_number=null}}
-{{#load type="cheque_rempl" key=$cur_parent_key}}{{:assign parent_number=$cheque_number}}{{/load}}
-{{if $parent_number === null}}
-	{{#select p.reference AS r FROM plugin_pos_tabs_payments p
-		WHERE 'pay-' || p.id = :pk LIMIT 1; :pk=$cur_parent_key}}
-		{{:assign parent_number=$r}}
-	{{/select}}
-{{/if}}
 
 {{* Membre : hérité (stocké dans le document), aucune jointure caisse. *}}
 {{:assign user_id=$cur_member_id}}
@@ -46,11 +32,11 @@
 {{:assign locked=false lock_msg=null}}
 {{if $cur_batch_id !== null}}
 	{{:assign locked=true}}
-	{{:assign lock_msg="Ce chèque de remplacement est dans un lot de remise : il n'est plus modifiable ici."}}
+	{{:assign lock_msg="Ce chèque est dans un lot de remise : il n'est plus modifiable ici."}}
 {{elseif $cur_annul_txn}}
 	{{#select 1 AS x FROM acc_transactions WHERE id = :tid LIMIT 1; :tid=$cur_annul_txn}}
 		{{:assign locked=true}}
-		{{:assign lock_msg="L'annulation de ce chèque de remplacement est comptabilisée : cette fiche n'est plus modifiable ici."}}
+		{{:assign lock_msg="L'annulation de ce chèque est comptabilisée : cette fiche n'est plus modifiable ici."}}
 	{{/select}}
 {{/if}}
 
@@ -59,40 +45,16 @@
 {{if $cur_month}}{{#select CAST(substr(:m, 6, 2) AS INT) AS n; :m=$cur_month}}{{:assign cur_month_num=$n}}{{/select}}{{/if}}
 
 {{#form on="save"}}
-	{{if !$found}}{{:error message="Chèque de remplacement introuvable."}}{{/if}}
+	{{if !$found}}{{:error message="Chèque introuvable."}}{{/if}}
 	{{if $locked}}{{:error message=$lock_msg}}{{/if}}
 
-	{{* Remplacements NON-chèque (CB, espèces…) -> replacements[] *}}
-	{{:assign replacements=null}}
-	{{:assign i=0}}
-	{{#foreach from=$_POST.repl_method key="k" item="mid"}}
-		{{:assign var="amt_raw" from="_POST.repl_amount.%s"|args:$k}}
-		{{:assign amt=$amt_raw|money_int}}
-		{{if $mid|intval > 0 && $amt > 0}}
-			{{:assign acct=null}}
-			{{#select account AS a FROM plugin_pos_methods WHERE id = :m LIMIT 1; :m=$mid|intval}}
-				{{:assign acct=$a}}
-			{{/select}}
-			{{:assign var="replacements[%d][method_id]"|args:$i value=$mid|intval}}
-			{{:assign var="replacements[%d][account]"|args:$i value=$acct}}
-			{{:assign var="replacements[%d][amount]"|args:$i value=$amt}}
-			{{:assign i="%d+1"|math:$i}}
-		{{/if}}
-	{{/foreach}}
-
-	{{:include file="./_replacement_children_save.html" parent_key=$key member_id=$cur_member_id}}
-
-	{{* Overlay du chèque de remplacement lui-même : on préserve l'identité (n°, montant,
-	    parent, membre, date) et les liens compta ; on met à jour mois/annulation/
-	    remplacements(non-chèque)/notes. *}}
 	{{* mois choisi (1-12, vide autorise) -> YYYY-MM, ancre sur la date de reception
-	    du remplacement, figee a sa creation (a defaut : aujourd'hui) *}}
+	    du chèque, figee a sa creation (a defaut : aujourd'hui) *}}
 	{{:include file="./_resolve_month.html" rm_month=$_POST.planned_month|intval rm_from=$received_date|or:$today keep="rm_ym"}}
 	{{:assign planned_ym=$rm_ym}}
 	{{:save type="cheque_rempl"
 		key=$key
 		validate_schema="./replacement.schema.json"
-		parent_key=$cur_parent_key
 		member_id=$cur_member_id
 		cheque_number=$cheque_number
 		amount=$amount
@@ -100,7 +62,6 @@
 		planned_month=$planned_ym
 		cancelled=$_POST.cancelled|intval
 		reason=$_POST.reason|trim|or:null
-		replacements=$replacements
 		notes=$_POST.notes|trim|or:null
 		batch_id=$cur_batch_id
 		annulation_txn_id=$cur_annul_txn
@@ -133,12 +94,12 @@
 	{{/if}}
 {{/form}}
 
-{{:admin_header title="Chèque de remplacement n°%s"|args:$cheque_number|or:$key}}
+{{:admin_header title="Chèque n°%s"|args:$cheque_number|or:$key}}
 
 {{:form_errors}}
 
 {{if !$found}}
-	<p class="block error">Chèque de remplacement introuvable.</p>
+	<p class="block error">Chèque introuvable.</p>
 {{elseif $locked}}
 	<p class="block confirm">
 		{{$lock_msg|escape}}
@@ -148,11 +109,7 @@
 {{else}}
 	<p class="help">
 		Montant : <strong>{{$amount|raw|money_currency}}</strong>
-		{{if $cur_parent_key}}
-			— remplace le chèque n°{{$parent_number|escape|or:$cur_parent_key}}
-		{{else}}
-			— reçu en règlement d'une créance
-		{{/if}}
+		— reçu le {{$received_date|date_short}} en règlement d'une créance
 		{{if $user_id}}— {{#users id=$user_id}}{{$_name}}{{/users}}{{/if}}
 	</p>
 
@@ -163,37 +120,29 @@
 				<dt><label>Mois d'encaissement</label></dt>
 					<dd>
 						<select name="planned_month">{{:include file="./_month_options.html" selected=$cur_month_num empty_label="—"}}</select>
-						<p class="help">Mois ou ce cheque de remplacement sera apporte en banque ; l'annee est deduite de sa date de reception (prochain mois de ce nom apres celle-ci).</p>
+						<p class="help">Mois ou ce cheque sera apporte en banque ; l'annee est deduite de sa date de reception (prochain mois de ce nom apres celle-ci).</p>
 					</dd>
 			</dl>
 		</fieldset>
 
 		<fieldset>
-			<legend>Annulation / remplacement</legend>
+			<legend>Annulation</legend>
 			<dl>
 				{{:input type="checkbox" name="cancelled" value="1" label="Chèque non encaissé" default=$cur_cancelled}}
 				{{:input type="text" name="reason" label="Motif" default=$cur_reason
-					help="Ex. : remplacé à son tour par un autre chèque, remplacé par CB, membre parti…"}}
+					help="Ex. : chèque sans provision, compte clôturé."}}
 			</dl>
 
-			{{if $module.config.auto_record_cancellations}}
-				<p class="help">
-					En cochant « Chèque non encaissé », ce chèque de remplacement est retiré des remises
-					à venir et <strong>l'écriture comptable d'annulation est passée immédiatement</strong>,
-					en s'appuyant sur les remplacements saisis ci-dessous : vérifiez-les avant
-					d'enregistrer, car la fiche ne sera plus modifiable ensuite.
-				</p>
-			{{else}}
-				<p class="help">
-					En cochant « Chèque non encaissé », ce chèque de remplacement est retiré des remises à venir.
-					<strong>Aucune écriture comptable n'est générée ici</strong> : la comptabilité la passera ensuite,
-					en s'appuyant sur les remplacements saisis ci-dessous.
-				</p>
-			{{/if}}
-
-			{{:include file="./_replacement_methods_fields.html"}}
-
-			{{:include file="./_replacement_children_fields.html" parent_key=$key}}
+			<p class="help">
+				Le chèque est retiré des remises à venir, et le membre <strong>doit désormais son
+				montant</strong> : la créance apparaît aussitôt dans « Impayés », où on l'encaisse
+				quand il repaie.
+				{{if $module.config.auto_record_cancellations}}
+					L'écriture comptable est passée immédiatement, et la fiche n'est plus modifiable ensuite.
+				{{else}}
+					Aucune écriture comptable n'est générée ici : la comptabilité la passera ensuite.
+				{{/if}}
+			</p>
 		</fieldset>
 
 		<fieldset>

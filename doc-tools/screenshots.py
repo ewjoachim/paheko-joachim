@@ -35,7 +35,7 @@ M = f"{BASE}/m/suivi_cheques"
 SHOTS = [
     ("01-cheques-du-mois.png", f"{M}/", "table.list"),
     ("02-a-venir.png", f"{M}/upcoming.html", "table.list"),
-    ("03-annuler-remplacer.png", f"{M}/edit.html?payment={PAY_EDIT}", "form"),
+    ("03-annuler.png", f"{M}/edit.html?payment={PAY_EDIT}", "form"),
     ("04-preparer-bordereau.png", f"{M}/deposit.html?month=2026-07", "table.list"),
     ("05-bordereau.png", f"{M}/deposit.html?batch=DEMO", "table.list"),
     ("06-bordereaux.png", f"{M}/batches.html", "table.list"),
