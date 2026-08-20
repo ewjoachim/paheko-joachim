@@ -44,9 +44,9 @@ def test_panel_unions_every_source(member_sheet, reseed):
     expect(row).to_contain_text("Chèque")
     expect(row).to_contain_text("À encaisser")
     # A cash payment: a type the panel could not show before either.
-    expect(table.locator("tr", has_text="Espèces")).to_have_count(1)
-    # A replacement cheque, tracked by the module and never seen by the till.
-    expect(table.locator("tr", has_text="CHQ-0200")).to_contain_text("Remplacement")
+    expect(table.locator("tr", has_text="Espèces").first).to_be_visible()
+    # A cheque received in settlement, tracked by the module, never seen by the till.
+    expect(table.locator("tr", has_text="CHQ-0200")).to_contain_text("Règlement")
 
 
 def test_slate_is_not_counted_as_a_payment(member_sheet, reseed):
@@ -85,21 +85,25 @@ def test_receivable_is_visible_without_any_accounting(
     accounting is filled later and by hand, so making the panel depend on it would
     hide a real debt for as long as nobody clicked.
 
-    CHQ-0142 is seeded cancelled with a partial card replacement: 45,00 paid by
-    cheque, 20,00 given back by card, so 25,00 stays owed. Nothing is posted."""
+    CHQ-0142 is seeded cancelled and settled in part: the 45,00 receivable it opened
+    has had 20,00 collected in cash, so 25,00 stays owed. Nothing is posted."""
     reseed()
     assert not transaction("Annulation chèque n°CHQ-0142 — Camille Martin")["found"]
 
     page = member_sheet(all_rows=True)
     expect(page.locator("p.help", has_text="Créance")).to_contain_text("doit 25,00")
-    expect(payments_table(page).locator("tr", has_text="Créance")).to_contain_text("25,00")
+    row = payments_table(page).locator("tr", has_text="CHQ-0142").filter(
+        has_text="Créance sur chèque annulé"
+    )
+    expect(row).to_have_count(1)
+    expect(row).to_contain_text("45,00")
 
     # And posting the entry does not double it: the entry is a reflection, the
     # panel reads the module either way.
     admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
-    admin_page.locator("tr", has_text="CHQ-0142").get_by_role(
-        "button", name="Comptabiliser"
-    ).click()
+    admin_page.locator(
+        'tr:has(input[name="rec_kind"][value="annul_pay"])'
+    ).filter(has_text="CHQ-0142").get_by_role("button", name="Comptabiliser").click()
     admin_page.wait_for_load_state("domcontentloaded")
 
     page = member_sheet(all_rows=True)

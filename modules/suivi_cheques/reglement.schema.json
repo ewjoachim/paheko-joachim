@@ -28,7 +28,7 @@
 		},
 		"account": {
 			"type": ["null", "string"],
-			"description": "Compte débité (banque, caisse…), figé à la saisie comme pour les remplacements non-chèque."
+			"description": "Compte débité (banque, caisse, compte d'attente si c'est un chèque), figé à la saisie."
 		},
 		"notes": {
 			"type": ["null", "string"]

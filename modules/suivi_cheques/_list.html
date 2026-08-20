@@ -98,7 +98,7 @@
 
 				UNION ALL
 
-				-- Branche 2 : cheques de remplacement (module uniquement, cf. cheque_rempl)
+				-- Branche 2 : cheques recus en reglement de creance (module uniquement)
 				SELECT
 					NULL AS payment_id,
 					'rempl' AS source,
@@ -173,7 +173,7 @@
 				<td class="money">{{$amount|raw|money_currency}}</td>
 				<td>{{$received_date|date_short}}</td>
 				<td>
-					{{if $source === 'rempl'}}{{:tag label="Remplacement" color="darkcyan"}} {{/if}}
+					{{if $source === 'rempl'}}{{:tag label="Règlement" color="darkcyan"}} {{/if}}
 					{{if $cancelled}}
 						{{:tag label="Annulé" color="grey"}} {{$reason|escape}}
 					{{elseif $batch_id !== null && $batch_deposit_txn_id !== null}}

@@ -166,11 +166,11 @@
 
 				UNION ALL
 
-				-- 3. Cheques de remplacement : suivis par le module, jamais passes en
-				--    caisse (ils remplacent un cheque revenu impaye).
+				-- 3. Cheques recus en reglement de creance : suivis par le module,
+				--    jamais passes en caisse.
 				SELECT json_extract(r.document, '$.received_date') AS mdate,
-					'replacement' AS kind,
-					'Chèque de remplacement' AS label, NULL AS detail,
+					'settling_cheque' AS kind,
+					'Chèque reçu en règlement' AS label, NULL AS detail,
 					json_extract(r.document, '$.cheque_number') AS reference,
 					CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
 					CASE
@@ -237,7 +237,7 @@
 					{{elseif $kind === 'topup'}}Recharge porte-monnaie
 					{{elseif $kind === 'slate'}}{{:tag label="Porté en ardoise" color="darkorange"}}
 					{{elseif $kind === 'wallet'}}Porte-monnaie
-					{{elseif $kind === 'replacement'}}{{:tag label="Remplacement" color="darkcyan"}}
+					{{elseif $kind === 'settling_cheque'}}{{:tag label="Règlement" color="darkcyan"}}
 					{{elseif $kind === 'receivable'}}{{:tag label="Créance" color="darkorange"}}
 					{{elseif $kind === 'receivable_paid'}}{{:tag label="Créance réglée" color="darkgreen"}}
 					{{/if}}

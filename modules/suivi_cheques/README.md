@@ -2,7 +2,7 @@
 
 Module Paheko pour une école de musique (ou toute asso encaissant beaucoup de chèques
 en caisse). Il suit chaque chèque saisi via l'extension **Caisse**, planifie son mois
-d'encaissement, gère annulations et remplacements, produit les bordereaux de remise, et
+d'encaissement, gère les annulations et ce qu'elles laissent dû, produit les bordereaux de remise, et
 prépare pour la comptabilité des écritures « prêtes à valider ».
 
 Guide utilisateur illustré : voir `paheko-joachim/doc/guide.html`.
@@ -16,10 +16,12 @@ Conception détaillée : `paheko-joachim/CONCEPTION.md`.
   encaissement, deux faits opérationnels. La lire dans les comptes de tiers la rendrait
   invisible tant que personne n'a comptabilisé, et son extinction dépendrait du champ
   « membres associés », **facultatif** dans le formulaire d'écriture du cœur.
-- **Un document par écriture comptable.** C'est ce qui décide si une chose mérite son
-  propre type : les remplacements non-chèque vivent *dans* le chèque (leurs lignes sont
-  dans l'écriture du parent), alors qu'un règlement de créance a son écriture propre,
-  donc son document, son `*_txn_id` et sa ligne dans « à comptabiliser ».
+- **Un fait, un document, une écriture.** Annuler un chèque ouvre une créance du
+  montant plein ; ce que le membre rend ensuite est un *règlement* de cette créance,
+  jamais une soustraction sur l'annulation. Chacun a son document, son `*_txn_id` et
+  sa ligne dans « à comptabiliser ». Un chèque rendu en règlement est un chèque suivi
+  comme un autre : s'il rejette à son tour, il ouvre sa propre créance — l'argent
+  manque une fois, à un endroit.
 - **La comptabilité** poste les écritures en un clic, via la fonction Brindille `{{:api}}`.
   Le module retient l'`id` de chaque écriture créée (lien robuste, insensible au
   renommage : on ne relit la comptabilité que pour vérifier l'existence de nos `id`).
@@ -62,35 +64,12 @@ réservée à `config = admin`.
   « à comptabiliser »).
 - correspondance moyen de paiement « chèque » → mois d'encaissement.
 
-## Fichiers
-
-| Fichier | Rôle |
-|---|---|
-| `module.ini` | métadonnées + restriction d'accès (`users` / lecture) |
-| `config.html` | configuration (comptes + mapping mois) |
-| `index.html` / `upcoming.html` | chèques du mois / à venir |
-| `_list.html` | **partial pivot** : tableau des chèques, réutilisé partout |
-| `edit.html` / `edit_replacement.html` | annuler / remplacer (données module) |
-| `deposit.html` | préparer un bordereau + geler le lot + bordereau imprimable |
-| `batches.html` | index des bordereaux générés + état de leur comptabilisation |
-| `debtors.html` | impayés : ardoises (caisse) et créances (module) par membre |
-| `settle.html` | encaisser une créance (montant, date, moyen) |
-| `to_record.html` | file « à comptabiliser » (un clic = une écriture) |
-| `_cancellation_shape.html` | forme d'une annulation : lignes, part couverte, **reste dû** — partagé par l'écriture et la créance, pour qu'ils ne divergent pas |
-| `_creance_sync.html` | crée / ajuste / supprime la créance à l'enregistrement d'une annulation |
-| `_record_cancellation.html` / `_record_settlement.html` / `_record_deposit.html` | construction + envoi des écritures `{{:api}}`, partagés par la file et le mode automatique |
-| `_record_precheck.html` | pré-validation du mode automatique (exercice, comptes) |
-| `_resolve_month.html` | mois d'encaissement (1-12) → mois absolu `YYYY-MM` |
-| `snippets/user_details.html` | encart paiements sur la fiche membre |
-| `_member_payments.html` | journal des paiements d'un membre (caisse, chèques, ardoise, créances) |
-| `*.schema.json` | schémas de validation des documents `module_data` |
-
 ## Documents (`module_data_suivi_cheques`)
 
 | Type | Clé | Rôle |
 |---|---|---|
-| `cheque` | `pay-<payment_id>` | **overlay** d'un paiement de caisse : uniquement ce que la caisse ignore (mois, annulation, remplacements, liens compta, lot). Montant, numéro et date restent côté caisse |
-| `cheque_rempl` | uuid ou `chq-<clé du règlement>` | chèque que le module possède entièrement, jamais passé en caisse : reçu en remplacement d'un chèque annulé (`parent_key`) ou en règlement d'une créance (`reglement_key`) |
+| `cheque` | `pay-<payment_id>` | **overlay** d'un paiement de caisse : uniquement ce que la caisse ignore (mois, annulation, liens compta, lot). Montant, numéro et date restent côté caisse |
+| `cheque_rempl` | `chq-<clé du règlement>` | chèque reçu en règlement d'une créance (`reglement_key`), jamais passé en caisse : le module en possède tout |
 | `creance` | `creance-<origin_key>` | dette née de l'annulation d'un chèque. Clé dérivée de l'origine, donc la création est **idempotente** |
 | `reglement` | `regl-<creance_key>-<horodatage>` | argent encaissé sur une créance ; plusieurs pour un règlement partiel |
 | `deposit_batch` | `batch-<ref>` | bordereau de remise figé |
@@ -98,23 +77,6 @@ réservée à `config = admin`.
 
 Le reste dû d'une créance n'est **pas stocké** : c'est `creance.amount` moins la somme
 des `reglement` qui la visent. Rien à maintenir en cohérence.
-
-## Remplacement en cascade (chaînes A→B→C)
-
-Un chèque de caisse **comme** un chèque de remplacement peut être remplacé (par un
-autre chèque et/ou en CB/espèces), à toute profondeur. Chaque chèque de remplacement
-pointe vers son parent via `parent_key` (`pay-<id>` pour un chèque de caisse, ou la clé
-d'un autre `cheque_rempl`) et hérite du `member_id`. L'écriture d'annulation raisonne
-« par niveau » : elle crédite le chèque annulé sur le compte d'attente, débite ses
-enfants **directs** (chacun avec son n° en référence), et met le reste non couvert en
-créance du membre. Annuler B qui a un enfant C se traite comme annuler A qui a B.
-
-Un enfant **annulé** compte quand même comme couvrant son parent : le chèque a bien été
-remis, et son propre rejet est l'affaire de sa propre écriture, qui recrédite le compte
-d'attente et pose sa créance. L'exclure ferait compter la même somme deux fois (une
-créance chez le parent *et* une chez l'enfant) et laisserait le crédit du parent sans le
-débit que l'enfant contrepasse. Un enfant **supprimé** (ligne vidée), lui, disparaît
-vraiment : supprimer n'est pas annuler.
 
 ## Hors périmètre (v1)
 
