@@ -11,11 +11,8 @@ Conception détaillée : `paheko-joachim/CONCEPTION.md`.
 ## Principe
 
 - **Le module est la source de vérité opérationnelle**, la comptabilité un reflet aval
-  (juste « à terme »). L'accueil ne manipule que les données du module. Cela vaut aussi
-  pour les **créances** : une dette naît de l'annulation d'un chèque et s'éteint par un
-  encaissement, deux faits opérationnels. La lire dans les comptes de tiers la rendrait
-  invisible tant que personne n'a comptabilisé, et son extinction dépendrait du champ
-  « membres associés », **facultatif** dans le formulaire d'écriture du cœur.
+  (juste « à terme »). L'accueil ne manipule que les données du module — y compris les
+  créances (pourquoi : en tête de `_creance_sync.html`).
 - **Un fait, un document, une écriture.** Annuler un chèque ouvre une créance du
   montant plein ; ce que le membre rend ensuite est un *règlement* de cette créance,
   jamais une soustraction sur l'annulation. Chacun a son document, son `*_txn_id` et

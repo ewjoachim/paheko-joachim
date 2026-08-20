@@ -49,8 +49,6 @@
 
 {{:form_errors}}
 
-{{* Pas de {{#restrict}} sur le lien : cette page est réservée à comptabilité = écriture
-    (le handler ci-dessus), donc qui lit ce message a forcément accès à l'écriture. *}}
 {{if $_GET.done}}
 	{{:assign done_txn=$_GET.done|intval}}
 	<p class="block confirm">

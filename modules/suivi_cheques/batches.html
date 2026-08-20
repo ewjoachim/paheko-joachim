@@ -8,11 +8,9 @@
     Lecture seule : aucune action ici, la génération se fait dans deposit.html et
     l'annulation d'un lot depuis le bordereau lui-même.
 
-    Droits : la page s'ouvre à membres = lecture, comme les autres listes. Mais
-    deposit.html est gardé membres = ÉCRITURE, donc le lien vers le bordereau n'est
-    posé que sous ce droit — sinon on afficherait un lien menant à un accès refusé,
-    ce que la convention des onglets (_tabs.html) interdit. Même raison pour le lien
-    vers l'écriture, réservé à comptabilité = lecture. *}}
+    Droits : la page s'ouvre à membres = lecture, mais deposit.html est gardé
+    membres = ÉCRITURE, donc le lien vers le bordereau n'est posé que sous ce droit.
+    Même chose pour le lien vers l'écriture, réservé à comptabilité = lecture. *}}
 {{#restrict block=true section="users" level="read"}}{{/restrict}}
 
 {{:admin_header title="Bordereaux de remise" current="module_suivi_cheques"}}

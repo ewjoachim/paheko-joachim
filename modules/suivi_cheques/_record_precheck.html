@@ -28,11 +28,8 @@
                  the past, e.g. a settlement collected before today) — the year is
                  then selected by the date instead of by today.
     Returns, through keep="rec_error": why we give up, or the inherited value
-    (null) when everything checks out.
-
-    Residual risk: any refusal we do not predict here still rolls the form back and
-    surfaces as a form error. Amounts are ours and balanced by construction, so
-    what is left is exotic (locked year, unusable account). *}}
+    (null) when everything checks out. A refusal we do not predict still rolls the
+    form back — what is left is exotic, amounts being ours and balanced. *}}
 
 {{:assign pc_year=null pc_chart=null pc_covers=false}}
 {{if $on_match}}

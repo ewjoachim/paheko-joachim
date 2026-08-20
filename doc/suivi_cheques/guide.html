@@ -225,12 +225,6 @@
 			<strong>créance</strong>, suivie par ce module — et c'est ici qu'on l'encaisse, avec le bouton
 			de la dernière colonne.</li>
 	</ul>
-	<p class="muted">
-		C'est pourquoi les deux colonnes restent séparées&nbsp;: un solde unique ne dirait pas quoi faire.
-		Le total n'est là que pour l'ordre de grandeur. À savoir aussi&nbsp;: une ardoise prise sur une note
-		ouverte à un simple nom, sans lien vers une fiche, ne peut apparaître dans aucune liste par membre —
-		la page l'annonce alors séparément, plutôt que de laisser son total sous-estimer ce qui est dû.
-	</p>
 
 	<h3>7. Encaisser une créance</h3>
 	<p>
@@ -244,13 +238,6 @@
 		<img src="screenshots/08-regler-creance.png" alt="Formulaire de règlement d'une créance" />
 		<figcaption>Ce qui reste dû, chèque annulé par chèque annulé, et de quoi l'encaisser.</figcaption>
 	</figure>
-	<div class="note">
-		<strong>Pourquoi ne pas simplement passer l'écriture en comptabilité&nbsp;?</strong> Parce que le
-		formulaire d'écriture n'oblige pas à renseigner «&nbsp;membres associés&nbsp;». L'oublier une fois
-		suffit à laisser quelqu'un débiteur pour toujours dans cette page, sans que personne ne comprenne
-		pourquoi. En passant par ici, le membre est toujours lié — et la créance est à jour même avant que
-		l'écriture existe.
-	</div>
 	<p>
 		Si la personne rend un <strong>chèque</strong>, choisir un moyen «&nbsp;chèque&nbsp;» et saisir son
 		numéro&nbsp;: il devient aussitôt un chèque suivi comme les autres — planifié au mois du moyen choisi,
@@ -276,12 +263,6 @@
 			bureau : le compte encaissé au débit, le compte de créance au crédit, le membre lié.</li>
 		<li><strong>Remises</strong> — un clic crée l'écriture de dépôt en banque à partir du bordereau figé.</li>
 	</ul>
-	<p class="muted">
-		La <em>naissance</em> d'une créance n'a pas de ligne à elle dans cette file&nbsp;: elle est déjà
-		portée par la ligne de créance de l'écriture d'annulation. Seule son extinction demande une écriture
-		propre. Autrement dit, cette file est exactement l'écart entre ce que le module sait et ce que la
-		comptabilité en reflète&nbsp;: quand elle est vide, les deux disent la même chose.
-	</p>
 	<figure>
 		<img src="screenshots/09-a-comptabiliser.png" alt="File des chèques à comptabiliser" />
 		<figcaption>Annulations et remises en attente. Chaque bouton « Comptabiliser » crée une écriture équilibrée.</figcaption>
@@ -292,11 +273,6 @@
 		enregistrée, comme depuis un bordereau. Les écritures sont aussi <strong>rattachées aux membres</strong>
 		concernés, ce qui les fait apparaître dans « Comptes de membres » de la comptabilité. Si une écriture
 		est supprimée, l'élément réapparaît simplement dans la file, prêt à être re-passé.
-	</div>
-	<div class="note">
-		<strong>Avec la comptabilisation automatique</strong>, cette file ne disparaît pas : elle ne contient
-		plus que ce qui n'a pas pu être passé automatiquement (par exemple si aucun exercice ouvert ne couvre
-		la date), et ce dont l'écriture a été supprimée depuis. Elle sert alors de filet.
 	</div>
 	<div class="warn">
 		<strong>La recette n'est jamais annulée.</strong> Un chèque impayé ne « défait » pas la recette
@@ -328,16 +304,7 @@
 		alimente le solde d'ardoise, sans être comptée parmi les règlements.
 	</div>
 	<p class="muted">
-		Deux limites à connaître. Le rattachement passe par la note de caisse : une note ouverte à un simple
-		nom, sans lien vers une fiche, n'apparaît pas ici. Le point aveugle est étroit — la caisse refuse de
-		clôturer une session tant qu'une note comportant une <em>inscription à une activité</em> n'est pas
-		liée à un membre, donc les inscriptions sont toujours rattachées ; seules les notes de pure vente
-		peuvent échapper. Seconde limite : les achats en caisse ne sont pas attribués aux membres
-		<em>en comptabilité</em>, la caisse passant une seule écriture par session. C'est pourquoi rien ici
-		ne se lit dans la comptabilité : chaque dette est lue dans l'outil qui la possède réellement —
-		l'ardoise dans la caisse, la créance dans ce module. Un mouvement de créance saisi directement en
-		comptabilité n'apparaît donc pas dans cet encart ; la page <em>Impayés</em> le signale au moins
-		globalement.
+		Une note de caisse ouverte à un simple nom, sans lien vers une fiche, n'apparaît pas ici.
 	</p>
 
 	<h2>Configuration (administrateur)</h2>
@@ -389,9 +356,7 @@
 
 	<hr />
 	<footer>
-		<p>Module <strong>Suivi des chèques</strong> pour Paheko. Ce guide décrit l'usage courant.
-		Un chèque <strong>rejeté par la banque après son dépôt</strong> (impayé) se règle directement en
-		comptabilité : une fois déposé, un chèque n'est plus modifiable dans le module.</p>
+		<p>Module <strong>Suivi des chèques</strong> pour Paheko. Ce guide décrit l'usage courant.</p>
 	</footer>
 
 </div>
