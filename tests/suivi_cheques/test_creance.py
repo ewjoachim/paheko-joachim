@@ -198,6 +198,26 @@ def test_settlement_entry_is_balanced_and_links_the_member(
     ), "entry must balance"
 
 
+def test_settlement_is_recorded_immediately(
+    admin_page: Page, module_url, reseed, seed, module_config, transaction
+):
+    """The automatic mode of settlements, which had no test at all while the two
+    other automatic modes had two each.
+
+    The settlement is written and read back within a single {{#form}}, so this is
+    the settle.html counterpart of the cancellation and deposit cases: on a platform
+    that stops showing a module its own uncommitted writes, the settlement reads as
+    absent and no entry is posted — silently, since quiet mode never raises."""
+    reseed()
+    module_config(auto_record_settlements=1)
+    settle(admin_page, module_url, seed["camille_id"])
+
+    expect(admin_page.locator(".confirm").first).to_contain_text("Règlement enregistré")
+    txn = transaction("Règlement créance — chèque annulé n°CHQ-0142 — Camille Martin")
+    assert txn["found"], "the entry was not posted on save"
+    assert txn["users"] == [int(seed["camille_id"])], "the member must be linked"
+
+
 def test_accounting_moved_outside_the_module_is_announced(
     admin_page: Page, module_url, reseed, seed, manual_receivable
 ):
