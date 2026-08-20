@@ -27,6 +27,8 @@
 	{{:assign rec_txn_id=null}}
 	{{if $kind === 'deposit'}}
 		{{:include file="./_record_deposit.html" ref=$rid keep="rec_txn_id"}}
+	{{elseif $kind === 'settlement'}}
+		{{:include file="./_record_settlement.html" rid=$rid keep="rec_txn_id"}}
 	{{else}}
 		{{:include file="./_record_cancellation.html" kind=$kind rid=$rid keep="rec_txn_id"}}
 	{{/if}}
@@ -65,7 +67,7 @@
 		Un clic crée l'écriture <strong>équilibrée</strong> correspondante. Elle reste
 		modifiable côté comptabilité (un lien vers l'écriture est affiché après création).
 	</p>
-	{{if $module.config.auto_record_cancellations || $module.config.auto_record_deposits}}
+	{{if $module.config.auto_record_cancellations || $module.config.auto_record_deposits || $module.config.auto_record_settlements}}
 		<p class="help">
 			La comptabilisation automatique est activée : cette file ne contient plus que ce qui
 			n'a pas pu être passé automatiquement (ou dont l'écriture a été supprimée depuis).
@@ -125,6 +127,53 @@
 				</tr>
 			{{else}}
 				<tr><td colspan="5">Aucune annulation à comptabiliser.</td></tr>
+			{{/select}}
+		</tbody>
+	</table>
+
+	{{* Troisième file : l'argent encaissé sur une créance (settle.html). La NAISSANCE
+	    d'une créance n'a pas la sienne — elle est portée par la ligne 411 de l'écriture
+	    d'annulation, donc déjà couverte par la file ci-dessus. Seule son extinction
+	    demande une écriture propre, d'où un document reglement par écriture. *}}
+	<h2 class="ruler">Règlements de créances à comptabiliser</h2>
+	<table class="list">
+		<thead>
+			<tr><th>Date</th><th>Membre</th><th>Chèque d'origine</th><th class="money">Montant</th><th class="actions"></th></tr>
+		</thead>
+		<tbody>
+			{{#select
+				r.key AS rid,
+				json_extract(r.document, '$.date') AS rdate,
+				CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
+				CAST(json_extract(r.document, '$.member_id') AS INT) AS uid,
+				json_extract(c.document, '$.cheque_number') AS number
+				FROM module_data_suivi_cheques r
+				LEFT JOIN module_data_suivi_cheques c
+					ON c.key = json_extract(r.document, '$.creance_key')
+				WHERE json_extract(r.document, '$.type') = 'reglement'
+					AND (json_extract(r.document, '$.reglement_txn_id') IS NULL
+						OR NOT EXISTS (SELECT 1 FROM acc_transactions a WHERE a.id = CAST(json_extract(r.document, '$.reglement_txn_id') AS INT)))
+				ORDER BY rdate
+			}}
+				<tr>
+					<td>{{$rdate|date_short}}</td>
+					<td>{{if $uid}}{{#users id=$uid}}{{:link href="!users/details.php?id=%d"|args:$uid label=$_name}}{{/users}}{{else}}—{{/if}}</td>
+					<td>{{$number|escape|or:'—'}}</td>
+					<td class="money">{{$amount|raw|money_currency}}</td>
+					<td class="actions">
+						{{#restrict section="accounting" level="write"}}
+							<form method="post" action="" class="inline">
+								<input type="hidden" name="rec_kind" value="settlement" />
+								<input type="hidden" name="rec_id" value="{{$rid|escape}}" />
+								{{:button type="submit" name="record" value="1" label="Comptabiliser" shape="money" class="main"}}
+							</form>
+						{{else}}
+							<em class="help">réservé à la comptabilité</em>
+						{{/restrict}}
+					</td>
+				</tr>
+			{{else}}
+				<tr><td colspan="5">Aucun règlement à comptabiliser.</td></tr>
 			{{/select}}
 		</tbody>
 	</table>

@@ -1,0 +1,40 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"type": {
+			"type": "string",
+			"enum": ["creance"]
+		},
+		"origin_kind": {
+			"type": "string",
+			"enum": ["cheque", "cheque_rempl"],
+			"description": "Type du document dont l'annulation a créé cette créance, pour savoir vers quelle fiche renvoyer."
+		},
+		"origin_key": {
+			"type": "string",
+			"description": "Clé module du chèque annulé : 'pay-<payment_id>' ou clé d'un cheque_rempl. La clé de la créance en découle ('creance-<origin_key>'), ce qui rend sa création idempotente : ré-enregistrer l'annulation met à jour la même créance au lieu d'en empiler une seconde."
+		},
+		"member_id": {
+			"type": ["null", "integer"],
+			"description": "Membre qui doit. Null pour un chèque encaissé sur une note ouverte à un simple nom : la dette est réelle mais n'appartient à aucune fiche (même limite que les ardoises, cf. debtors.html)."
+		},
+		"cheque_number": {
+			"type": ["null", "string"],
+			"description": "Numéro du chèque annulé, recopié ici pour rester lisible même quand la fiche d'origine est verrouillée."
+		},
+		"amount": {
+			"type": "integer",
+			"description": "Montant dû à la création, en centimes : la part du chèque annulé qu'aucun remplacement ne couvre. Ce qui reste à payer se calcule en retranchant les documents 'reglement' qui pointent vers cette créance."
+		},
+		"date": {
+			"type": ["null", "string"],
+			"description": "Date de naissance de la dette (YYYY-MM-DD), figée à la création."
+		},
+		"reason": {
+			"type": ["null", "string"],
+			"description": "Motif de l'annulation, recopié pour l'affichage."
+		}
+	},
+	"required": ["type", "origin_kind", "origin_key", "amount"]
+}

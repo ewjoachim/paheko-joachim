@@ -32,6 +32,7 @@
 		bank_account=$ba|trim|or:"512"
 		auto_record_cancellations=$_POST.auto_record_cancellations|intval
 		auto_record_deposits=$_POST.auto_record_deposits|intval
+		auto_record_settlements=$_POST.auto_record_settlements|intval
 	}}
 	{{:redirect to="?ok=1"}}
 {{/form}}
@@ -105,6 +106,11 @@
 					label="Comptabiliser automatiquement les remises de chèques"
 					default=$module.config.auto_record_deposits
 					help="Sans risque : un bordereau est de toute façon figé au moment de sa génération."}}
+				{{:input type="checkbox" name="auto_record_settlements" value="1"
+					label="Comptabiliser automatiquement les règlements de créances"
+					default=$module.config.auto_record_settlements
+					help="Sans risque : un règlement encaissé ne se modifie pas, il se supprime.
+						L'écriture est datée du jour de l'encaissement, pas du jour du clic."}}
 			</dl>
 			<p class="help">
 				Si une écriture ne peut pas être créée (aucun exercice ouvert ne couvre la date, par

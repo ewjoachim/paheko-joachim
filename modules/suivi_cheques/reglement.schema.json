@@ -1,0 +1,42 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"type": {
+			"type": "string",
+			"enum": ["reglement"]
+		},
+		"creance_key": {
+			"type": "string",
+			"description": "Clé de la créance réglée."
+		},
+		"member_id": {
+			"type": ["null", "integer"],
+			"description": "Membre, recopié de la créance : c'est lui qu'on lie à l'écriture (linked_users)."
+		},
+		"amount": {
+			"type": "integer",
+			"description": "Montant encaissé, en centimes. Un règlement partiel est permis : plusieurs documents pointent alors vers la même créance."
+		},
+		"date": {
+			"type": "string",
+			"description": "Date d'encaissement (YYYY-MM-DD) : c'est aussi la date de l'écriture."
+		},
+		"method_id": {
+			"type": ["null", "integer"],
+			"description": "Moyen de paiement de la caisse choisi, pour l'affichage. Le règlement ne passe PAS par la caisse : on n'emprunte que son vocabulaire et son compte."
+		},
+		"account": {
+			"type": ["null", "string"],
+			"description": "Compte débité (banque, caisse…), figé à la saisie comme pour les remplacements non-chèque."
+		},
+		"notes": {
+			"type": ["null", "string"]
+		},
+		"reglement_txn_id": {
+			"type": ["null", "integer"],
+			"description": "Identifiant de l'écriture de règlement, créée via :api. Un document par écriture : c'est ce qui permet à ce règlement d'apparaître seul dans « à comptabiliser » (CONCEPTION §8)."
+		}
+	},
+	"required": ["type", "creance_key", "amount", "date"]
+}

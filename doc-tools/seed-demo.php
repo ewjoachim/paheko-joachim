@@ -49,7 +49,7 @@ foreach ([2 => 1] as $mid => $month) {
 }
 
 // --- 2. Purge (throwaway db): start from an empty caisse for clean captures
-$db->exec(sprintf('DELETE FROM %s WHERE json_extract(document, \'$.type\') IN (\'cheque\', \'cheque_rempl\', \'deposit_batch\');', $mdt));
+$db->exec(sprintf('DELETE FROM %s WHERE json_extract(document, \'$.type\') IN (\'cheque\', \'cheque_rempl\', \'deposit_batch\', \'creance\', \'reglement\');', $mdt));
 $db->exec('DELETE FROM plugin_pos_tabs_payments;');
 $db->exec('DELETE FROM plugin_pos_tabs_items;');
 $db->exec('DELETE FROM plugin_pos_tabs;');
@@ -130,6 +130,15 @@ $put('pay-' . $p['0142'], [
 	'cancelled' => 1, 'reason' => 'Compte bancaire clôturé',
 	'replacements' => [['method_id' => 7, 'account' => '512', 'amount' => 2000]],
 ]);
+// The debt that cancellation leaves behind is a MODULE document, born with the
+// cancellation and not with the accounting entry (see _creance_sync.html). The
+// seed writes it for the same reason it writes the overlay above: it stands in
+// for an operator having saved the form.
+$put('creance-pay-' . $p['0142'], [
+	'type' => 'creance', 'origin_kind' => 'cheque', 'origin_key' => 'pay-' . $p['0142'],
+	'member_id' => (int) $uid, 'cheque_number' => 'CHQ-0142', 'amount' => 2500,
+	'date' => '2026-07-02', 'reason' => 'Compte bancaire clôturé',
+]);
 
 // 0143: frozen in a deposit slip (batch) -> to record (deposit)
 $put('pay-' . $p['0143'], ['type' => 'cheque', 'payment_id' => $p['0143'], 'planned_month' => '2026-07', 'batch_id' => 'DEMO']);
@@ -175,7 +184,8 @@ $db->preparedQuery('UPDATE users SET password = ? WHERE id = ?;', $hash, $admin-
 $db->commit();
 
 printf("Demo seeded: member #%d (Camille Martin), tabs #%d and #%d, 2 purchases, 9 cheques,"
-	. " 1 cancellation+replacement, 1 cancellation+card, 1 frozen slip, 1 slate debt of 40,00"
+	. " 1 cancellation+replacement, 1 cancellation+card leaving a 25,00 receivable,"
+	. " 1 frozen slip, 1 slate debt of 40,00"
 	. " — plus member #%d (Sofia Nkemelu) owing 60,00 on the slate only.\n",
 	$uid, $tab, $tab_debt, $uid2);
 printf("ADMIN_EMAIL=%s\n", $admin->email);

@@ -1,0 +1,73 @@
+{{* -*- brindille -*- *}}
+
+{{* Met la créance du membre en accord avec l'état du chèque. À inclure DANS le
+    {{#form on="save"}} d'edit.html / edit_replacement.html, APRÈS les {{:save}} du
+    chèque et de ses enfants : la forme est relue dans les documents, pas dans $_POST.
+
+    POURQUOI LA CRÉANCE EST UN OBJET DU MODULE. Une annulation partiellement
+    remplacée laisse une dette, connue à la seconde où l'on enregistre l'annulation.
+    La faire vivre uniquement dans la comptabilité la rendrait invisible tant que
+    personne n'a cliqué dans « à comptabiliser », et son extinction dépendrait
+    ensuite d'un comptable pensant à cocher « membres associés » — champ facultatif
+    dans le formulaire d'écriture. Le module la possède donc, comme il possède les
+    chèques et les bordereaux ; la comptabilité en est le reflet, comme partout
+    ailleurs ici.
+
+    Paramètres :
+      $cw_kind  'annul_pay' | 'annul_rempl' ;
+      $cw_rid   id du paiement de caisse, ou clé du cheque_rempl.
+    Hérité de l'appelant : $today.
+
+    N'a que des effets de bord ({{:save}} / {{:delete}}), aucune valeur renvoyée.
+    Idempotent : la clé dérive de l'origine, donc ré-enregistrer une annulation met
+    la même créance à jour au lieu d'en empiler une seconde. *}}
+
+{{:include file="./_cancellation_shape.html" cs_kind=$cw_kind cs_rid=$cw_rid
+	keep="cs_error,cs_cheque_number,cs_member_id,cs_reason,cs_cancelled,cs_remainder,cs_store_key,cs_store_type"}}
+
+{{if !$cs_error}}
+	{{:assign cw_key="creance-%s"|args:$cs_store_key}}
+
+	{{* Déjà réglé : borne basse. On ne peut pas ramener une dette en dessous de ce
+	    qui a été encaissé dessus, ni la supprimer — ce serait effacer un règlement
+	    enregistré. L'erreur annule tout le formulaire de l'appelant (rollback), ce
+	    qui est le comportement voulu : on refuse de décocher « non encaissé » ou
+	    d'ajouter un remplacement sur un chèque dont la créance a commencé à être
+	    payée. Il faut d'abord supprimer le règlement. *}}
+	{{:assign cw_settled=0}}
+	{{#select COALESCE(SUM(CAST(json_extract(document, '$.amount') AS INT)), 0) AS s
+		FROM module_data_suivi_cheques
+		WHERE json_extract(document, '$.type') = 'reglement'
+			AND json_extract(document, '$.creance_key') = :k; :k=$cw_key}}
+		{{:assign cw_settled=$s|intval}}
+	{{/select}}
+
+	{{:assign cw_wanted=0}}
+	{{if $cs_cancelled}}{{:assign cw_wanted=$cs_remainder}}{{/if}}
+
+	{{if $cw_wanted < $cw_settled}}
+		{{* Mise en forme avant interpolation, sinon le modificateur porte sur le
+		    résultat de args (voir settle.html). *}}
+		{{:assign cw_settled_h=$cw_settled|money_currency}}
+		{{:error message="Cette créance a déjà été réglée pour %s : supprimez d'abord le règlement."|args:$cw_settled_h}}
+	{{elseif $cw_wanted > 0}}
+		{{* Date de naissance figée : celle de la créance existante, sinon aujourd'hui. *}}
+		{{:assign cw_date=$today}}
+		{{#load type="creance" key=$cw_key}}{{:assign cw_date=$date|or:$today}}{{/load}}
+		{{:save type="creance"
+			key=$cw_key
+			validate_schema="./creance.schema.json"
+			origin_kind=$cs_store_type
+			origin_key=$cs_store_key
+			member_id=$cs_member_id
+			cheque_number=$cs_cheque_number
+			amount=$cw_wanted
+			date=$cw_date
+			reason=$cs_reason
+		}}
+	{{else}}
+		{{* Plus rien de dû : le chèque a été décoché, ou un remplacement couvre
+		    désormais la totalité. Rien à supprimer si la créance n'existe pas. *}}
+		{{:delete type="creance" where="key = :k" :k=$cw_key}}
+	{{/if}}
+{{/if}}

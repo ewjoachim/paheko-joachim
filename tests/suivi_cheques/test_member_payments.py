@@ -77,32 +77,60 @@ def test_slate_balance_links_to_where_it_is_settled(member_sheet, reseed, admin_
     expect(admin_page.get_by_role("link", name="Rembourser").first).to_be_visible()
 
 
-def test_cancelled_cheque_shows_up_as_a_receivable(
-    member_sheet, reseed, admin_page, module_url
+def test_receivable_is_visible_without_any_accounting(
+    member_sheet, reseed, admin_page, module_url, transaction
 ):
-    """The receivable only exists once the cancellation is posted to accounting.
-    That is the second way a member ends up owing money, and the only one
-    accounting can attribute to them."""
-    reseed()
+    """The debt exists as soon as the cheque is cancelled, NOT once someone has
+    posted the entry. That is the whole point of the module owning the receivable:
+    accounting is filled later and by hand, so making the panel depend on it would
+    hide a real debt for as long as nobody clicked.
 
-    # CHQ-0142 is seeded cancelled with a partial card replacement: 45,00 paid by
-    # cheque, 20,00 given back by card, so 25,00 stays a receivable. Post THAT row
-    # — CHQ-0141 is replaced by another cheque in full and leaves no receivable.
-    admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
-    row = admin_page.locator("tr", has_text="CHQ-0142")
-    row.get_by_role("button", name="Comptabiliser").click()
-    admin_page.wait_for_load_state("domcontentloaded")
+    CHQ-0142 is seeded cancelled with a partial card replacement: 45,00 paid by
+    cheque, 20,00 given back by card, so 25,00 stays owed. Nothing is posted."""
+    reseed()
+    assert not transaction("Annulation chèque n°CHQ-0142 — Camille Martin")["found"]
 
     page = member_sheet(all_rows=True)
     expect(page.locator("p.help", has_text="Créance")).to_contain_text("doit 25,00")
     expect(payments_table(page).locator("tr", has_text="Créance")).to_contain_text("25,00")
 
+    # And posting the entry does not double it: the entry is a reflection, the
+    # panel reads the module either way.
+    admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
+    admin_page.locator("tr", has_text="CHQ-0142").get_by_role(
+        "button", name="Comptabiliser"
+    ).click()
+    admin_page.wait_for_load_state("domcontentloaded")
 
-def test_long_history_is_capped_with_a_way_out(member_sheet, reseed):
-    """15 movements are seeded, so the default view shows them all and says
-    nothing; ?all=1 must not claim a truncation that did not happen."""
+    page = member_sheet(all_rows=True)
+    expect(page.locator("p.help", has_text="Créance")).to_contain_text("doit 25,00")
+
+
+def test_receivable_points_at_where_it_is_settled(member_sheet, reseed, admin_page):
+    """Unlike the slate, a receivable is collected in this module — the link has to
+    land on its settle page, pre-scoped to the member."""
     reseed()
     page = member_sheet()
-    rows = payments_table(page).locator("tbody tr").count()
-    assert rows == 15, f"expected the 15 seeded movements, got {rows}"
+
+    link = page.get_by_role("link", name="à encaisser au bureau")
+    expect(link).to_have_count(1)
+    resp = admin_page.goto(link.first.get_attribute("href"), wait_until="domcontentloaded")
+    assert resp.status == 200, f"dead link to the settle page: HTTP {resp.status}"
+    expect(admin_page.locator("h1, h2").first).to_contain_text("Camille Martin")
+
+
+def test_long_history_is_capped_with_a_way_out(member_sheet, reseed):
+    """The cap must never claim a truncation that did not happen, nor hide one that
+    did. The seeded history is longer than the 15-row cap, so both branches show
+    up here: capped by default, complete under ?all=1."""
+    reseed()
+    total = payments_table(member_sheet(all_rows=True)).locator("tbody tr").count()
+    assert total > 15, f"fixture must exceed the cap to exercise it, got {total}"
+    expect(member_sheet().locator("p.help", has_text="mouvements en tout")).to_contain_text(
+        f"{total} mouvements en tout"
+    )
+    assert payments_table(member_sheet()).locator("tbody tr").count() == 15
+
+    # Under ?all=1 everything is shown, so there is nothing to announce.
+    page = member_sheet(all_rows=True)
     expect(page.locator("p.help", has_text="mouvements en tout")).to_have_count(0)

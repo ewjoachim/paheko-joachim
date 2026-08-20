@@ -15,11 +15,15 @@
     qui revient impayé plus tard (créance, posée par ce module). Voir aussi
     _member_payments.html, qui calcule les mêmes soldes pour un seul membre.
 
-    Asymétrie à connaître : les ardoises n'existent par membre QUE dans les tables
-    de la caisse. Le plugin poste une écriture agrégée par session sans jamais
-    écrire dans acc_transactions_users, donc la comptabilité, elle, ne sait
-    attribuer que les créances. C'est pourquoi cette page lit les deux sources
-    plutôt qu'un seul solde comptable.
+    CHAQUE DETTE EST LUE DANS L'OUTIL QUI LA POSSÈDE, jamais dans son reflet
+    comptable. Les ardoises appartiennent à la caisse : elle seule les attribue à un
+    membre (le plugin poste une écriture agrégée par session sans jamais écrire dans
+    acc_transactions_users). Les créances appartiennent à ce module, qui les crée à
+    l'annulation et les éteint au règlement (creance / reglement, voir
+    _creance_sync.html). La comptabilité ne possède ni les unes ni les autres : y
+    lire les créances les rendrait invisibles tant qu'elles ne sont pas
+    comptabilisées, et leur extinction dépendrait d'un champ « membres associés »
+    facultatif dans le formulaire d'écriture.
 
     Droits : membres = lecture, comme les autres listes — c'est une page
     opérationnelle de relance. Les liens sortants sont gardés par le droit
@@ -34,8 +38,8 @@
 
 	<p class="help">
 		Les membres qui doivent encore quelque chose, du plus gros montant au plus petit.
-		L'<strong>ardoise</strong> se règle à la caisse, la <strong>créance</strong> par une
-		écriture comptable : les deux colonnes restent donc séparées.
+		L'<strong>ardoise</strong> se règle à la caisse, la <strong>créance</strong> s'encaisse
+		ici : les deux colonnes restent donc séparées.
 	</p>
 
 	{{:assign n=0}}
@@ -55,9 +59,9 @@
 		<tbody>
 			{{* Positif = doit. Ardoise : consommée (paiements type 2) moins réglée
 			    (lignes de note type 1) — même appariement que Tabs::getUserBalancesQuery
-			    de la caisse. Créance : débit - crédit sur les comptes de tiers (type 4),
-			    avec le dédoublonnage obligatoire de acc_transactions_users, dont la clé
-			    inclut id_service_user. *}}
+			    de la caisse. Créance : montant né de l'annulation moins les règlements
+			    encaissés dessus, une ligne par créance (l'agrégation est faite par le
+			    GROUP BY du dessus). *}}
 			{{#select
 				uid,
 				SUM(slate_owed) AS slate_owed,
@@ -76,12 +80,15 @@
 						WHERE ti.type = 1 AND t.user_id IS NOT NULL
 						GROUP BY t.user_id
 					UNION ALL
-					SELECT tu.id_user, 0, SUM(l.debit - l.credit)
-						FROM (SELECT id_user, id_transaction FROM acc_transactions_users GROUP BY id_transaction, id_user) tu
-						INNER JOIN acc_transactions_lines l ON l.id_transaction = tu.id_transaction
-						INNER JOIN acc_accounts a ON a.id = l.id_account
-						WHERE a.type = 4
-						GROUP BY tu.id_user
+					SELECT CAST(json_extract(c.document, '$.member_id') AS INT), 0,
+						CAST(json_extract(c.document, '$.amount') AS INT)
+						- COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
+							FROM module_data_suivi_cheques r
+							WHERE json_extract(r.document, '$.type') = 'reglement'
+								AND json_extract(r.document, '$.creance_key') = c.key), 0)
+						FROM module_data_suivi_cheques c
+						WHERE json_extract(c.document, '$.type') = 'creance'
+							AND json_extract(c.document, '$.member_id') IS NOT NULL
 				)
 				GROUP BY uid
 				HAVING SUM(slate_owed) > 0 OR SUM(recv_owed) > 0
@@ -93,12 +100,17 @@
 				<tr>
 					<td>{{#users id=$uid}}{{:link href="!users/details.php?id=%d"|args:$uid label=$_name}}{{/users}}</td>
 					<td class="money">{{if $slate_owed > 0}}{{$slate_owed|raw|money_currency}}{{else}}—{{/if}}</td>
-					<td class="money">{{if $recv_owed != 0}}{{$recv_owed|raw|money_currency}}{{else}}—{{/if}}</td>
+					<td class="money">{{if $recv_owed > 0}}{{$recv_owed|raw|money_currency}}{{else}}—{{/if}}</td>
 					<td class="money"><strong>{{$total_owed|raw|money_currency}}</strong></td>
 					<td class="actions">
 						{{if $slate_owed > 0}}
 							{{#restrict section="users" level="write"}}
 								{{:linkbutton href="!p/caisse/balances.php?type=2" label="Régler l'ardoise" shape="money"}}
+							{{/restrict}}
+						{{/if}}
+						{{if $recv_owed > 0}}
+							{{#restrict section="users" level="write"}}
+								{{:linkbutton href="settle.html?user=%d"|args:$uid label="Régler la créance" shape="money"}}
 							{{/restrict}}
 						{{/if}}
 					</td>
@@ -148,6 +160,85 @@
 			{{/restrict}}
 		</p>
 	{{/if}}
+
+	{{* Même honnêteté pour les créances : un chèque encaissé sur une note ouverte à un
+	    simple nom donne une créance sans membre. Elle est réelle, mais aucune fiche ne
+	    peut la porter — et donc aucun règlement ne peut être saisi depuis settle.html,
+	    qui travaille par membre. *}}
+	{{:assign orphan_recv=0}}
+	{{#select
+		COALESCE(SUM(CAST(json_extract(c.document, '$.amount') AS INT)
+			- COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
+				FROM module_data_suivi_cheques r
+				WHERE json_extract(r.document, '$.type') = 'reglement'
+					AND json_extract(r.document, '$.creance_key') = c.key), 0)), 0) AS orphan_recv
+		FROM module_data_suivi_cheques c
+		WHERE json_extract(c.document, '$.type') = 'creance'
+			AND json_extract(c.document, '$.member_id') IS NULL
+	}}
+		{{:assign orphan_recv=$orphan_recv|intval}}
+	{{/select}}
+
+	{{if $orphan_recv > 0}}
+		<p class="block alert">
+			<strong>{{$orphan_recv|raw|money_currency}}</strong> de créances ne sont rattachées à
+			aucune fiche membre : le chèque annulé avait été encaissé sur une note ouverte à un
+			simple nom. Elles ne peuvent donc pas être réglées depuis cette page.
+		</p>
+	{{/if}}
+
+	{{* CE QUE CETTE PAGE NE VOIT PAS. Le module possède les créances, mais rien
+	    n'empêche la comptabilité de bouger un compte de tiers de son côté — une
+	    cotisation saisie à la main, un remboursement passé directement. On compare donc
+	    ce que la compta porte sur les comptes de tiers ATTRIBUÉS À UN MEMBRE avec ce que
+	    le module y a lui-même envoyé, et on annonce la différence au lieu de laisser
+	    croire que le tableau est exhaustif.
+
+	    Un élément resté dans « à comptabiliser » ne crée PAS d'écart : on ne compte du
+	    côté module que ce dont l'écriture existe vraiment. L'écart attendu, c'est la
+	    file ; celui-ci est l'inattendu. *}}
+	{{#restrict section="accounting" level="read"}}
+		{{:assign acc_third=0}}
+		{{#select
+			COALESCE(SUM(l.debit - l.credit), 0) AS s
+			FROM (SELECT id_user, id_transaction FROM acc_transactions_users GROUP BY id_transaction, id_user) tu
+			INNER JOIN acc_transactions_lines l ON l.id_transaction = tu.id_transaction
+			INNER JOIN acc_accounts a ON a.id = l.id_account
+			WHERE a.type = 4
+		}}
+			{{:assign acc_third=$s|intval}}
+		{{/select}}
+
+		{{:assign mod_posted=0}}
+		{{#select
+			COALESCE((SELECT SUM(CAST(json_extract(c.document, '$.amount') AS INT))
+				FROM module_data_suivi_cheques c
+				INNER JOIN module_data_suivi_cheques o ON o.key = json_extract(c.document, '$.origin_key')
+				WHERE json_extract(c.document, '$.type') = 'creance'
+					AND EXISTS (SELECT 1 FROM acc_transactions a
+						WHERE a.id = CAST(json_extract(o.document, '$.annulation_txn_id') AS INT))), 0)
+			- COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
+				FROM module_data_suivi_cheques r
+				WHERE json_extract(r.document, '$.type') = 'reglement'
+					AND EXISTS (SELECT 1 FROM acc_transactions a
+						WHERE a.id = CAST(json_extract(r.document, '$.reglement_txn_id') AS INT))), 0)
+			AS s
+		}}
+			{{:assign mod_posted=$s|intval}}
+		{{/select}}
+
+		{{:assign gap="%d-%d"|math:$acc_third:$mod_posted}}
+		{{if $gap != 0}}
+			<p class="block alert">
+				La comptabilité porte <strong>{{$gap|abs|raw|money_currency}}</strong>
+				{{if $gap > 0}}de plus{{else}}de moins{{/if}}
+				sur les comptes de tiers que ce que ce module y a envoyé. Cette page ne montre
+				donc pas tout : il y a des mouvements de créance saisis directement en
+				comptabilité.
+				{{:link href="!acc/accounts/users.php" label="Voir les comptes de membres"}}
+			</p>
+		{{/if}}
+	{{/restrict}}
 
 {{else}}
 	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>

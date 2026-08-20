@@ -1,0 +1,226 @@
+{{* -*- brindille -*- *}}
+
+{{* Encaisser une créance : l'argent arrive au bureau, on l'enregistre ici.
+
+    C'est l'opération qui manquait. Jusqu'ici une créance ne pouvait s'éteindre que
+    par une écriture saisie à la main en comptabilité, où le champ « membres
+    associés » est facultatif : l'oublier laissait le membre débiteur pour toujours.
+    Ici le règlement est d'abord un fait du module, et l'écriture qui en découle lie
+    toujours le membre.
+
+    Réservé à membres = écriture, comme les autres actions d'accueil : c'est la
+    personne qui prend l'argent qui saisit. La comptabilisation, elle, suit la même
+    règle que partout ailleurs dans le module (file « à comptabiliser », ou tout de
+    suite si la case auto_record_settlements est cochée). *}}
+{{#restrict block=true section="users" level="write"}}{{/restrict}}
+
+{{:assign uid=$_GET.user|intval}}
+
+{{:assign today=null}}
+{{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
+
+{{#form on="settle"}}
+	{{:assign ckey=$_POST.creance_key|trim}}
+	{{:assign amt=$_POST.amount|money_int}}
+	{{* Le champ date rend et attend du JJ/MM/AAAA ; on normalise en YYYY-MM-DD, format
+	    stocké partout ailleurs dans le module (et qui se trie). Une saisie illisible
+	    donne une chaîne vide, donc retombe sur aujourd'hui. *}}
+	{{:assign sdate=$_POST.date|date:'Y-m-d'|or:$today}}
+	{{:assign mid=$_POST.method|intval}}
+
+	{{:assign c_amount=0 c_member=null}}
+	{{#load type="creance" key=$ckey}}{{:assign c_amount=$amount|intval c_member=$member_id}}{{/load}}
+
+	{{if !$c_amount}}{{:error message="Créance introuvable."}}{{/if}}
+	{{if $amt <= 0}}{{:error message="Indiquez un montant supérieur à zéro."}}{{/if}}
+
+	{{* Un règlement partiel est permis, un règlement excédentaire non : ce serait une
+	    avance, qui n'a rien à voir avec cette dette. *}}
+	{{:assign settled=0}}
+	{{#select COALESCE(SUM(CAST(json_extract(document, '$.amount') AS INT)), 0) AS s
+		FROM module_data_suivi_cheques
+		WHERE json_extract(document, '$.type') = 'reglement'
+			AND json_extract(document, '$.creance_key') = :k; :k=$ckey}}
+		{{:assign settled=$s|intval}}
+	{{/select}}
+	{{:assign remaining="%d-%d"|math:$c_amount:$settled}}
+	{{if $amt > $remaining}}
+		{{* Mise en forme AVANT l'interpolation : dans "…%s…"|args:$x|money_currency le
+		    modificateur porterait sur le résultat de args, pas sur le montant. *}}
+		{{:assign remaining_h=$remaining|money_currency}}
+		{{:error message="Il ne reste que %s à régler sur cette créance."|args:$remaining_h}}
+	{{/if}}
+
+	{{:assign acct=null}}
+	{{#select account AS a FROM plugin_pos_methods WHERE id = :m LIMIT 1; :m=$mid}}
+		{{:assign acct=$a}}
+	{{/select}}
+	{{if !$acct}}{{:error message="Choisissez un moyen de paiement."}}{{/if}}
+
+	{{* Clé déterministe à la seconde : elle permet de récupérer le document pour le
+	    comptabiliser aussitôt (contrairement à key="uuid", dont la valeur tirée n'est
+	    pas rendue à l'appelant), et un double envoi du formulaire retombe sur la même
+	    clé, donc met le même règlement à jour au lieu de le compter deux fois. *}}
+	{{:assign rkey=null}}
+	{{#select 'regl-' || :ck || '-' || strftime('%Y%m%d%H%M%S', 'now', 'localtime') AS k;
+		:ck=$ckey}}
+		{{:assign rkey=$k}}
+	{{/select}}
+
+	{{:save type="reglement"
+		key=$rkey
+		validate_schema="./reglement.schema.json"
+		creance_key=$ckey
+		member_id=$c_member
+		amount=$amt
+		date=$sdate
+		method_id=$mid
+		account=$acct
+		notes=$_POST.notes|trim|or:null
+	}}
+
+	{{* Mode automatique : même contrat que les annulations — un refus comptable ne
+	    doit pas annuler l'encaissement, qui reste alors dans la file. *}}
+	{{:assign rec_txn_id=null rec_error=null}}
+	{{if $module.config.auto_record_settlements}}
+		{{:include file="./_record_settlement.html" rid=$rkey quiet=true keep="rec_txn_id,rec_error"}}
+	{{/if}}
+
+	{{:assign qs="user=%d&saved=1"|args:$uid}}
+	{{if $rec_txn_id}}
+		{{:assign qs="user=%d&saved=1&recorded=%d"|args:$uid:$rec_txn_id}}
+	{{elseif $rec_error}}
+		{{:assign qs="user=%d&saved=1&not_recorded=1"|args:$uid}}
+	{{/if}}
+	{{:redirect to="settle.html?%s"|args:$qs}}
+{{/form}}
+
+{{:assign member_name=null}}
+{{if $uid}}{{#users id=$uid}}{{:assign member_name=$_name}}{{/users}}{{/if}}
+
+{{:admin_header title="Régler une créance — %s"|args:$member_name|or:"membre inconnu" current="module_suivi_cheques"}}
+
+{{:form_errors}}
+
+{{if $_GET.saved}}
+	<p class="block confirm">
+		Règlement enregistré.
+		{{if $_GET.recorded}}
+			{{#restrict section="accounting" level="read"}}
+				{{:link href="!acc/transactions/details.php?id=%d"|args:$_GET.recorded|intval
+					label="Voir l'écriture n°%d"|args:$_GET.recorded|intval}}
+			{{/restrict}}
+		{{elseif $_GET.not_recorded}}
+			L'écriture comptable n'a pas pu être passée : le règlement attend dans
+			« À comptabiliser ».
+		{{/if}}
+	</p>
+{{/if}}
+
+{{if !$member_name}}
+	<p class="block error">Membre introuvable.</p>
+{{else}}
+
+	{{* Sous-page d'Impayés : l'onglet reste surligné là, c'est de là qu'on vient. *}}
+	{{:include file="./_tabs.html" tab="debtors"}}
+
+	{{:assign n=0}}
+
+	{{* Créances encore dues de ce membre. Le reste à payer se calcule en retranchant
+	    les reglements qui pointent vers chaque creance : c'est le module qui porte la
+	    dette, la comptabilite n'en est que le reflet (voir _creance_sync.html). *}}
+	{{#select
+		*, amount - settled AS remaining
+		FROM (
+			SELECT c.key AS ckey,
+				json_extract(c.document, '$.cheque_number') AS number,
+				json_extract(c.document, '$.date') AS cdate,
+				json_extract(c.document, '$.reason') AS reason,
+				json_extract(c.document, '$.origin_kind') AS okind,
+				json_extract(c.document, '$.origin_key') AS okey,
+				REPLACE(json_extract(c.document, '$.origin_key'), 'pay-', '') AS opid,
+				CAST(json_extract(c.document, '$.amount') AS INT) AS amount,
+				COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
+					FROM module_data_suivi_cheques r
+					WHERE json_extract(r.document, '$.type') = 'reglement'
+						AND json_extract(r.document, '$.creance_key') = c.key), 0) AS settled
+			FROM module_data_suivi_cheques c
+			WHERE json_extract(c.document, '$.type') = 'creance'
+				AND CAST(json_extract(c.document, '$.member_id') AS INT) = :uid
+		)
+		WHERE amount - settled > 0
+		ORDER BY cdate, number;
+		:uid=$uid
+	}}
+		{{:assign n="%d+1"|math:$n}}
+		<h2 class="ruler">
+			Chèque annulé n°{{$number|escape|or:'—'}} — reste {{$remaining|raw|money_currency}}
+		</h2>
+		<p class="help">
+			Créance de {{$amount|raw|money_currency}} née le {{$cdate|date_short}}{{if $settled > 0}},
+			déjà réglée à hauteur de {{$settled|raw|money_currency}}{{/if}}.
+			{{if $reason}}Motif : {{$reason|escape}}.{{/if}}
+			{{if $okind === 'cheque_rempl'}}
+				{{:link href="edit_replacement.html?key=%s"|args:$okey label="Voir le chèque de remplacement"}}
+			{{else}}
+				{{:link href="edit.html?payment=%s"|args:$opid label="Voir le chèque"}}
+			{{/if}}
+		</p>
+		<form method="post" action="">
+			<input type="hidden" name="creance_key" value="{{$ckey|escape}}" />
+			<fieldset>
+				<legend>Encaissement</legend>
+				<dl>
+					{{:input type="money" name="amount" label="Montant reçu" required=true
+						default=$remaining}}
+					{{:input type="date" name="date" label="Date de l'encaissement" required=true
+						default=$today help="Détermine l'exercice de l'écriture : un exercice ouvert doit couvrir cette date."}}
+					<dt><label for="f_method">Moyen de paiement <b>*</b></label></dt>
+						<dd>
+							<select name="method" id="f_method" required="required">
+								<option value="">— choisir —</option>
+								{{* Mêmes moyens que les remplacements non-chèque : on emprunte à la caisse
+								    son vocabulaire et son compte, sans passer par elle. Les moyens
+								    « chèque à encaissement différé » sont exclus — un tel chèque devrait
+								    être suivi et remis en banque, ce que ce formulaire ne sait pas faire.
+								    Ardoise et porte-monnaie le sont aussi : ils déplaceraient la dette
+								    au lieu de l'éteindre. *}}
+								{{#select id, name FROM plugin_pos_methods
+									WHERE enabled = 1 AND type IN (0, 1)
+									AND id NOT IN (SELECT CAST(json_extract(document, '$.method_id') AS INT)
+										FROM module_data_suivi_cheques
+										WHERE json_extract(document, '$.type') = 'method_month_map')
+									ORDER BY name}}
+									<option value="{{$id}}">{{$name|escape}}</option>
+								{{/select}}
+							</select>
+						</dd>
+					{{:input type="text" name="notes" label="Notes"}}
+				</dl>
+			</fieldset>
+			<p class="submit">
+				{{:button type="submit" name="settle" label="Enregistrer le règlement" shape="money" class="main"}}
+			</p>
+		</form>
+	{{else}}
+		<p class="block confirm">Ce membre ne doit plus rien au titre des créances. 🎉</p>
+	{{/select}}
+
+	{{if $module.config.auto_record_settlements}}
+		<p class="help">
+			L'écriture comptable (débit du compte encaissé, crédit du compte de créance,
+			membre lié) est passée immédiatement.
+		</p>
+	{{else}}
+		<p class="help">
+			Aucune écriture comptable n'est générée ici : le règlement attend dans
+			« À comptabiliser », où la comptabilité la passe en un clic.
+		</p>
+	{{/if}}
+
+	<p class="actions">{{:linkbutton href="debtors.html" label="Retour aux impayés" shape="left"}}</p>
+{{/if}}
+
+{{:include file="./_doc_footer.html"}}
+
+{{:admin_footer}}

@@ -2,14 +2,13 @@
 
 {{* Encart « Paiements » sur la fiche membre : journal de tout ce que ce membre a
     acheté et réglé, toutes sources confondues (caisse, chèques suivis, chèques de
-    remplacement, ardoise, créances comptables). Voir _member_payments.html pour la
-    règle de présentation et les limites du rattachement au membre.
+    remplacement, ardoise, créances et leurs règlements). Voir _member_payments.html
+    pour la règle de présentation et les limites du rattachement au membre.
 
     Visibilité : le rendu des snippets n'applique pas le restrict du module ; elle est
     donc bornée par le droit d'accès à la fiche membre (membres = lecture), ce qui est
-    le bon public. La partie créances lit la comptabilité, mais uniquement les
-    écritures explicitement liées à CE membre : rien de plus que ce que la fiche
-    montre déjà via son compteur d'écritures liées. *}}
+    le bon public. Rien ici ne lit la comptabilité : les créances sont des documents
+    du module. *}}
 {{#extension name="caisse"}}
 	{{* Y a-t-il quelque chose à montrer ? Une seule requête de comptage, pour ne pas
 	    afficher un encart vide sur la fiche d'un membre qui n'est jamais passé en caisse. *}}
@@ -25,10 +24,9 @@
 				WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
 					AND CAST(json_extract(r.document, '$.member_id') AS INT) = :uid)
 			+
-			(SELECT COUNT(*) FROM (SELECT id_user, id_transaction FROM acc_transactions_users GROUP BY id_transaction, id_user) tu
-				INNER JOIN acc_transactions_lines l ON l.id_transaction = tu.id_transaction
-				INNER JOIN acc_accounts a ON a.id = l.id_account
-				WHERE tu.id_user = :uid AND a.type = 4)
+			(SELECT COUNT(*) FROM module_data_suivi_cheques c
+				WHERE json_extract(c.document, '$.type') IN ('creance', 'reglement')
+					AND CAST(json_extract(c.document, '$.member_id') AS INT) = :uid)
 		) AS n;
 		:uid=$user.id
 	}}

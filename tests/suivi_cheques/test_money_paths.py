@@ -91,6 +91,45 @@ def test_record_cancellation_replaced_by_cheque(
     assert not any(l["account"] == "411" for l in txn["lines"])
 
 
+def test_a_cancelled_replacement_still_covers_its_parent(
+    admin_page: Page, module_url: str, reseed, transaction
+):
+    """CHQ-0200 replaced CHQ-0141 and then bounced too. CHQ-0141's entry must still
+    debit the waiting account for CHQ-0200, exactly as if it had not bounced.
+
+    The cheque was really handed over: it covers its parent, and its own bouncing
+    is its own entry's business (which credits the waiting account back and posts
+    the receivable). Dropping it here would credit 5112 for CHQ-0141 with no
+    matching debit while CHQ-0200's entry credits a debit that never existed — and
+    the same money would be owed twice, once per cheque. This is what recording
+    "one level at a time" requires."""
+    reseed()
+
+    admin_page.goto(
+        f"{module_url}/edit_replacement.html?key=rempl-demo-0200",
+        wait_until="domcontentloaded",
+    )
+    admin_page.check('input[name="cancelled"]')
+    admin_page.get_by_role("button", name="Enregistrer").click()
+    admin_page.wait_for_load_state("domcontentloaded")
+
+    admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
+    admin_page.locator("tr", has_text="CHQ-0141").get_by_role(
+        "button", name="Comptabiliser"
+    ).click()
+    admin_page.wait_for_load_state("domcontentloaded")
+
+    txn = transaction(f"Annulation chèque n°CHQ-0141 — {MEMBER}")
+    assert txn["found"]
+    waiting = [l for l in txn["lines"] if l["account"] == "5112"]
+    assert any(l["debit"] == 3000 and l["ref"] == "CHQ-0200" for l in waiting), (
+        f"the cancelled replacement must still cover its parent: {txn['lines']}"
+    )
+    assert not any(l["account"] == "411" for l in txn["lines"]), (
+        "nothing is left uncovered on CHQ-0141 — the debt belongs to CHQ-0200"
+    )
+
+
 def test_cancel_deposit_slip_unlocks_cheques(
     admin_page: Page, module_url: str, reseed
 ):

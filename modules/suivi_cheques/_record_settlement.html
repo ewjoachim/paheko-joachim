@@ -1,0 +1,97 @@
+{{* -*- brindille -*- *}}
+
+{{* Écriture comptable d'un règlement de créance — partagée par la file
+    « à comptabiliser » (to_record.html) et le mode automatique de settle.html.
+    À inclure DANS un {{#form}}.
+
+    Débit du compte encaissé (banque, caisse…), crédit du compte de créance : la
+    dette du membre s'éteint. Le membre est TOUJOURS lié (linked_users), puisque
+    c'est nous qui construisons l'écriture — c'est précisément ce que la saisie
+    manuelle ne garantit pas, le champ « membres associés » y étant facultatif.
+
+    Paramètres :
+      $rid    clé du document reglement ;
+      $quiet  true = ne jamais lever d'erreur (voir _record_cancellation.html pour
+              le contrat détaillé : en mode automatique, un refus comptable ne doit
+              pas annuler l'encaissement enregistré).
+    Renvoie, via keep="rec_txn_id,rec_error".
+
+    La date de l'écriture est celle de l'encaissement, pas celle du clic : l'argent
+    est entré ce jour-là. Un exercice ouvert doit donc couvrir cette date, sinon le
+    règlement reste dans la file. *}}
+
+{{:assign rec_txn_id=null rec_error=null}}
+{{:assign api_fail=true}}
+{{if $quiet}}{{:assign api_fail=false}}{{/if}}
+
+{{:assign receivable_account=$module.config.receivable_account|or:"411"}}
+
+{{:assign rs_amount=0 rs_date=null rs_account=null rs_member=null rs_ckey=null rs_already=null}}
+{{#load type="reglement" key=$rid}}
+	{{:assign rs_amount=$amount|intval rs_date=$date rs_account=$account}}
+	{{:assign rs_member=$member_id rs_ckey=$creance_key rs_already=$reglement_txn_id}}
+{{/load}}
+
+{{:assign rs_number=null}}
+{{#load type="creance" key=$rs_ckey}}{{:assign rs_number=$cheque_number}}{{/load}}
+
+{{if !$rs_amount}}
+	{{:assign rec_error="Règlement introuvable ou montant nul."}}
+{{elseif !$rs_account}}
+	{{:assign rec_error="Ce règlement n'indique aucun compte à débiter."}}
+{{/if}}
+
+{{* Déjà comptabilisé = un id stocké QUI EXISTE encore (§8). *}}
+{{if !$rec_error && $rs_already}}
+	{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$rs_already}}
+		{{:assign rec_error="Ce règlement est déjà comptabilisé."}}
+	{{/select}}
+{{/if}}
+
+{{if !$rec_error}}
+	{{:assign rs_member_name=null}}
+	{{if $rs_member}}{{#users id=$rs_member}}{{:assign rs_member_name=$_name}}{{/users}}{{/if}}
+
+	{{:assign rs_label="Règlement de créance"}}
+	{{if $rs_number}}{{:assign rs_label="Règlement créance — chèque annulé n°%s"|args:$rs_number}}{{/if}}
+
+	{{:assign lines=null}}
+	{{:assign var="lines[0][account]" value=$rs_account}}
+	{{:assign var="lines[0][debit]" value=$rs_amount|money}}
+	{{:assign var="lines[0][label]" value=$rs_label}}
+	{{:assign var="lines[1][account]" value=$receivable_account}}
+	{{:assign var="lines[1][credit]" value=$rs_amount|money}}
+	{{:assign rs_line_label=$rs_label}}
+	{{if $rs_member_name}}{{:assign rs_line_label="Créance %s réglée"|args:$rs_member_name}}{{/if}}
+	{{:assign var="lines[1][label]" value=$rs_line_label}}
+
+	{{:assign users=null}}
+	{{if $rs_member}}{{:assign var="users[0]" value=$rs_member|intval}}{{/if}}
+
+	{{if $quiet}}
+		{{:include file="./_record_precheck.html" lines=$lines on_date=$rs_date on_match=true keep="rec_error"}}
+	{{/if}}
+{{/if}}
+
+{{if !$rec_error}}
+	{{:assign created=null}}
+	{{:assign txn_label=$rs_label}}
+	{{if $rs_member_name}}{{:assign txn_label="%s — %s"|args:$rs_label:$rs_member_name}}{{/if}}
+	{{* La partie variable est réduite AVANT le formatage : dans "REGL-%s"|args:$x|or:$y
+	    le modificateur porterait sur le résultat de args, jamais vide. *}}
+	{{:assign rs_ref=$rs_number|or:$rs_ckey}}
+	{{:api method="POST" path="accounting/transaction" access="write" fail=$api_fail
+		id_year="match" type="advanced" date=$rs_date
+		label=$txn_label
+		reference="REGL-%s"|args:$rs_ref
+		lines=$lines linked_users=$users assign="created"}}
+
+	{{if $created}}
+		{{:save type="reglement" key=$rid reglement_txn_id=$created.id}}
+		{{:assign rec_txn_id=$created.id}}
+	{{else}}
+		{{:assign rec_error="L'écriture comptable n'a pas pu être créée."}}
+	{{/if}}
+{{/if}}
+
+{{if $rec_error && !$quiet}}{{:error message=$rec_error}}{{/if}}
