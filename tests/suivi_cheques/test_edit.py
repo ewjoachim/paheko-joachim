@@ -62,11 +62,11 @@ def test_method_month_year_follows_reception(
     expect(admin_page.locator("table.list", has_text="CHQ-0400")).to_have_count(0)
 
 
-def test_edit_replacement_opens_with_month_dropdown(admin_page: Page, module_url, reseed):
+def test_module_cheque_opens_with_month_dropdown(admin_page: Page, module_url, reseed):
     reseed()
     # Seeded settling cheque CHQ-0200 (planned 2026-09).
     admin_page.goto(
-        f"{module_url}/edit_replacement.html?key=chq-regl-demo-0200",
+        f"{module_url}/edit.html?key=chq-regl-demo-0200",
         wait_until="domcontentloaded",
     )
     assert admin_page.locator(".error, .exception").count() == 0

@@ -210,7 +210,7 @@
 			déjà réglée à hauteur de {{$settled|raw|money_currency}}{{/if}}.
 			{{if $reason}}Motif : {{$reason|escape}}.{{/if}}
 			{{if $okind === 'cheque_rempl'}}
-				{{:link href="edit_replacement.html?key=%s"|args:$okey label="Voir le chèque"}}
+				{{:link href="edit.html?key=%s"|args:$okey label="Voir le chèque"}}
 			{{else}}
 				{{:link href="edit.html?payment=%s"|args:$opid label="Voir le chèque"}}
 			{{/if}}
