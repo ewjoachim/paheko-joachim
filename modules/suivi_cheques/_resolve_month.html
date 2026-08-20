@@ -2,18 +2,14 @@
 
 {{* Résout un mois d'encaissement (1-12) en mois absolu YYYY-MM.
 
-    Règle : on ne remet jamais un chèque pour un mois d'encaissement déjà passé,
-    donc l'année est celle de la prochaine occurrence du mois à partir de la date
-    de réception — mois identique ou postérieur : année de réception ; mois
-    antérieur : année suivante. Un chèque « septembre » reçu fin août part donc en
-    septembre suivant, y compris pendant les inscriptions ouvertes avant le début
-    de l'exercice.
+    Règle : on ne remet jamais un chèque pour un mois déjà passé, donc l'année est
+    celle de la prochaine occurrence du mois à partir de la date de réception. Un
+    chèque « septembre » reçu fin août part en septembre suivant, y compris pendant
+    les inscriptions ouvertes avant le début de l'exercice.
 
-    L'ancre est la date de réception, jamais l'exercice comptable courant : elle
-    est immuable, donc le mois résolu ne bouge plus à chaque changement
-    d'exercice. La même règle est écrite en SQL dans _list.html et deposit.html,
-    où elle porte sur p.date (impossible de partager une expression SQL entre
-    deux {{#select}}).
+    L'ancre est la date de réception, jamais l'exercice courant : elle est immuable,
+    donc le mois résolu ne bouge pas d'un exercice à l'autre. La même règle est
+    réécrite en SQL dans _list.html et deposit.html, où elle porte sur p.date.
 
     Paramètres :
       $rm_month  numéro de mois (1-12) ; 0 ou null = pas de mois prévu ;
