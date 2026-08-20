@@ -194,7 +194,7 @@
 							{{if $source === 'caisse'}}
 								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit.html?payment=%d"|args:$payment_id target="_dialog"}}
 							{{else}}
-								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit_replacement.html?key=%s"|args:$repl_key target="_dialog"}}
+								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit.html?key=%s"|args:$repl_key target="_dialog"}}
 							{{/if}}
 						{{/if}}
 					{{/restrict}}{{/if}}

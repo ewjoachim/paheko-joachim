@@ -1,37 +1,54 @@
 {{* -*- brindille -*- *}}
 
-{{* Operational editing of a till cheque (CONCEPTION §6.1/§6.2). Writes to module
-    data only; the cancellation entry is normally posted later by the accounting
-    side from the "to record" queue — unless auto_record_cancellations is on, in
-    which case saving a cancellation posts it immediately (see
-    _record_cancellation.html). Reserved to member management. *}}
+{{* Operational editing of a cheque (CONCEPTION §6.1/§6.2), whichever kind:
+      ?payment=<id>  a till cheque — the till owns its number, amount and date,
+                     this module only overlays what the till ignores;
+      ?key=<key>     a cheque the module owns, received in settlement of a
+                     receivable (settle.html) and never seen by the till.
+    Both are re-planned and cancelled the same way, which is why they share this
+    page. Writes to module data only; the cancellation entry is normally posted
+    later by the accounting side from the "to record" queue — unless
+    auto_record_cancellations is on, in which case saving a cancellation posts it
+    immediately (see _record_cancellation.html). Reserved to member management. *}}
 {{#restrict block=true section="users" level="write"}}{{/restrict}}
 
 {{:assign pid=$_GET.payment|intval}}
-{{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
+{{:assign key=$_GET.key|trim}}
+{{:assign from_till=false}}
+{{if $pid}}{{:assign from_till=true}}{{/if}}
 
 {{:assign today=null}}
 {{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
 
-{{* Infos du chèque (lecture caisse) *}}
-{{:assign cheque_number=null amount=0 received_date=null user_id=null}}
-{{#select
-	p.reference AS cheque_number, p.amount AS amount, p.date AS received_date, t.user_id AS user_id
-	FROM plugin_pos_tabs_payments p
-	INNER JOIN plugin_pos_tabs t ON t.id = p.tab
-	WHERE p.id = :pid LIMIT 1;
-	:pid=$pid
-}}
-	{{:assign cheque_number=$cheque_number amount=$amount received_date=$received_date user_id=$user_id}}
-{{/select}}
-
-{{* Overlay existant (valeurs par défaut du formulaire + champs à préserver) *}}
+{{:assign found=false cheque_number=null amount=0 received_date=null user_id=null}}
 {{:assign cur_month=null cur_cancelled=0 cur_reason=null cur_notes=null}}
 {{:assign cur_batch_id=null cur_annul_txn=null}}
-{{#load type="cheque" key="pay-%d"|args:$pid}}
-	{{:assign cur_month=$planned_month cur_cancelled=$cancelled cur_reason=$reason cur_notes=$notes}}
-	{{:assign cur_batch_id=$batch_id cur_annul_txn=$annulation_txn_id}}
-{{/load}}
+
+{{if $from_till}}
+	{{:assign store_type="cheque" store_key="pay-%d"|args:$pid kind="annul_pay" rid=$pid}}
+	{{#select
+		p.reference AS cheque_number, p.amount AS amount, p.date AS received_date, t.user_id AS user_id
+		FROM plugin_pos_tabs_payments p
+		INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+		WHERE p.id = :pid LIMIT 1;
+		:pid=$pid
+	}}
+		{{:assign found=true}}
+		{{:assign cheque_number=$cheque_number amount=$amount received_date=$received_date user_id=$user_id}}
+	{{/select}}
+	{{#load type="cheque" key=$store_key}}
+		{{:assign cur_month=$planned_month cur_cancelled=$cancelled cur_reason=$reason cur_notes=$notes}}
+		{{:assign cur_batch_id=$batch_id cur_annul_txn=$annulation_txn_id}}
+	{{/load}}
+{{else}}
+	{{:assign store_type="cheque_rempl" store_key=$key kind="annul_rempl" rid=$key}}
+	{{#load type="cheque_rempl" key=$key}}
+		{{:assign found=true}}
+		{{:assign cheque_number=$cheque_number amount=$amount received_date=$received_date user_id=$member_id}}
+		{{:assign cur_month=$planned_month cur_cancelled=$cancelled cur_reason=$reason cur_notes=$notes}}
+		{{:assign cur_batch_id=$batch_id cur_annul_txn=$annulation_txn_id}}
+	{{/load}}
+{{/if}}
 
 {{* Numéro de mois pré-sélectionné, extrait du YYYY-MM stocké *}}
 {{:assign cur_month_num=null}}
@@ -52,31 +69,36 @@
 {{/if}}
 
 {{#form on="save"}}
-	{{if !$pid}}{{:error message="Paiement introuvable."}}{{/if}}
+	{{if !$found}}{{:error message="Chèque introuvable."}}{{/if}}
 	{{if $locked}}{{:error message=$lock_msg}}{{/if}}
 
 	{{* Mois forcé choisi (1-12, vide = déduit du moyen) -> YYYY-MM. Même ancre que le
 	    mois automatique calculé en SQL : la date de réception du chèque, pour que
 	    forcer le mois par défaut redonne exactement ce mois par défaut. *}}
-	{{:include file="./_resolve_month.html" rm_month=$_POST.planned_month|intval rm_from=$received_date keep="rm_ym"}}
-	{{:assign planned_ym=$rm_ym}}
+	{{:include file="./_resolve_month.html" rm_month=$_POST.planned_month|intval rm_from=$received_date|or:$today keep="rm_ym"}}
 
-	{{* Écriture module : on préserve batch_id / annulation_txn_id (posés ailleurs). *}}
-	{{:save type="cheque"
-		key="pay-%d"|args:$pid
-		validate_schema="./cheque.schema.json"
-		payment_id=$pid
-		planned_month=$planned_ym
-		cancelled=$_POST.cancelled|intval
-		reason=$_POST.reason|trim|or:null
-		notes=$_POST.notes|trim|or:null
-		batch_id=$cur_batch_id
-		annulation_txn_id=$cur_annul_txn
-	}}
+	{{* {{:save}} fusionne avec le document existant : l'identité du chèque et les
+	    liens compta sont déjà stockés, on n'écrit que ce que ce formulaire édite. *}}
+	{{if $from_till}}
+		{{:save type="cheque" key=$store_key validate_schema="./cheque.schema.json"
+			payment_id=$pid
+			planned_month=$rm_ym
+			cancelled=$_POST.cancelled|intval
+			reason=$_POST.reason|trim|or:null
+			notes=$_POST.notes|trim|or:null
+		}}
+	{{else}}
+		{{:save type="cheque_rempl" key=$store_key validate_schema="./replacement.schema.json"
+			planned_month=$rm_ym
+			cancelled=$_POST.cancelled|intval
+			reason=$_POST.reason|trim|or:null
+			notes=$_POST.notes|trim|or:null
+		}}
+	{{/if}}
 
 	{{* Ce qui découle de l'annulation — créance et écriture — est posé dans le second
 	    {{#form}} ci-dessous (voir le commentaire WORKAROUND qui s'y trouve). *}}
-	{{:assign posted_pid=$pid}}
+	{{:assign saved=true}}
 {{/form}}
 
 {{* WORKAROUND (Paheko 1.3.22 regression) — la créance et l'écriture étaient posées
@@ -100,21 +122,19 @@
     Corrigé en amont : git revert le commit qui a introduit ce bloc, et tout
     retourne dans le formulaire unique, où la lecture est naturelle. *}}
 {{#form on="save"}}
-	{{if $posted_pid}}
-		{{* Créance du membre : créée, ajustée ou supprimée tout de suite, sans attendre
-		    la comptabilisation — c'est le module qui possède la dette
-		    (voir _creance_sync.html). *}}
-		{{:include file="./_creance_sync.html" cw_kind="annul_pay" cw_rid=$posted_pid}}
+	{{if $saved}}
+		{{* Créance du membre : créée ou supprimée tout de suite, sans attendre la
+		    comptabilisation — c'est le module qui possède la dette. *}}
+		{{:include file="./_creance_sync.html" cw_kind=$kind cw_rid=$rid}}
 
 		{{* Automatic mode (configuration): post the cancellation entry right away,
 		    without requiring any accounting permission from whoever is typing — the
 		    checkbox an admin ticked is what authorises it, mirroring the till's own
-		    setting. quiet=true: on failure we keep the input and the cheque stays in the
-		    "to record" queue. Placed AFTER the {{:save}} calls above, because the entry
-		    is built from module data, which has to be up to date first. *}}
+		    setting. quiet=true: on failure we keep the input and the cheque stays in
+		    the "to record" queue. *}}
 		{{:assign rec_txn_id=null rec_error=null}}
 		{{if $module.config.auto_record_cancellations && $_POST.cancelled|intval}}
-			{{:include file="./_record_cancellation.html" kind="annul_pay" rid=$posted_pid quiet=true keep="rec_txn_id,rec_error"}}
+			{{:include file="./_record_cancellation.html" kind=$kind rid=$rid quiet=true keep="rec_txn_id,rec_error"}}
 		{{/if}}
 
 		{{:assign qs="saved=1"}}
@@ -125,12 +145,18 @@
 	{{/if}}
 {{/form}}
 
-{{:admin_header title="Chèque n°%s"|args:$cheque_number|or:$pid}}
+{{:admin_header title="Chèque n°%s"|args:$cheque_number|or:$store_key}}
 
 {{:form_errors}}
 
+{{if !$found}}
+	<p class="block error">Chèque introuvable.</p>
+	<p class="actions">{{:linkbutton href="index.html" label="Retour" shape="left"}}</p>
+{{else}}
+
 <p class="help">
 	Montant : <strong>{{$amount|raw|money_currency}}</strong> — reçu le {{$received_date|date_short}}
+	{{if !$from_till}}en règlement d'une créance{{/if}}
 	{{if $user_id}}— {{#users id=$user_id}}{{$_name}}{{/users}}{{/if}}
 </p>
 
@@ -145,10 +171,15 @@
 	<fieldset>
 		<legend>Encaissement</legend>
 		<dl>
-			<dt><label>Mois d’encaissement forcé</label></dt>
+			<dt><label>Mois d’encaissement{{if $from_till}} forcé{{/if}}</label></dt>
 				<dd>
-					<select name="planned_month">{{:include file="./_month_options.html" selected=$cur_month_num empty_label="— déduit du moyen de paiement —"}}</select>
-					<p class="help">Laissez « déduit du moyen de paiement » pour le mois automatique. L’année est déduite de la date de réception : c’est le prochain mois de ce nom après la réception du chèque.</p>
+					{{if $from_till}}
+						<select name="planned_month">{{:include file="./_month_options.html" selected=$cur_month_num empty_label="— déduit du moyen de paiement —"}}</select>
+						<p class="help">Laissez « déduit du moyen de paiement » pour le mois automatique. L’année est déduite de la date de réception : c’est le prochain mois de ce nom après la réception du chèque.</p>
+					{{else}}
+						<select name="planned_month">{{:include file="./_month_options.html" selected=$cur_month_num empty_label="—"}}</select>
+						<p class="help">Mois où ce chèque sera apporté en banque. L’année est déduite de sa date de réception : c’est le prochain mois de ce nom après celle-ci.</p>
+					{{/if}}
 				</dd>
 		</dl>
 	</fieldset>
@@ -158,7 +189,7 @@
 		<dl>
 			{{:input type="checkbox" name="cancelled" value="1" label="Chèque non encaissé" default=$cur_cancelled}}
 			{{:input type="text" name="reason" label="Motif" default=$cur_reason
-				help="Ex. : chèque sans provision, membre parti en cours d'année."}}
+				help="Ex. : chèque sans provision, compte clôturé."}}
 		</dl>
 
 		<p class="help">
@@ -185,6 +216,7 @@
 		{{:button type="submit" name="save" label="Enregistrer" shape="right" class="main"}}
 	</p>
 </form>
+{{/if}}
 {{/if}}
 
 {{:include file="./_doc_footer.html"}}

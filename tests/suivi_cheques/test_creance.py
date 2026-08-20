@@ -72,7 +72,7 @@ def test_a_settling_cheque_that_bounces_owes_once(admin_page: Page, module_url, 
     reseed()
 
     admin_page.goto(
-        f"{module_url}/edit_replacement.html?key=chq-regl-demo-0200",
+        f"{module_url}/edit.html?key=chq-regl-demo-0200",
         wait_until="domcontentloaded",
     )
     admin_page.check('input[name="cancelled"]')
