@@ -57,6 +57,22 @@
 	{{/select}}
 	{{if !$acct}}{{:error message="Choisissez un moyen de paiement."}}{{/if}}
 
+	{{* Un moyen présent dans la table des mois est un chèque à encaisser : le membre
+	    ne solde pas sa dette, il la remplace par un chèque qu'il faudra déposer. On
+	    exige donc son numéro, et on le suivra comme les autres. *}}
+	{{:assign chq_month=null}}
+	{{#select CAST(json_extract(document, '$.month') AS INT) AS m
+		FROM module_data_suivi_cheques
+		WHERE json_extract(document, '$.type') = 'method_month_map'
+			AND CAST(json_extract(document, '$.method_id') AS INT) = :mid
+		LIMIT 1; :mid=$mid}}
+		{{:assign chq_month=$m}}
+	{{/select}}
+	{{:assign chq_number=$_POST.cheque_number|trim}}
+	{{if $chq_month && !$chq_number}}
+		{{:error message="Indiquez le numéro du chèque reçu."}}
+	{{/if}}
+
 	{{* Clé déterministe à la seconde : elle permet de récupérer le document pour le
 	    comptabiliser aussitôt (contrairement à key="uuid", dont la valeur tirée n'est
 	    pas rendue à l'appelant), et un double envoi du formulaire retombe sur la même
@@ -78,6 +94,24 @@
 		account=$acct
 		notes=$_POST.notes|trim|or:null
 	}}
+
+	{{* Le chèque reçu devient un chèque suivi à part entière : planifié, déposable, et
+	    annulable s'il rejette à son tour — auquel cas il fera naître sa propre créance.
+	    Son mois vient du moyen de paiement, comme pour un chèque de caisse. *}}
+	{{if $chq_month}}
+		{{:include file="./_resolve_month.html" rm_month=$chq_month rm_from=$sdate keep="rm_ym"}}
+		{{:save type="cheque_rempl"
+			key="chq-%s"|args:$rkey
+			validate_schema="./replacement.schema.json"
+			reglement_key=$rkey
+			member_id=$c_member
+			cheque_number=$chq_number
+			amount=$amt
+			planned_month=$rm_ym
+			received_date=$sdate
+			cancelled=0
+		}}
+	{{/if}}
 
 	{{* L'écriture est passée dans le second {{#form}} ci-dessous. *}}
 	{{:assign posted_rkey=$rkey}}
@@ -194,22 +228,18 @@
 						<dd>
 							<select name="method" id="f_method" required="required">
 								<option value="">— choisir —</option>
-								{{* Mêmes moyens que les remplacements non-chèque : on emprunte à la caisse
-								    son vocabulaire et son compte, sans passer par elle. Les moyens
-								    « chèque à encaissement différé » sont exclus — un tel chèque devrait
-								    être suivi et remis en banque, ce que ce formulaire ne sait pas faire.
-								    Ardoise et porte-monnaie le sont aussi : ils déplaceraient la dette
-								    au lieu de l'éteindre. *}}
+								{{* On emprunte à la caisse son vocabulaire et son compte, sans passer par
+								    elle. Ardoise et porte-monnaie sont exclus (types 2 et 3) : ils
+								    déplaceraient la dette au lieu de l'éteindre. *}}
 								{{#select id, name FROM plugin_pos_methods
 									WHERE enabled = 1 AND type IN (0, 1)
-									AND id NOT IN (SELECT CAST(json_extract(document, '$.method_id') AS INT)
-										FROM module_data_suivi_cheques
-										WHERE json_extract(document, '$.type') = 'method_month_map')
 									ORDER BY name}}
 									<option value="{{$id}}">{{$name|escape}}</option>
 								{{/select}}
 							</select>
 						</dd>
+					{{:input type="text" name="cheque_number" label="N° du chèque" size=12
+						help="Si le règlement est un chèque à encaisser : il sera suivi et déposé comme les autres, son mois venant du moyen choisi."}}
 					{{:input type="text" name="notes" label="Notes"}}
 				</dl>
 			</fieldset>

@@ -28,11 +28,20 @@ def cancel(page: Page, module_url, pid: str, reason: str = "Chèque sans provisi
     page.wait_for_load_state("domcontentloaded")
 
 
-def settle(page: Page, module_url, user: str, amount: str | None = None):
+def settle(
+    page: Page,
+    module_url,
+    user: str,
+    amount: str | None = None,
+    method: str = "Espèces",
+    cheque_number: str | None = None,
+):
     page.goto(f"{module_url}/settle.html?user={user}", wait_until="domcontentloaded")
     if amount is not None:
         page.fill('input[name="amount"]', amount)
-    page.locator('select[name="method"]').select_option(label="Espèces")
+    page.locator('select[name="method"]').select_option(label=method)
+    if cheque_number is not None:
+        page.fill('input[name="cheque_number"]', cheque_number)
     page.get_by_role("button", name="Enregistrer le règlement").click()
     page.wait_for_load_state("domcontentloaded")
 
@@ -216,6 +225,35 @@ def test_settlement_is_recorded_immediately(
     txn = transaction("Règlement créance — chèque annulé n°CHQ-0142 — Camille Martin")
     assert txn["found"], "the entry was not posted on save"
     assert txn["users"] == [int(seed["camille_id"])], "the member must be linked"
+
+
+def test_settling_by_cheque_makes_a_tracked_cheque(
+    admin_page: Page, module_url, reseed, seed
+):
+    """Handing over a cheque is a settlement like any other: the debt drops now, and
+    the cheque received becomes a tracked cheque of its own — plannable, depositable,
+    and able to bounce in its turn, which would open its own receivable.
+
+    Until now this was the one thing settle.html could not accept, and the guide sent
+    the user back to typing it as a "replacement" on the cancelled cheque."""
+    reseed()
+    settle(
+        admin_page,
+        module_url,
+        seed["camille_id"],
+        method="Chèque",
+        cheque_number="CHQ-0777",
+    )
+
+    assert owed(admin_page, module_url) == "—", "the receivable is settled"
+
+    # Seeded method 2 ("Chèque") is mapped to September, and the settlement is today,
+    # so the cheque is planned for the next September — where it is depositable.
+    admin_page.goto(f"{module_url}/deposit.html?month=2027-09", wait_until="domcontentloaded")
+    row = admin_page.locator("table.list tbody tr", has_text="CHQ-0777")
+    expect(row).to_have_count(1)
+    expect(row).to_contain_text("Camille Martin")
+    expect(row).to_contain_text("25,00")
 
 
 def test_accounting_moved_outside_the_module_is_announced(
