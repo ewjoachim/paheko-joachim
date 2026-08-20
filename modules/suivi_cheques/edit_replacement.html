@@ -27,7 +27,8 @@
 	{{:assign cur_batch_id=$batch_id cur_annul_txn=$annulation_txn_id}}
 {{/load}}
 
-{{* Chèque parent (n° affiché) : caisse (parent_key = pay-<id>) ou autre remplacement. *}}
+{{* Chèque parent (n° affiché) : caisse (parent_key = pay-<id>) ou autre remplacement.
+    Un chèque reçu en règlement d'une créance (settle.html) n'a pas de parent. *}}
 {{:assign parent_number=null}}
 {{#load type="cheque_rempl" key=$cur_parent_key}}{{:assign parent_number=$cheque_number}}{{/load}}
 {{if $parent_number === null}}
@@ -147,7 +148,11 @@
 {{else}}
 	<p class="help">
 		Montant : <strong>{{$amount|raw|money_currency}}</strong>
-		— remplace le chèque n°{{$parent_number|escape|or:$cur_parent_key}}
+		{{if $cur_parent_key}}
+			— remplace le chèque n°{{$parent_number|escape|or:$cur_parent_key}}
+		{{else}}
+			— reçu en règlement d'une créance
+		{{/if}}
 		{{if $user_id}}— {{#users id=$user_id}}{{$_name}}{{/users}}{{/if}}
 	</p>
 

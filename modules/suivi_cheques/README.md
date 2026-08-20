@@ -90,7 +90,7 @@ réservée à `config = admin`.
 | Type | Clé | Rôle |
 |---|---|---|
 | `cheque` | `pay-<payment_id>` | **overlay** d'un paiement de caisse : uniquement ce que la caisse ignore (mois, annulation, remplacements, liens compta, lot). Montant, numéro et date restent côté caisse |
-| `cheque_rempl` | uuid | chèque de remplacement, jamais passé en caisse : le module en possède tout |
+| `cheque_rempl` | uuid ou `chq-<clé du règlement>` | chèque que le module possède entièrement, jamais passé en caisse : reçu en remplacement d'un chèque annulé (`parent_key`) ou en règlement d'une créance (`reglement_key`) |
 | `creance` | `creance-<origin_key>` | dette née de l'annulation d'un chèque. Clé dérivée de l'origine, donc la création est **idempotente** |
 | `reglement` | `regl-<creance_key>-<horodatage>` | argent encaissé sur une créance ; plusieurs pour un règlement partiel |
 | `deposit_batch` | `batch-<ref>` | bordereau de remise figé |
@@ -119,8 +119,5 @@ vraiment : supprimer n'est pas annuler.
 ## Hors périmètre (v1)
 
 - Rejet bancaire d'un chèque **après** dépôt (à traiter à la main en comptabilité).
-- Régler une créance **par un nouveau chèque à encaisser** : `settle.html` n'offre pas les
-  moyens « chèque différé », faute de savoir suivre et remettre le chèque reçu. Le geste
-  prévu est de le saisir en *remplacement* du chèque annulé, avant comptabilisation.
 - Passer une créance **en perte** (se fait en comptabilité ; le module ne connaît que
   l'encaissement, et la page Impayés signalera alors l'écart).

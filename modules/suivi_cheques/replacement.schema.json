@@ -10,6 +10,10 @@
 			"type": "string",
 			"description": "Clé module du chèque remplacé : 'pay-<payment_id>' (chèque de caisse) ou clé d'un autre cheque_rempl (chaîne A→B→C). La ligne 5112 de ce chèque naît de l'écriture d'annulation de son parent (CONCEPTION §6.2)."
 		},
+		"reglement_key": {
+			"type": "string",
+			"description": "Clé du règlement de créance qui a produit ce chèque (settle.html). Sa ligne 5112 naît de l'écriture de ce règlement. Alternative à parent_key : un chèque module vient soit du remplacement d'un chèque annulé, soit du règlement d'une créance."
+		},
 		"member_id": {
 			"type": ["null", "integer"],
 			"description": "Membre concerné, hérité du parent à la création. Découple du monde caisse et fonctionne à toute profondeur de chaîne."
@@ -62,5 +66,5 @@
 			"description": "Identifiant du lot de remise une fois parti à la banque. Verrouille le chèque."
 		}
 	},
-	"required": ["type", "parent_key", "cheque_number", "amount"]
+	"required": ["type", "cheque_number", "amount"]
 }
