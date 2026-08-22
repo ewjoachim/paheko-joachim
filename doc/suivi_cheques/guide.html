@@ -92,7 +92,7 @@
 			<tr>
 				<td><strong>Accueil / caisse</strong></td>
 				<td>La personne qui tient la caisse et va à la banque</td>
-				<td>Suit les chèques du mois, planifie leur encaissement, gère les annulations et encaisse
+				<td>Suit les chèques, planifie leur encaissement, gère les annulations et encaisse
 					ce qui reste dû, et prépare le bordereau de remise.
 					<strong>N'a pas à toucher à la comptabilité.</strong></td>
 			</tr>
@@ -117,37 +117,53 @@
 
 	<h2>Côté accueil</h2>
 
-	<h3>1. Les chèques du mois</h3>
+	<h3>1. La vue des chèques</h3>
 	<p>
-		La page d'accueil du module liste les chèques dont l'encaissement est prévu ce mois-ci. Chaque chèque
-		affiche son état :
+		La page d'accueil du module montre les chèques d'<strong>un mois</strong>, celui en cours à
+		l'ouverture. La barre du haut donne les douze mois de l'exercice d'un coup — plus
+		<em>À venir</em>, tout ce qui reste à encaisser à partir d'aujourd'hui, et <em>Tous</em>.
+		La deuxième ligne filtre sur l'état, en annonçant combien il y en a&nbsp;:
 		<span class="tag enc">À encaisser</span>
 		<span class="tag lot">Dans un lot</span> (déjà sur un bordereau)
 		<span class="tag dep">Déposé</span>
 		<span class="tag ann">Annulé</span>.
-		On peut chercher un chèque par numéro ou par membre, et naviguer d'un mois à l'autre.
 	</p>
 	<figure>
-		<img src="screenshots/01-cheques-du-mois.png" alt="Liste des chèques du mois" />
-		<figcaption>Les chèques du mois, avec leur état et le bouton « Préparer le bordereau ».</figcaption>
+		<img src="screenshots/01-vue-cheques.png" alt="La vue des chèques d'un mois" />
+		<figcaption>Les chèques d'un mois, la barre des périodes et les compteurs par état.</figcaption>
 	</figure>
-
-	<h3>2. Les chèques à venir et l'année en cours</h3>
 	<p>
-		Un adhérent paie souvent en plusieurs chèques (par exemple un par mois). La vue « à venir » les montre
-		tous, regroupés par mois d'encaissement prévu, avec un sous-total par mois.
+		Le champ <em>Filtrer</em> réduit la liste au fur et à mesure de la frappe, sur le numéro, le
+		membre ou les notes&nbsp;; les en-têtes de colonnes trient au clic. L'un comme l'autre agissent
+		sur la liste affichée&nbsp;: <strong>ils ne décochent jamais rien</strong>, on peut donc chercher
+		un chèque, le cocher, vider le champ et passer au suivant.
+	</p>
+	<div class="note">
+		<strong>Un mois passé où il reste des chèques à encaisser</strong> porte un
+		«&nbsp;⚠&nbsp;» suivi du nombre, dans la barre des mois. Cliquer dessus va droit à ces
+		chèques-là&nbsp;: c'est le seul rappel, puisque personne ne rouvre un mois passé de lui-même.
+	</div>
+
+	<h3>2. Voir plusieurs mois à la fois</h3>
+	<p>
+		Un adhérent paie souvent en plusieurs chèques, un par mois. <em>À venir</em> et <em>Tous</em>
+		les montrent ensemble, avec la colonne <em>Mois prévu</em>. Ces deux vues sont paginées,
+		avec un bouton <em>Tout afficher</em> quand on veut la liste entière sous la main.
 	</p>
 	<figure>
-		<img src="screenshots/02-a-venir.png" alt="Chèques à venir, groupés par mois" />
-		<figcaption>Tous les chèques planifiés, regroupés par mois.</figcaption>
+		<img src="screenshots/02-tous-les-mois.png" alt="Les chèques de tous les mois" />
+		<figcaption>Tous les chèques restant à encaisser, regroupés par mois.</figcaption>
 	</figure>
 	<p class="muted">
 		Le mois prévu est déduit automatiquement du moyen de paiement choisi en caisse (« Chèque janvier »,
 		« Chèque février »…). L'année, elle, se déduit de la date de réception : c'est le prochain mois de ce
 		nom après la remise du chèque. Un chèque « septembre » reçu fin août, pendant les inscriptions, part
-		donc bien en septembre suivant. La vue « Année en cours » liste d'ailleurs tous les chèques de
-		l'exercice comptable, passés comme à venir. On peut forcer un autre mois
-		au cas par cas (voir ci-dessous).
+		donc bien en septembre suivant. On peut forcer un autre mois au cas par cas (voir ci-dessous).
+	</p>
+	<p>
+		Le menu <em>Exporter</em> sort <strong>tous</strong> les chèques, toutes colonnes comprises,
+		en CSV, LibreOffice ou Excel — sans tenir compte des filtres, puisque filtrer dans un tableur
+		est immédiat.
 	</p>
 
 	<h3>3. Annuler un chèque</h3>
@@ -169,10 +185,15 @@
 
 	<h3>4. Préparer le bordereau de remise</h3>
 	<p>
-		Avant d'aller à la banque, le bouton <em>Préparer le bordereau</em> propose les chèques déposables
-		(non annulés, pas déjà partis). <strong>Rien n'est coché au départ</strong> : on coche les chèques
-		que l'on a physiquement en main, puis on génère le bordereau. La case en haut de la colonne coche
-		ou décoche toute la liste d'un coup, pour le cas courant où l'on emporte tout.
+		Avant d'aller à la banque, on coche dans la liste les chèques que l'on a physiquement en main,
+		puis <em>Générer le bordereau</em>. <strong>Rien n'est coché au départ.</strong> Les chèques qui
+		ne peuvent pas partir (annulés, déjà sur un bordereau) gardent une case grisée, à leur place dans
+		la colonne. <em>Tout cocher</em> prend ce que la liste affiche&nbsp;: avec un filtre en cours,
+		seulement les lignes visibles.
+	</p>
+	<p>
+		À mesure qu'on coche, le compteur affiche <strong>combien de chèques et quel total</strong> —
+		de quoi vérifier l'écran contre la pile qu'on a en main avant de partir.
 	</p>
 	<figure>
 		<img src="screenshots/04-preparer-bordereau.png" alt="Sélection des chèques à déposer" />

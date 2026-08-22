@@ -1,53 +1,35 @@
 {{* -*- brindille -*- *}}
 {{*
-	Tableau réutilisable des chèques — SOURCE UNIQUE : caisse + module_data.
-	Aucune lecture de la comptabilité pour déterminer l'état (CONCEPTION §2, §9.1).
+	Le tableau des chèques — SOURCE UNIQUE : caisse + module_data. Aucune lecture de
+	la comptabilité pour déterminer l'état.
 
 	Paramètres attendus :
-	  $mode                'month' (= :month), 'upcoming' (>= :month),
-	                       'exercise' (bornes de l'exercice courant) ou 'all' (tous)
-	  $month               mois de référence, format YYYY-MM (ignoré si mode='all')
-	  $q_like              terme de recherche BRUT sur le n° de chèque, ou null
-	                       (l'échappement LIKE % _ se fait dans la clause WHERE)
-	  $user_id             filtre membre, ou null
-	  $show_month_col      affiche la colonne « Mois prévu » + sous-totaux par mois
-	  $show_deposit_button affiche le bouton « Préparer le bordereau » (câblé en phase 3)
+	  $period          'YYYY-MM' | 'upcoming' | 'all'
+	  $month           mois courant au format YYYY-MM (borne du mode 'upcoming')
+	  $state           'todo' | 'deposited' | 'cancelled' | 'all'
+	  $limit $offset   découpage de la page
+	  $show_month_col  affiche la colonne « Mois prévu » (périodes multi-mois)
+	  $selectable      pose les cases à cocher (droit membres = écriture)
+	Renvoie, via keep="l_n,l_total" : ce que la page affiche, en nombre et en euros.
+
+	Le tri et la recherche se font côté navigateur (voir index.html) : ils portent sur
+	les lignes déjà chargées et ne décochent donc jamais une case.
 	NB : la table module_data_suivi_cheques doit correspondre au dossier du module.
 *}}
 
-{{* Bornes de l'exercice comptable courant — utilisées uniquement pour délimiter le
-    mode 'exercise'. La résolution mois -> année ne s'en sert pas : elle est ancrée
-    sur la date de réception de chaque chèque (cf. _resolve_month.html), sinon les
-    mois affichés se décaleraient d'un an à chaque changement d'exercice. *}}
-{{:assign ex_start_ym=null}}
-{{:assign ex_end_ym=null}}
-{{#select
-	strftime('%Y-%m', start_date) AS sym,
-	strftime('%Y-%m', end_date) AS eym
-	FROM acc_years
-	WHERE status = 0
-	ORDER BY (date('now') BETWEEN start_date AND end_date) DESC, start_date DESC
-	LIMIT 1
-}}
-	{{:assign ex_start_ym=$sym ex_end_ym=$eym}}
-{{/select}}
+{{:assign l_n=0 l_total=0}}
+{{:assign ncols=7}}
+{{if $show_month_col}}{{:assign ncols=8}}{{/if}}
 
-{{:assign _n=0}}
-{{:assign _total=0}}
-{{:assign dep_count=0}}
-{{* État pour les sous-totaux par mois (uniquement en vue multi-mois) *}}
-{{:assign cur_group=null}}
-{{:assign group_n=0}}
-{{:assign group_total=0}}
-
-<table class="list">
+<table class="list" id="cheques">
 	<thead>
 		<tr>
-			{{if $show_month_col}}<th>Mois prévu</th>{{/if}}
-			<th>N° de chèque</th>
-			<th>Membre</th>
-			<th class="money">Montant</th>
-			<th>Reçu le</th>
+			<td class="check"></td>
+			{{if $show_month_col}}<th data-key="month">Mois prévu</th>{{/if}}
+			<th data-key="number">N° de chèque</th>
+			<th data-key="member">Membre</th>
+			<th class="money" data-key="amount" data-type="number">Montant</th>
+			<th data-key="date">Reçu le</th>
 			<th>État / notes</th>
 			<th class="actions"></th>
 		</tr>
@@ -58,9 +40,9 @@
 			FROM (
 				-- Branche 1 : cheques saisis en caisse (moyens de paiement mappes)
 				SELECT
+					'pay-' || p.id AS skey,
 					p.id AS payment_id,
 					'caisse' AS source,
-					NULL AS repl_key,
 					p.reference AS cheque_number,
 					p.amount AS amount,
 					p.date AS received_date,
@@ -78,7 +60,6 @@
 								CAST(json_extract(mm.document, '$.month') AS INT))
 						END
 					) AS planned_month,
-					COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) AS cancelled,
 					json_extract(ov.document, '$.reason') AS reason,
 					json_extract(ov.document, '$.notes') AS notes,
 					json_extract(ov.document, '$.batch_id') AS batch_id,
@@ -86,30 +67,38 @@
 						FROM module_data_suivi_cheques b
 						WHERE json_extract(b.document, '$.type') = 'deposit_batch'
 							AND b.key = 'batch-' || json_extract(ov.document, '$.batch_id')
-						LIMIT 1) AS batch_deposit_txn_id
+						LIMIT 1) AS batch_deposit_txn_id,
+					CASE
+						WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
+						WHEN json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'deposited'
+						ELSE 'todo'
+					END AS cstate
 				FROM plugin_pos_tabs_payments p
 				INNER JOIN plugin_pos_tabs t ON t.id = p.tab
 				INNER JOIN module_data_suivi_cheques mm
 					ON json_extract(mm.document, '$.type') = 'method_month_map'
 					AND CAST(json_extract(mm.document, '$.method_id') AS INT) = p.method
+				-- Jointure sur la CLE, pas sur json_extract(payment_id) : key est la seule
+				-- colonne indexee de module_data, et la convention pay-<payment_id> est le
+				-- contrat du module (cf. README). Par json_extract, chaque paiement
+				-- rescanne toute la table -- 7 s pour 3000 cheques, deux fois par page.
 				LEFT JOIN module_data_suivi_cheques ov
-					ON json_extract(ov.document, '$.type') = 'cheque'
-					AND CAST(json_extract(ov.document, '$.payment_id') AS INT) = p.id
+					ON ov.key = 'pay-' || p.id
+					AND json_extract(ov.document, '$.type') = 'cheque'
 
 				UNION ALL
 
 				-- Branche 2 : cheques recus en reglement de creance (module uniquement)
 				SELECT
+					ov2.key AS skey,
 					NULL AS payment_id,
 					'rempl' AS source,
-					ov2.key AS repl_key,
 					json_extract(ov2.document, '$.cheque_number') AS cheque_number,
 					CAST(json_extract(ov2.document, '$.amount') AS INT) AS amount,
 					json_extract(ov2.document, '$.received_date') AS received_date,
 					CAST(json_extract(ov2.document, '$.member_id') AS INT) AS user_id,
 					NULL AS tab_name,
 					json_extract(ov2.document, '$.planned_month') AS planned_month,
-					COALESCE(CAST(json_extract(ov2.document, '$.cancelled') AS INT), 0) AS cancelled,
 					json_extract(ov2.document, '$.reason') AS reason,
 					json_extract(ov2.document, '$.notes') AS notes,
 					json_extract(ov2.document, '$.batch_id') AS batch_id,
@@ -117,66 +106,68 @@
 						FROM module_data_suivi_cheques b
 						WHERE json_extract(b.document, '$.type') = 'deposit_batch'
 							AND b.key = 'batch-' || json_extract(ov2.document, '$.batch_id')
-						LIMIT 1) AS batch_deposit_txn_id
+						LIMIT 1) AS batch_deposit_txn_id,
+					CASE
+						WHEN COALESCE(CAST(json_extract(ov2.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
+						WHEN json_extract(ov2.document, '$.batch_id') IS NOT NULL THEN 'deposited'
+						ELSE 'todo'
+					END AS cstate
 				FROM module_data_suivi_cheques ov2
 				WHERE json_extract(ov2.document, '$.type') = 'cheque_rempl'
 			)
 			WHERE (
-					(:mode = 'month' AND planned_month = :month)
-					OR (:mode = 'upcoming' AND planned_month >= :month)
-					OR (:mode = 'exercise' AND planned_month BETWEEN :ex_start_ym AND :ex_end_ym)
-					OR (:mode = 'all')
+					:period = 'all'
+					OR (:period = 'upcoming' AND planned_month >= :month)
+					OR planned_month = :period
 				)
-				AND (:q IS NULL OR cheque_number LIKE '%' || REPLACE(REPLACE(REPLACE(:q, '~', '~~'), '%', '~%'), '_', '~_') || '%' ESCAPE '~')
-				AND (:user_id IS NULL OR user_id = :user_id)
-			ORDER BY planned_month ASC, cancelled ASC, cheque_number ASC;
-			:mode=$mode
+				AND (:state = 'all' OR cstate = :state)
+			ORDER BY planned_month ASC, cheque_number ASC
+			LIMIT :limit OFFSET :offset;
+			:period=$period
 			:month=$month
-			:q=$q_like
-			:user_id=$user_id
-			:ex_start_ym=$ex_start_ym
-			:ex_end_ym=$ex_end_ym
+			:state=$state
+			:limit=$limit
+			:offset=$offset
 		}}
-			{{* Rupture de mois : sous-total du groupe précédent + en-tête du nouveau mois *}}
-			{{if $show_month_col && $planned_month !== $cur_group}}
-				{{if $cur_group !== null}}
-					<tr class="total">
-						<td colspan="7" class="money"><strong>Sous-total {{$cur_group|escape|or:'sans mois'}}</strong> : {{$group_n}} chèque(s) — {{$group_total|raw|money_currency}}</td>
-					</tr>
-				{{/if}}
-				<tr class="group"><td colspan="7"><strong>{{$planned_month|escape|or:'Sans mois prévu'}}</strong></td></tr>
-				{{:assign cur_group=$planned_month}}
-				{{:assign group_n=0}}
-				{{:assign group_total=0}}
-			{{/if}}
+			{{:assign l_n="%d+1"|math:$l_n}}
+			{{:assign l_total="%d+%d"|math:$l_total:$amount}}
 
-			{{if !$cancelled}}
-				{{:assign _n="%d+1"|math:$_n}}
-				{{:assign _total="%d+%d"|math:$_total:$amount}}
-				{{:assign group_n="%d+1"|math:$group_n}}
-				{{:assign group_total="%d+%d"|math:$group_total:$amount}}
-			{{/if}}
-			{{* Déposable : non annulé, pas déjà dans un lot *}}
-			{{if !$cancelled && $batch_id === null}}
-				{{:assign dep_count="%d+1"|math:$dep_count}}
-			{{/if}}
-			<tr{{if $cancelled}} class="disabled"{{/if}}>
-				{{if $show_month_col}}<td>{{$planned_month|escape|or:'—'}}</td>{{/if}}
-				<td>{{if $cancelled}}<del>{{$cheque_number|escape|or:'—'}}</del>{{else}}{{$cheque_number|escape|or:'—'}}{{/if}}</td>
-				<td>
-					{{if $user_id}}
-						{{#users id=$user_id}}{{:link href="!users/details.php?id=%d"|args:$user_id label=$_name}}{{/users}}
-					{{else}}
-						{{$tab_name|escape|or:'—'}}
+			{{:assign mname=null}}
+			{{if $user_id}}{{#users id=$user_id}}{{:assign mname=$_name}}{{/users}}{{/if}}
+			{{:assign mlabel=$mname|or:$tab_name|or:'—'}}
+
+			<tr{{if $cstate === 'cancelled'}} class="disabled"{{/if}} data-amount="{{$amount}}">
+				{{* La case est écrite à la main plutôt que par {{:input}} : le helper ajoute un
+				    deposit_present[…] caché par ligne, cochée ou non, et une liste entière
+				    dépasserait max_input_vars (1000 par défaut). PHP jette alors le surplus de
+				    $_POST et sert la page quand même : le bordereau serait incomplet sans que
+				    rien ne le dise à l'écran. Ici seules les cases cochées sont envoyées.
+				    Le couple input + label est ce que la CSS du cœur dessine. *}}
+				<td class="check">
+					{{if $selectable}}
+						{{if $cstate === 'todo'}}
+							<input type="checkbox" id="c-{{$skey|escape}}" name="deposit[{{$skey|escape}}]" value="1" /><label for="c-{{$skey|escape}}" aria-label="Déposer ce chèque"></label>
+						{{else}}
+							{{* Case grisée : les colonnes restent alignées et l'état de la ligne se lit
+							    sans avoir à la parcourir. *}}
+							<input type="checkbox" id="c-{{$skey|escape}}" disabled="disabled" /><label for="c-{{$skey|escape}}" title="Chèque non déposable"></label>
+						{{/if}}
 					{{/if}}
 				</td>
-				<td class="money">{{$amount|raw|money_currency}}</td>
-				<td>{{$received_date|date_short}}</td>
+				{{if $show_month_col}}<td data-key="month" data-sort="{{$planned_month|escape}}">{{$planned_month|escape|or:'—'}}</td>{{/if}}
+				<td data-key="number" data-sort="{{$cheque_number|escape}}">
+					{{if $cstate === 'cancelled'}}<del>{{$cheque_number|escape|or:'—'}}</del>{{else}}{{$cheque_number|escape|or:'—'}}{{/if}}
+				</td>
+				<td data-key="member" data-sort="{{$mlabel|escape}}">
+					{{if $user_id}}{{:link href="!users/details.php?id=%d"|args:$user_id label=$mlabel}}{{else}}{{$mlabel|escape}}{{/if}}
+				</td>
+				<td class="money" data-key="amount" data-sort="{{$amount}}">{{$amount|raw|money_currency}}</td>
+				<td data-key="date" data-sort="{{$received_date|escape}}">{{$received_date|date_short}}</td>
 				<td>
 					{{if $source === 'rempl'}}{{:tag label="Règlement" color="darkcyan"}} {{/if}}
-					{{if $cancelled}}
+					{{if $cstate === 'cancelled'}}
 						{{:tag label="Annulé" color="grey"}} {{$reason|escape}}
-					{{elseif $batch_id !== null && $batch_deposit_txn_id !== null}}
+					{{elseif $batch_deposit_txn_id !== null}}
 						{{:tag label="Déposé" color="darkgreen"}}
 					{{elseif $batch_id !== null}}
 						{{:tag label="Dans un lot" color="blue"}}
@@ -186,44 +177,23 @@
 					{{if $notes}}<br /><small>{{$notes|escape|nl2br}}</small>{{/if}}
 				</td>
 				<td class="actions">
-					{{* Actions opérationnelles réservées à la gestion des membres.
-					    Un chèque déjà dans un lot est verrouillé (garde renforcée en phase 3).
-					    show_actions=false (snippet fiche membre) : liste en lecture seule. *}}
-					{{if $show_actions !== false}}{{#restrict section="users" level="write"}}
+					{{#restrict section="users" level="write"}}
 						{{if $batch_id === null}}
 							{{if $source === 'caisse'}}
-								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit.html?payment=%d"|args:$payment_id target="_dialog"}}
+								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit.html?payment=%d&period=%s&state=%s"|args:$payment_id:$period:$state target="_dialog"}}
 							{{else}}
-								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit.html?key=%s"|args:$repl_key target="_dialog"}}
+								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit.html?key=%s&period=%s&state=%s"|args:$skey:$period:$state target="_dialog"}}
 							{{/if}}
 						{{/if}}
-					{{/restrict}}{{/if}}
+					{{/restrict}}
 				</td>
 			</tr>
 		{{else}}
-			<tr><td colspan="{{if $show_month_col}}7{{else}}6{{/if}}">Aucun chèque.</td></tr>
+			<tr><td colspan="{{$ncols}}">Aucun chèque.</td></tr>
 		{{/select}}
-
-		{{* Sous-total du dernier mois (vue multi-mois) *}}
-		{{if $show_month_col && $cur_group !== null}}
-			<tr class="total">
-				<td colspan="7" class="money"><strong>Sous-total {{$cur_group|escape|or:'sans mois'}}</strong> : {{$group_n}} chèque(s) — {{$group_total|raw|money_currency}}</td>
-			</tr>
-		{{/if}}
 	</tbody>
 </table>
 
 <p class="help">
-	<strong>{{$_n}}</strong> chèque(s) à encaisser — total <strong>{{$_total|raw|money_currency}}</strong>
-	{{if $mode === 'month'}}(hors chèques annulés){{/if}}
+	<strong>{{$l_n}}</strong> chèque(s) affiché(s) — total <strong>{{$l_total|raw|money_currency}}</strong>
 </p>
-
-{{* Bouton « Préparer le bordereau » — câblé en phase 3 (page deposit.html + gel du lot).
-    Réservé à la gestion des membres (Ben va physiquement à la banque). *}}
-{{if $show_deposit_button && $dep_count > 0}}
-	{{#restrict section="users" level="write"}}
-		<p class="actions">
-			{{:linkbutton href="deposit.html?month=%s"|args:$month label="Préparer le bordereau (%d chèque(s))"|args:$dep_count shape="money" class="main"}}
-		</p>
-	{{/restrict}}
-{{/if}}

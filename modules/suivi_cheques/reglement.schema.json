@@ -35,7 +35,7 @@
 		},
 		"reglement_txn_id": {
 			"type": ["null", "integer"],
-			"description": "Identifiant de l'écriture de règlement, créée via :api. Un document par écriture : c'est ce qui permet à ce règlement d'apparaître seul dans « à comptabiliser » (CONCEPTION §8)."
+			"description": "Identifiant de l'écriture de règlement, créée via :api. Un document par écriture : c'est ce qui permet à ce règlement d'apparaître seul dans « à comptabiliser »."
 		}
 	},
 	"required": ["type", "creance_key", "amount", "date"]

@@ -1,0 +1,149 @@
+{{* -*- brindille -*- *}}
+{{*
+	Barre de période + pastilles d'état de la vue chèques.
+
+	Paramètres attendus :
+	  $period   'YYYY-MM' | 'upcoming' | 'all'
+	  $month    mois courant au format YYYY-MM (borne du mode 'upcoming')
+	  $state    'todo' | 'deposited' | 'cancelled' | 'all'
+	Renvoie, via keep="f_n" : le nombre de chèques de la période ET de l'état
+	sélectionnés — ce que la pagination a à découper.
+
+	Une seule requête sert les deux barres : elle agrège les chèques par (mois, état)
+	et lui ajoute, en UNION, les 12 mois de l'exercice, pour que les mois sans aucun
+	chèque figurent quand même dans la barre.
+*}}
+
+{{:assign now_ym=null}}
+{{#select strftime('%Y-%m', 'now', 'localtime') AS m}}{{:assign now_ym=$m}}{{/select}}
+
+{{* Accumulateurs des pastilles. Préfixe c_ : les colonnes de la requête ci-dessous
+    s'appellent n_todo, n_deposited, n_cancelled et masqueraient ces variables. *}}
+{{:assign c_todo=0 c_deposited=0 c_cancelled=0}}
+
+<nav class="tabs periods">
+	<ul>
+		{{#select
+			ym,
+			CASE substr(ym, 6, 2)
+				WHEN '01' THEN 'Janv' WHEN '02' THEN 'Févr' WHEN '03' THEN 'Mars'
+				WHEN '04' THEN 'Avr' WHEN '05' THEN 'Mai' WHEN '06' THEN 'Juin'
+				WHEN '07' THEN 'Juil' WHEN '08' THEN 'Août' WHEN '09' THEN 'Sept'
+				WHEN '10' THEN 'Oct' WHEN '11' THEN 'Nov' WHEN '12' THEN 'Déc'
+			END AS label,
+			MAX(in_exercise) AS in_exercise,
+			SUM(is_todo) AS n_todo,
+			SUM(is_deposited) AS n_deposited,
+			SUM(is_cancelled) AS n_cancelled
+			FROM (
+				-- Squelette : les 12 mois de l exercice comptable ouvert, pour que la barre
+				-- soit complete meme la ou aucun cheque n est encore planifie. A defaut
+				-- d exercice ouvert, une fenetre glissante autour du mois courant.
+				SELECT ym, 1 AS in_exercise, 0 AS is_todo, 0 AS is_deposited, 0 AS is_cancelled
+				FROM (
+					SELECT strftime('%Y-%m',
+						date(COALESCE(
+							(SELECT start_date FROM acc_years WHERE status = 0
+								ORDER BY (date('now') BETWEEN start_date AND end_date) DESC, start_date DESC
+								LIMIT 1),
+							date('now', '-5 months')), 'start of month'),
+						printf('+%d months', column1)) AS ym
+					FROM (VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11))
+				)
+
+				UNION ALL
+
+				SELECT planned_month AS ym, 0,
+					CASE WHEN state = 'todo' THEN 1 ELSE 0 END,
+					CASE WHEN state = 'deposited' THEN 1 ELSE 0 END,
+					CASE WHEN state = 'cancelled' THEN 1 ELSE 0 END
+				FROM (
+					-- Branche 1 : cheques saisis en caisse (moyens de paiement mappes)
+					SELECT
+						COALESCE(
+							json_extract(ov.document, '$.planned_month'),
+							CASE WHEN json_extract(mm.document, '$.month') IS NULL OR p.date IS NULL THEN NULL
+								ELSE printf('%04d-%02d',
+									CAST(strftime('%Y', p.date) AS INT)
+										+ CASE WHEN CAST(json_extract(mm.document, '$.month') AS INT) < CAST(strftime('%m', p.date) AS INT)
+											THEN 1 ELSE 0 END,
+									CAST(json_extract(mm.document, '$.month') AS INT))
+							END
+						) AS planned_month,
+						CASE
+							WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
+							WHEN json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'deposited'
+							ELSE 'todo'
+						END AS state
+					FROM plugin_pos_tabs_payments p
+					INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+					INNER JOIN module_data_suivi_cheques mm
+						ON json_extract(mm.document, '$.type') = 'method_month_map'
+						AND CAST(json_extract(mm.document, '$.method_id') AS INT) = p.method
+					-- Jointure sur la CLE, pas sur json_extract(payment_id) : key est la seule
+					-- colonne indexee de module_data, et la convention pay-<payment_id> est le
+					-- contrat du module (cf. README). Par json_extract, chaque paiement
+					-- rescanne toute la table -- 7 s pour 3000 cheques, deux fois par page.
+					LEFT JOIN module_data_suivi_cheques ov
+						ON ov.key = 'pay-' || p.id
+						AND json_extract(ov.document, '$.type') = 'cheque'
+
+					UNION ALL
+
+					-- Branche 2 : cheques recus en reglement de creance (module uniquement)
+					SELECT
+						json_extract(ov2.document, '$.planned_month') AS planned_month,
+						CASE
+							WHEN COALESCE(CAST(json_extract(ov2.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
+							WHEN json_extract(ov2.document, '$.batch_id') IS NOT NULL THEN 'deposited'
+							ELSE 'todo'
+						END AS state
+					FROM module_data_suivi_cheques ov2
+					WHERE json_extract(ov2.document, '$.type') = 'cheque_rempl'
+				)
+			)
+			GROUP BY ym
+			ORDER BY ym
+		}}
+			{{* Même définition de période que _list.html, réécrite ici en Brindille. *}}
+			{{if $period === 'all' || $period === $ym || $period === 'upcoming' && $ym >= $month}}
+				{{:assign c_todo="%d+%d"|math:$c_todo:$n_todo}}
+				{{:assign c_deposited="%d+%d"|math:$c_deposited:$n_deposited}}
+				{{:assign c_cancelled="%d+%d"|math:$c_cancelled:$n_cancelled}}
+			{{/if}}
+
+			{{if $in_exercise || $ym === $period}}
+				{{* Un mois passé où il reste des chèques à encaisser porte son compte : le signal
+				    est dans la barre parce que personne ne va plus rouvrir ces mois-là. Il est
+				    DANS le lien du mois, sinon nav.tabs en fait un onglet de plus. *}}
+				<li{{if $ym === $period}} class="current"{{/if}}>
+					<a href="index.html?period={{$ym|escape}}&amp;state={{$state|escape}}" title="{{$ym|escape}}">{{$label|escape}}{{if $ym < $now_ym && $n_todo > 0}}<sup class="late" title="{{$n_todo}} chèque(s) encore à encaisser sur un mois passé">⚠{{$n_todo}}</sup>{{/if}}</a>
+				</li>
+			{{/if}}
+		{{/select}}
+		<li{{if $period === 'upcoming'}} class="current"{{/if}}><a href="index.html?period=upcoming&amp;state={{$state|escape}}">À venir</a></li>
+		<li{{if $period === 'all'}} class="current"{{/if}}><a href="index.html?period=all&amp;state={{$state|escape}}">Tous</a></li>
+	</ul>
+</nav>
+
+{{:assign c_all="%d+%d+%d"|math:$c_todo:$c_deposited:$c_cancelled}}
+
+{{:assign cls_todo="" cls_deposited="" cls_cancelled="" cls_all=""}}
+{{if $state === 'todo'}}{{:assign cls_todo="main"}}
+{{elseif $state === 'deposited'}}{{:assign cls_deposited="main"}}
+{{elseif $state === 'cancelled'}}{{:assign cls_cancelled="main"}}
+{{else}}{{:assign cls_all="main"}}
+{{/if}}
+
+<p class="actions states">
+	{{:linkbutton href="index.html?period=%s&state=todo"|args:$period label="À encaisser (%d)"|args:$c_todo class=$cls_todo}}
+	{{:linkbutton href="index.html?period=%s&state=deposited"|args:$period label="Déposé (%d)"|args:$c_deposited class=$cls_deposited}}
+	{{:linkbutton href="index.html?period=%s&state=cancelled"|args:$period label="Annulé (%d)"|args:$c_cancelled class=$cls_cancelled}}
+	{{:linkbutton href="index.html?period=%s&state=all"|args:$period label="Tous (%d)"|args:$c_all class=$cls_all}}
+</p>
+
+{{:assign f_n=$c_all}}
+{{if $state === 'todo'}}{{:assign f_n=$c_todo}}
+{{elseif $state === 'deposited'}}{{:assign f_n=$c_deposited}}
+{{elseif $state === 'cancelled'}}{{:assign f_n=$c_cancelled}}
+{{/if}}

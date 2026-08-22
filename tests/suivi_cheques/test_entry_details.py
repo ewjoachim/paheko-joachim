@@ -51,7 +51,7 @@ def test_deposit_entry_is_linked_to_its_members(
     reseed()
     module_config(auto_record_deposits=1)
 
-    admin_page.goto(f"{module_url}/deposit.html?month=2026-09", wait_until="domcontentloaded")
+    admin_page.goto(f"{module_url}/index.html?period=2026-09&state=todo", wait_until="domcontentloaded")
     boxes = admin_page.locator('input[type="checkbox"][name^="deposit["]')
     count = boxes.count()
     assert count > 1, "this test needs a slip with more than one cheque"

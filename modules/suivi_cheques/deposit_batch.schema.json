@@ -39,7 +39,7 @@
 		},
 		"deposit_txn_id": {
 			"type": ["null", "integer"],
-			"description": "Identifiant de l'écriture de dépôt créée via :api par la comptable (CONCEPTION §6.3/§8)."
+			"description": "Identifiant de l'écriture de dépôt créée via :api par la comptable."
 		}
 	},
 	"required": ["type", "ref", "date", "lines", "total"]

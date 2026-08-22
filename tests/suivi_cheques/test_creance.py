@@ -140,7 +140,7 @@ def test_uncancelling_after_a_settlement_is_refused(
 
     # Reach the sheet of the cheque that produced the debt (CHQ-0142) the way an
     # operator would: through the month listing.
-    admin_page.goto(f"{module_url}/index.html?month=2026-07", wait_until="domcontentloaded")
+    admin_page.goto(f"{module_url}/index.html?period=2026-07&state=all", wait_until="domcontentloaded")
     edit = (
         admin_page.locator("tr", has_text="CHQ-0142")
         .get_by_role("link", name="Modifier / annuler")
@@ -225,9 +225,9 @@ def test_settling_by_cheque_makes_a_tracked_cheque(
 
     assert owed(admin_page, module_url) == "—", "the receivable is settled"
 
-    # Seeded method 2 ("Chèque") is mapped to September, and the settlement is today,
-    # so the cheque is planned for the next September — where it is depositable.
-    admin_page.goto(f"{module_url}/deposit.html?month=2027-09", wait_until="domcontentloaded")
+    # It is now a cheque like any other: planned (seeded method 2 is mapped to
+    # September) and waiting to be deposited.
+    admin_page.goto(f"{module_url}/index.html?period=all&state=todo", wait_until="domcontentloaded")
     row = admin_page.locator("table.list tbody tr", has_text="CHQ-0777")
     expect(row).to_have_count(1)
     expect(row).to_contain_text("Camille Martin")

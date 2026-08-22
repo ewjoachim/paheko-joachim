@@ -5,8 +5,7 @@ en caisse). Il suit chaque chèque saisi via l'extension **Caisse**, planifie so
 d'encaissement, gère les annulations et ce qu'elles laissent dû, produit les bordereaux de remise, et
 prépare pour la comptabilité des écritures « prêtes à valider ».
 
-Guide utilisateur illustré : voir `paheko-joachim/doc/guide.html`.
-Conception détaillée : `paheko-joachim/CONCEPTION.md`.
+Guide utilisateur illustré : `doc/suivi_cheques/guide.html`.
 
 ## Principe
 
@@ -36,7 +35,7 @@ Conception détaillée : `paheko-joachim/CONCEPTION.md`.
 | Comptabilité | lecture | écriture |
 
 Le module s'ouvre dès `membres = lecture`. Les actions opérationnelles (planifier,
-annuler, remplacer, préparer un bordereau) exigent `membres = écriture` ; la
+annuler, préparer un bordereau) exigent `membres = écriture` ; la
 comptabilisation (`{{:api}}`) exige `comptabilité = écriture`. La configuration est
 réservée à `config = admin`.
 

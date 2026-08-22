@@ -1,0 +1,126 @@
+{{* -*- brindille -*- *}}
+
+{{* Export tableur de tous les chèques, via l'API SQL du cœur : Paheko produit un
+    vrai classeur (CSV::export vide d'abord le tampon de sortie du module, ce chemin
+    est prévu pour être appelé depuis un module). {{:return}} arrête le rendu tout de
+    suite : ce qui suivrait serait écrit à la suite du fichier.
+
+    L'export ne prend aucun filtre — il sert à emmener les données dans un tableur,
+    où filtrer est trivial, donc mieux vaut qu'il soit complet. Aucune donnée
+    d'entrée ne se retrouve donc dans ce SQL, qui est passé à l'API sous forme de
+    chaîne, sans les :param d'un {{#select}}.
+
+    {{:api access="admin"}} s'exécute sans regarder les droits de l'opérateur : le
+    {{#restrict}} ci-dessous est ce qui garde la page. *}}
+{{#restrict block=true section="users" level="read"}}{{/restrict}}
+
+{{* Le trio habituel de Paheko. Le format vient de l'URL, donc il est ramené à
+    l'ensemble fermé que l'API accepte. *}}
+{{:assign fmt=$_GET.format|trim}}
+{{if $fmt !== 'csv' && $fmt !== 'xlsx'}}{{:assign fmt="ods"}}{{/if}}
+
+{{* Le nom d'un membre est une CONFIGURATION (un ou plusieurs champs marqués « nom »,
+    bit 16 de config_users_fields.system), pas une colonne fixe. Le cœur a
+    DynamicFields::getNameFieldsSQL() pour ça, hors de portée d'un module : on
+    reconstruit l'expression à partir des mêmes champs. *}}
+{{:assign name_sql=null}}
+{{#select name FROM config_users_fields WHERE system & 16 ORDER BY sort_order}}
+	{{:assign part="IFNULL(u.%s, '')"|args:$name}}
+	{{if $name_sql}}
+		{{:assign name_sql="%s || ' ' || %s"|args:$name_sql:$part}}
+	{{else}}
+		{{:assign name_sql=$part}}
+	{{/if}}
+{{/select}}
+{{if $name_sql}}{{:assign name_sql="TRIM(%s)"|args:$name_sql}}{{else}}{{:assign name_sql="NULL"}}{{/if}}
+
+{{* @MEMBER_NAME@ plutôt que |args : le SQL est plein de % (printf, strftime), que
+    le formatage consommerait. *}}
+{{:assign export_sql="
+SELECT
+	planned_month AS [Mois prévu],
+	cheque_number AS [N° de chèque],
+	ROUND(amount / 100.0, 2) AS [Montant],
+	member_name AS [Membre],
+	user_id AS [Identifiant membre],
+	received_date AS [Reçu le],
+	method AS [Moyen de paiement],
+	CASE state
+		WHEN 'cancelled' THEN 'Annulé'
+		WHEN 'deposited' THEN 'Déposé'
+		ELSE 'À encaisser'
+	END AS [État],
+	batch_id AS [Bordereau],
+	batch_date AS [Date de dépôt],
+	reason AS [Motif d’annulation],
+	notes AS [Notes]
+FROM (
+	SELECT
+		COALESCE(
+			json_extract(ov.document, '$.planned_month'),
+			CASE WHEN json_extract(mm.document, '$.month') IS NULL OR p.date IS NULL THEN NULL
+				ELSE printf('%04d-%02d',
+					CAST(strftime('%Y', p.date) AS INT)
+						+ CASE WHEN CAST(json_extract(mm.document, '$.month') AS INT) < CAST(strftime('%m', p.date) AS INT)
+							THEN 1 ELSE 0 END,
+					CAST(json_extract(mm.document, '$.month') AS INT))
+			END
+		) AS planned_month,
+		p.reference AS cheque_number,
+		p.amount AS amount,
+		@MEMBER_NAME@ AS member_name,
+		t.user_id AS user_id,
+		p.date AS received_date,
+		pm.name AS method,
+		CASE
+			WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
+			WHEN json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'deposited'
+			ELSE 'todo'
+		END AS state,
+		json_extract(ov.document, '$.batch_id') AS batch_id,
+		(SELECT json_extract(b.document, '$.date') FROM module_data_suivi_cheques b
+			WHERE b.key = 'batch-' || json_extract(ov.document, '$.batch_id')) AS batch_date,
+		json_extract(ov.document, '$.reason') AS reason,
+		json_extract(ov.document, '$.notes') AS notes
+	FROM plugin_pos_tabs_payments p
+	INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+	INNER JOIN module_data_suivi_cheques mm
+		ON json_extract(mm.document, '$.type') = 'method_month_map'
+		AND CAST(json_extract(mm.document, '$.method_id') AS INT) = p.method
+	LEFT JOIN plugin_pos_methods pm ON pm.id = p.method
+	LEFT JOIN module_data_suivi_cheques ov
+		ON ov.key = 'pay-' || p.id
+		AND json_extract(ov.document, '$.type') = 'cheque'
+	LEFT JOIN users u ON u.id = t.user_id
+
+	UNION ALL
+
+	SELECT
+		json_extract(r.document, '$.planned_month'),
+		json_extract(r.document, '$.cheque_number'),
+		CAST(json_extract(r.document, '$.amount') AS INT),
+		@MEMBER_NAME@,
+		CAST(json_extract(r.document, '$.member_id') AS INT),
+		json_extract(r.document, '$.received_date'),
+		'Règlement de créance',
+		CASE
+			WHEN COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
+			WHEN json_extract(r.document, '$.batch_id') IS NOT NULL THEN 'deposited'
+			ELSE 'todo'
+		END,
+		json_extract(r.document, '$.batch_id'),
+		(SELECT json_extract(b.document, '$.date') FROM module_data_suivi_cheques b
+			WHERE b.key = 'batch-' || json_extract(r.document, '$.batch_id')),
+		json_extract(r.document, '$.reason'),
+		json_extract(r.document, '$.notes')
+	FROM module_data_suivi_cheques r
+	LEFT JOIN users u ON u.id = CAST(json_extract(r.document, '$.member_id') AS INT)
+	WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
+)
+ORDER BY planned_month, cheque_number
+"}}
+
+{{:assign export_sql=$export_sql|replace:"@MEMBER_NAME@":$name_sql}}
+
+{{:api method="GET" path="sql" format=$fmt access="admin" sql=$export_sql}}
+{{:return}}

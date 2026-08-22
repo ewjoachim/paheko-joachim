@@ -1,8 +1,184 @@
 {{* -*- brindille -*- *}}
 
+{{* La vue des chèques : une période, un état, une liste, et les cases qui servent à
+    monter le bordereau de remise. La période et l'état sont dans l'URL (?period=,
+    ?state=), donc ils survivent au changement de mois et au rechargement ; la
+    recherche et le tri se font dans le navigateur, sur les lignes déjà chargées,
+    pour qu'ils ne décochent jamais rien.
+
+    Le POST fige un lot de remise, pose son batch_id sur chaque chèque et renvoie
+    vers batch.html, où le bordereau est imprimable. *}}
 {{#restrict block=true section="users" level="read"}}{{/restrict}}
 
-{{:admin_header title="Remise de chèques du mois" current="module_suivi_cheques"}}
+{{:assign now_ym=null today=null}}
+{{#select strftime('%Y-%m', 'now', 'localtime') AS m, date('now', 'localtime') AS d}}
+	{{:assign now_ym=$m today=$d}}
+{{/select}}
+
+{{* Période : un mois YYYY-MM, ou l'une des deux vues d'ensemble. *}}
+{{:assign period=$_GET.period|trim|or:$now_ym}}
+{{:assign is_month=true show_month_col=false}}
+{{if $period === 'upcoming' || $period === 'all'}}
+	{{:assign is_month=false show_month_col=true}}
+{{/if}}
+
+{{:assign state=$_GET.state|trim}}
+{{if $state !== 'deposited' && $state !== 'cancelled' && $state !== 'all'}}
+	{{:assign state="todo"}}
+{{/if}}
+
+{{* Un mois tient en une page : c'est la vue de travail, elle doit rester entière
+    pour que la recherche du navigateur porte sur tout. Les vues d'ensemble sont
+    paginées, avec un « Tout afficher » pour retrouver ce confort. *}}
+{{:assign per_page=200}}
+{{:assign limit=100000 offset=0}}
+{{:assign show_all=false}}
+{{if $_GET.all}}{{:assign show_all=true}}{{/if}}
+{{:assign page=$_GET.page|intval}}
+{{if $page < 1}}{{:assign page=1}}{{/if}}
+{{if !$is_month && !$show_all}}
+	{{:assign limit=$per_page}}
+	{{:assign offset="(%d-1)*%d"|math:$page:$per_page}}
+{{/if}}
+
+{{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
+
+{{*=================================================================================
+    POST — gel du lot + pose des batch_id. Réservé à qui gère les membres : c'est
+    l'acte de celui qui apporte physiquement les chèques à la banque.
+==================================================================================*}}
+{{#form on="deposit"}}
+{{#restrict section="users" level="write"}}
+
+	{{* Composition figée du bordereau. On re-dérive n° et montant depuis la source et
+	    on ne retient que les chèques éligibles (non annulés, pas déjà dans un lot). *}}
+	{{:assign lines=null}}
+	{{:assign sel=null}}
+	{{:assign total=0}}
+	{{:assign n=0}}
+	{{#foreach from=$_POST.deposit key="skey" item="v"}}
+		{{#select
+			reference AS ref, amount AS amt, src_type, pid, uid
+			FROM (
+				SELECT 'pay-' || p.id AS skey, p.reference AS reference, p.amount AS amount,
+					'caisse' AS src_type, p.id AS pid, t.user_id AS uid,
+					COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) AS cancelled,
+					json_extract(ov.document, '$.batch_id') AS batch_id
+				FROM plugin_pos_tabs_payments p
+				INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+				-- Jointure sur la CLE : voir _list.html. Ici la requete tourne une fois par
+				-- case cochee, donc un scan complet par cheque du bordereau.
+				LEFT JOIN module_data_suivi_cheques ov
+					ON ov.key = 'pay-' || p.id
+					AND json_extract(ov.document, '$.type') = 'cheque'
+				UNION ALL
+				SELECT r.key AS skey, json_extract(r.document, '$.cheque_number') AS reference,
+					CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
+					'rempl' AS src_type, NULL AS pid,
+					CAST(json_extract(r.document, '$.member_id') AS INT) AS uid,
+					COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) AS cancelled,
+					json_extract(r.document, '$.batch_id') AS batch_id
+				FROM module_data_suivi_cheques r
+				WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
+			)
+			WHERE skey = :skey AND cancelled = 0 AND batch_id IS NULL
+			LIMIT 1;
+			:skey=$skey
+		}}
+			{{* Nom du membre, figé dans le lot (bordereau = fait physique daté) *}}
+			{{:assign mname=null}}
+			{{if $uid}}{{#users id=$uid}}{{:assign mname=$_name}}{{/users}}{{/if}}
+			{{:assign var="lines[%d][source_key]"|args:$n value=$skey}}
+			{{:assign var="lines[%d][cheque_ref]"|args:$n value=$ref}}
+			{{:assign var="lines[%d][member]"|args:$n value=$mname}}
+			{{* L'id en plus du nom : le nom est ce qu'on imprime, l'id est ce qui permet de
+			    lier l'écriture de dépôt aux membres concernés (cf. _record_deposit.html). *}}
+			{{:assign var="lines[%d][member_id]"|args:$n value=$uid|intval}}
+			{{:assign var="lines[%d][amount]"|args:$n value=$amt|intval}}
+			{{:assign var="sel[%d][key]"|args:$n value=$skey}}
+			{{:assign var="sel[%d][type]"|args:$n value=$src_type}}
+			{{:assign var="sel[%d][pid]"|args:$n value=$pid}}
+			{{:assign total="%d+%d"|math:$total:$amt}}
+			{{:assign n="%d+1"|math:$n}}
+		{{/select}}
+	{{/foreach}}
+
+	{{if $n < 1}}{{:error message="Aucun chèque éligible sélectionné."}}{{/if}}
+
+	{{* Identifiant du lot (horodaté, sert de référence du bordereau) *}}
+	{{:assign batch_id=null}}
+	{{#select strftime('%Y%m%d-%H%M%S', 'now', 'localtime') AS bid}}{{:assign batch_id=$bid}}{{/select}}
+
+	{{:save type="deposit_batch"
+		key="batch-%s"|args:$batch_id
+		validate_schema="./deposit_batch.schema.json"
+		ref=$batch_id
+		date=$today
+		account=$waiting_account
+		lines=$lines
+		total=$total|intval
+	}}
+
+	{{* Pose de batch_id sur chaque chèque (merge -> les autres champs sont préservés) *}}
+	{{#foreach from=$sel item="row"}}
+		{{if $row.type === 'caisse'}}
+			{{:save type="cheque"
+				key="pay-%d"|args:$row.pid
+				validate_schema="./cheque.schema.json"
+				payment_id=$row.pid|intval
+				batch_id=$batch_id}}
+		{{else}}
+			{{:save type="cheque_rempl"
+				key=$row.key
+				validate_schema="./replacement.schema.json"
+				batch_id=$batch_id}}
+		{{/if}}
+	{{/foreach}}
+
+	{{* L'écriture du dépôt est passée dans le second {{#form}} ci-dessous (voir le
+	    commentaire WORKAROUND qui s'y trouve). *}}
+	{{:assign posted_batch_id=$batch_id}}
+{{/restrict}}
+{{/form}}
+
+{{* WORKAROUND (Paheko 1.3.22 regression) — l'écriture était passée dans le {{#form}}
+    ci-dessus, après le gel du lot. Depuis 1.3.22 les sections lisent sur une
+    connexion SQLite séparée, en lecture seule, alors que {{:save}} écrit sur la
+    connexion principale — dont {{#form}} tient la transaction ouverte jusqu'au
+    {{/form}}. Le bordereau figé quelques lignes plus haut se lit donc comme absent
+    (« Bordereau introuvable ou vide ») et aucune écriture n'est passée : le lot
+    retombe silencieusement dans la file « à comptabiliser ».
+
+    Un second {{#form}}, sur le même POST, ouvre une NOUVELLE transaction : ses
+    lectures voient les écritures du premier, et l'écriture comptable reste atomique
+    avec le deposit_txn_id que _record_deposit.html repose sur le lot. Même forme
+    qu'edit.html, où le raisonnement complet est écrit.
+
+    Corrigé en amont : git revert le commit qui a introduit ce bloc. *}}
+{{#form on="deposit"}}
+{{#restrict section="users" level="write"}}
+	{{if $posted_batch_id}}
+		{{* Automatic mode (configuration): post the deposit entry right away, without
+		    requiring any accounting permission from whoever prepares the slip — the
+		    checkbox an admin ticked is what authorises it, mirroring the till's own
+		    setting. quiet=true: on failure the slip is still frozen and simply stays in
+		    the "to record" queue. The frozen batch above is the entry's only source, so
+		    this has to come after it. *}}
+		{{:assign rec_txn_id=null rec_error=null}}
+		{{if $module.config.auto_record_deposits}}
+			{{:include file="./_record_deposit.html" ref=$posted_batch_id quiet=true keep="rec_txn_id,rec_error"}}
+		{{/if}}
+
+		{{:assign qs="batch=%s"|args:$posted_batch_id}}
+		{{if $rec_txn_id}}{{:assign qs="batch=%s&recorded=1"|args:$posted_batch_id}}{{elseif $rec_error}}{{:assign qs="batch=%s&not_recorded=1"|args:$posted_batch_id}}{{/if}}
+		{{:redirect to="batch.html?%s"|args:$qs}}
+	{{/if}}
+{{/restrict}}
+{{/form}}
+
+{{:admin_header title="Chèques" current="module_suivi_cheques"}}
+
+{{:form_errors}}
 
 {{if $_GET.batch_cancelled}}<p class="block confirm">Bordereau annulé : les chèques concernés sont repassés « à encaisser ».</p>{{/if}}
 
@@ -29,7 +205,7 @@
 
 {{#extension name="caisse"}}
 
-	{{:include file="./_tabs.html" tab="month"}}
+	{{:include file="./_tabs.html" tab="cheques"}}
 
 	{{* Le module doit être configuré (mapping moyens de paiement -> mois) *}}
 	{{:assign configured=false}}
@@ -42,57 +218,139 @@
 		</p>
 	{{else}}
 
-		{{* Mois affiché : ?month=YYYY-MM, sinon mois courant *}}
-		{{:assign month=$_GET.month|trim}}
-		{{if !$month}}
-			{{#select strftime('%Y-%m', 'now') AS m}}{{:assign month=$m}}{{/select}}
-		{{/if}}
+		{{:include file="./_filters.html" period=$period month=$now_ym state=$state keep="f_n"}}
 
-		{{* Mois précédent / suivant + libellé lisible *}}
-		{{#select
-			strftime('%Y-%m', :month || '-01', '-1 month') AS prev,
-			strftime('%Y-%m', :month || '-01', '+1 month') AS next;
-			:month=$month
-		}}
-			{{:assign prev=$prev next=$next}}
-		{{/select}}
+		{{:assign selectable=false}}
+		{{#restrict section="users" level="write"}}{{:assign selectable=true}}{{/restrict}}
 
-		{{* Filtres de recherche. On passe le terme BRUT à _list.html : l'échappement
-		    des métacaractères LIKE (% _ et le caractère d'échappement) se fait côté SQL,
-		    sinon une recherche contenant % ou _ sur-matche. *}}
-		{{:assign q=$_GET.q|trim}}
-		{{if $q !== ''}}{{:assign q_like=$q}}{{else}}{{:assign q_like=null}}{{/if}}
-
-		{{:assign user_id=null}}
-		{{#foreach from=$_GET.user key="id" item="l"}}{{:assign user_id=$id|intval}}{{/foreach}}
-
-		<form method="get" action="" class="block">
-			<fieldset>
-				<legend>Rechercher un chèque</legend>
-				<dl>
-					{{:input type="text" name="q" label="N° de chèque" default=$q}}
-					{{:input type="list" name="user" label="Membre" target="!users/selector.php" default=$_GET.user can_delete=true}}
-				</dl>
-				<p class="submit">
-					{{:button type="submit" label="Rechercher" shape="search" class="main"}}
-					{{:linkbutton href="index.html" label="Réinitialiser" shape="reset"}}
-				</p>
-			</fieldset>
-		</form>
-
-		{{if $q !== '' || $user_id}}
-			{{* En mode recherche, on ignore le filtre de mois et on cherche partout (à venir + passé) *}}
-			<p class="help">Résultats de recherche (tous mois confondus).</p>
-			{{:include file="./_list.html" mode="upcoming" month="0000-00" q_like=$q_like user_id=$user_id show_month_col=true}}
-		{{else}}
+		<form method="post" action="">
 			<p class="actions">
-				{{:linkbutton href="index.html?month=%s"|args:$prev label="Mois précédent" shape="left"}}
-				<strong>{{$month}}</strong>
-				{{:linkbutton href="index.html?month=%s"|args:$next label="Mois suivant" shape="right"}}
+				<input type="search" id="cheques-filter" placeholder="Filtrer : nom ou n° de chèque…" size="30" />
+				{{if $selectable}}
+					<button type="button" id="cheques-check">Tout cocher</button>
+					<button type="button" id="cheques-uncheck">Tout décocher</button>
+					<strong id="cheques-selection"></strong>
+					{{:button type="submit" name="deposit" value="1" label="Générer le bordereau" shape="money" class="main"}}
+				{{/if}}
+				{{:exportmenu href="export.html" suffix="format=" label="Exporter"}}
 			</p>
 
-			{{:include file="./_list.html" mode="month" month=$month q_like=null user_id=null show_month_col=false show_deposit_button=true}}
+			{{:include file="./_list.html"
+				period=$period month=$now_ym state=$state
+				limit=$limit offset=$offset
+				show_month_col=$show_month_col
+				selectable=$selectable}}
+		</form>
+
+		{{if !$is_month && !$show_all}}
+			{{* math AVANT le formatage : dans "…%d"|args:$x|math:… le modificateur porterait
+			    sur le résultat de args, c'est-à-dire sur l'URL entière. *}}
+			{{:assign npages="ceil(%d/%d)"|math:$f_n:$per_page|intval}}
+			{{:assign prev_page="%d-1"|math:$page}}
+			{{:assign next_page="%d+1"|math:$page}}
+			{{if $npages > 1}}
+				<p class="actions">
+					{{if $page > 1}}
+						{{:linkbutton href="index.html?period=%s&state=%s&page=%d"|args:$period:$state:$prev_page label="Page précédente" shape="left"}}
+					{{/if}}
+					<strong>Page {{$page}} / {{$npages}}</strong>
+					{{if $page < $npages}}
+						{{:linkbutton href="index.html?period=%s&state=%s&page=%d"|args:$period:$state:$next_page label="Page suivante" shape="right"}}
+					{{/if}}
+					{{:linkbutton href="index.html?period=%s&state=%s&all=1"|args:$period:$state label="Tout afficher (%d chèques)"|args:$f_n shape="menu"}}
+				</p>
+			{{/if}}
 		{{/if}}
+
+		<style type="text/css">
+			{{* p.actions du cœur est en float: right — la barre d'état et la barre d'outils
+			    se lisent de gauche à droite avec le tableau qu'elles commandent. *}}
+			p.actions.states, form p.actions { float: none; text-align: left; }
+			nav.tabs.periods sup.late { margin-left: .3em; font-size: .8em; }
+			#cheques thead th[data-key] { cursor: pointer; }
+			#cheques input[type=checkbox]:disabled + label::before { color: var(--gBorderColor); cursor: default; }
+			#cheques thead th.asc::after { content: " ▲"; }
+			#cheques thead th.desc::after { content: " ▼"; }
+		</style>
+		<script type="text/javascript">
+		{{* Filtre, tri et compteur de sélection : tout se joue sur les lignes déjà
+		    chargées, donc cocher un chèque puis vider le filtre ne perd rien. C'est le
+		    geste réel — on a la pile de chèques en main et on cherche la case. *}}
+		(function () {
+			var table = document.getElementById('cheques');
+			if (!table || !table.tBodies.length) return;
+
+			var body = table.tBodies[0];
+			var rows = Array.prototype.slice.call(body.rows);
+			var boxes = Array.prototype.slice.call(table.querySelectorAll('tbody input[type=checkbox]:not([disabled])'));
+			var counter = document.getElementById('cheques-selection');
+
+			function refresh() {
+				if (!counter) return;
+				var n = 0, total = 0;
+				boxes.forEach(function (box) {
+					if (!box.checked) return;
+					n++;
+					total += parseInt(box.closest('tr').dataset.amount, 10) || 0;
+				});
+				counter.textContent = n ? n + ' coché(s) — '
+					+ (total / 100).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €' : '';
+			}
+
+			var filter = document.getElementById('cheques-filter');
+			if (filter) {
+				filter.addEventListener('input', function () {
+					var q = filter.value.trim().toLowerCase();
+					rows.forEach(function (row) {
+						row.style.display = (!q || row.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+					});
+				});
+				{{* Entrée dans le champ de filtre soumettrait le formulaire, donc générerait
+				    un bordereau. *}}
+				filter.addEventListener('keydown', function (e) {
+					if (e.key === 'Enter') e.preventDefault();
+				});
+			}
+
+			table.querySelectorAll('thead th[data-key]').forEach(function (th) {
+				th.addEventListener('click', function () {
+					var key = th.dataset.key;
+					var numeric = th.dataset.type === 'number';
+					var descending = th.classList.contains('asc');
+					rows.sort(function (a, b) {
+						var x = a.querySelector('[data-key="' + key + '"]').dataset.sort || '';
+						var y = b.querySelector('[data-key="' + key + '"]').dataset.sort || '';
+						var r = numeric ? (parseInt(x, 10) || 0) - (parseInt(y, 10) || 0) : x.localeCompare(y, 'fr');
+						return descending ? -r : r;
+					});
+					table.querySelectorAll('thead th').forEach(function (other) {
+						other.classList.remove('asc', 'desc');
+					});
+					th.classList.add(descending ? 'desc' : 'asc');
+					rows.forEach(function (row) { body.appendChild(row); });
+				});
+			});
+
+			function setAll(checked) {
+				rows.forEach(function (row) {
+					if (row.style.display === 'none') return;
+					var box = row.querySelector('input[type=checkbox]:not([disabled])');
+					if (box) box.checked = checked;
+				});
+				refresh();
+			}
+
+			var check = document.getElementById('cheques-check');
+			var uncheck = document.getElementById('cheques-uncheck');
+			{{* Cocher ce qui est VISIBLE, et pas toute la liste comme le ferait la case
+			    d'en-tête du cœur : avec un filtre actif les deux ne disent pas la même chose. *}}
+			if (check) check.addEventListener('click', function () { setAll(true); });
+			if (uncheck) uncheck.addEventListener('click', function () { setAll(false); });
+
+			boxes.forEach(function (box) { box.addEventListener('change', refresh); });
+			refresh();
+		})();
+		</script>
 
 	{{/if}}
 

@@ -33,11 +33,12 @@ M = f"{BASE}/m/suivi_cheques"
 
 # (filename, url, wait-for selector)
 SHOTS = [
-    ("01-cheques-du-mois.png", f"{M}/", "table.list"),
-    ("02-a-venir.png", f"{M}/upcoming.html", "table.list"),
+    # The seeded month that carries all four states at once.
+    ("01-vue-cheques.png", f"{M}/index.html?period=2026-07&state=all", "table.list"),
+    ("02-tous-les-mois.png", f"{M}/index.html?period=all&state=todo", "table.list"),
     ("03-annuler.png", f"{M}/edit.html?payment={PAY_EDIT}", "form"),
-    ("04-preparer-bordereau.png", f"{M}/deposit.html?month=2026-07", "table.list"),
-    ("05-bordereau.png", f"{M}/deposit.html?batch=DEMO", "table.list"),
+    ("04-preparer-bordereau.png", f"{M}/index.html?period=2026-09&state=todo", "table.list"),
+    ("05-bordereau.png", f"{M}/batch.html?batch=DEMO", "table.list"),
     ("06-bordereaux.png", f"{M}/batches.html", "table.list"),
     # The seeded cancellation leaves Camille a receivable on top of her slate, so
     # this shows a member owing on both sides with nothing posted to accounting —

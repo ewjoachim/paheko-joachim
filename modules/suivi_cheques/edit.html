@@ -1,6 +1,6 @@
 {{* -*- brindille -*- *}}
 
-{{* Operational editing of a cheque (CONCEPTION §6.1/§6.2), whichever kind:
+{{* Operational editing of a cheque, whichever kind:
       ?payment=<id>  a till cheque — the till owns its number, amount and date,
                      this module only overlays what the till ignores;
       ?key=<key>     a cheque the module owns, received in settlement of a
@@ -54,9 +54,9 @@
 {{:assign cur_month_num=null}}
 {{if $cur_month}}{{#select CAST(substr(:m, 6, 2) AS INT) AS n; :m=$cur_month}}{{:assign cur_month_num=$n}}{{/select}}{{/if}}
 
-{{* Verrous (CONCEPTION §5) : dans un lot, ou annulation déjà comptabilisée.
+{{* Verrous : dans un lot, ou annulation déjà comptabilisée.
     Pour l'annulation, on ne lit la compta que pour vérifier l'EXISTENCE de notre
-    propre id (seule lecture comptable autorisée, CONCEPTION §2/§8). *}}
+    propre id (seule lecture comptable autorisée). *}}
 {{:assign locked=false lock_msg=null}}
 {{if $cur_batch_id !== null}}
 	{{:assign locked=true}}

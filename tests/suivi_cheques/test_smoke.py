@@ -5,9 +5,9 @@ from playwright.sync_api import Page, expect
 
 # (path under /m/suivi_cheques/, expected highlighted tab label)
 PAGES = [
-    ("", "Mois courant"),
-    ("upcoming.html", "Mois à venir"),
-    ("exercise.html", "Année en cours"),
+    ("", "Chèques"),
+    ("index.html?period=upcoming&state=all", "Chèques"),
+    ("index.html?period=all&state=all", "Chèques"),
     ("batches.html", "Bordereaux"),
     ("to_record.html", "À comptabiliser"),
     ("config.html", "Configuration"),
@@ -27,6 +27,7 @@ def test_page_opens_on_its_tab(
     )
 
     # The shared tab bar rendered and highlights exactly the current page.
-    current = admin_page.locator("nav.tabs li.current")
+    # :not(.periods) — the cheque view carries a second tab bar, for the period.
+    current = admin_page.locator("nav.tabs:not(.periods) li.current")
     expect(current).to_have_count(1)
     expect(current).to_contain_text(tab_label)

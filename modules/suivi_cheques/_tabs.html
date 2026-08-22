@@ -7,9 +7,7 @@
 <nav class="tabs">
 	<ul>
 		{{#restrict section="users" level="read"}}
-			<li{{if $tab === 'month'}} class="current"{{/if}}><a href="index.html">Mois courant</a></li>
-			<li{{if $tab === 'upcoming'}} class="current"{{/if}}><a href="upcoming.html">Mois à venir</a></li>
-			<li{{if $tab === 'exercise'}} class="current"{{/if}}><a href="exercise.html">Année en cours</a></li>
+			<li{{if $tab === 'cheques'}} class="current"{{/if}}><a href="index.html">Chèques</a></li>
 			<li{{if $tab === 'batches'}} class="current"{{/if}}><a href="batches.html">Bordereaux</a></li>
 			<li{{if $tab === 'debtors'}} class="current"{{/if}}><a href="debtors.html">Impayés</a></li>
 		{{/restrict}}
