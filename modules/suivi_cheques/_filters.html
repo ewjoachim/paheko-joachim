@@ -102,7 +102,7 @@
 			ORDER BY ym
 		}}
 			{{* Même définition de période que _list.html, réécrite ici en Brindille. *}}
-			{{if $period === 'all' || $period === $ym || ($period === 'upcoming' && $ym >= $month)}}
+			{{if $period === 'all' || $period === $ym || $period === 'upcoming' && $ym >= $month}}
 				{{:assign c_todo="%d+%d"|math:$c_todo:$n_todo}}
 				{{:assign c_deposited="%d+%d"|math:$c_deposited:$n_deposited}}
 				{{:assign c_cancelled="%d+%d"|math:$c_cancelled:$n_cancelled}}

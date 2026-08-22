@@ -262,6 +262,7 @@
 
 		<style type="text/css">
 			#cheques thead th[data-key] { cursor: pointer; }
+			#cheques input[type=checkbox]:disabled + label::before { color: var(--gBorderColor); cursor: default; }
 			#cheques thead th.asc::after { content: " ▲"; }
 			#cheques thead th.desc::after { content: " ▼"; }
 		</style>

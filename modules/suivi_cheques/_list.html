@@ -133,15 +133,18 @@
 			{{:assign mlabel=$mname|or:$tab_name|or:'—'}}
 
 			<tr{{if $cstate === 'cancelled'}} class="disabled"{{/if}} data-amount="{{$amount}}">
+				{{* La case est écrite à la main plutôt que par {{:input}} : le helper ajoute un
+				    champ caché deposit_present[…] par ligne, et une liste entière dépasserait
+				    max_input_vars (1000 par défaut) — PHP tronquerait le POST en silence. Le
+				    couple input + label est ce que la CSS du cœur dessine. *}}
 				<td class="check">
 					{{if $selectable}}
-						{{* Case grisée sur une ligne non déposable : les colonnes restent alignées
-						    et l'état de la ligne se lit sans avoir à parcourir la ligne entière. *}}
 						{{if $cstate === 'todo'}}
-							{{:input type="checkbox" name="deposit[%s]"|args:$skey value="1"}}
+							<input type="checkbox" id="c-{{$skey|escape}}" name="deposit[{{$skey|escape}}]" value="1" /><label for="c-{{$skey|escape}}" aria-label="Déposer ce chèque"></label>
 						{{else}}
-							{{:input type="checkbox" name="deposit[%s]"|args:$skey value="1" disabled="disabled"
-								title="Chèque non déposable"}}
+							{{* Case grisée : les colonnes restent alignées et l'état de la ligne se lit
+							    sans avoir à la parcourir. *}}
+							<input type="checkbox" id="c-{{$skey|escape}}" disabled="disabled" /><label for="c-{{$skey|escape}}" title="Chèque non déposable"></label>
 						{{/if}}
 					{{/if}}
 				</td>
