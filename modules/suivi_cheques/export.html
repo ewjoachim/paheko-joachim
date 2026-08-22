@@ -14,6 +14,11 @@
     {{#restrict}} ci-dessous est ce qui garde la page. *}}
 {{#restrict block=true section="users" level="read"}}{{/restrict}}
 
+{{* Le trio habituel de Paheko. Le format vient de l'URL, donc il est ramené à
+    l'ensemble fermé que l'API accepte. *}}
+{{:assign fmt=$_GET.format|trim}}
+{{if $fmt !== 'csv' && $fmt !== 'xlsx'}}{{:assign fmt="ods"}}{{/if}}
+
 {{* Le nom d'un membre est une CONFIGURATION (un ou plusieurs champs marqués « nom »,
     bit 16 de config_users_fields.system), pas une colonne fixe. Le cœur a
     DynamicFields::getNameFieldsSQL() pour ça, hors de portée d'un module : on
@@ -117,5 +122,5 @@ ORDER BY planned_month, cheque_number
 
 {{:assign export_sql=$export_sql|replace:"@MEMBER_NAME@":$name_sql}}
 
-{{:api method="GET" path="sql" format="ods" access="admin" sql=$export_sql}}
+{{:api method="GET" path="sql" format=$fmt access="admin" sql=$export_sql}}
 {{:return}}

@@ -230,7 +230,7 @@
 					<strong id="cheques-selection"></strong>
 					{{:button type="submit" name="deposit" value="1" label="Générer le bordereau" shape="money" class="main"}}
 				{{/if}}
-				{{:linkbutton href="export.html" label="Exporter (LibreOffice)" shape="export"}}
+				{{:exportmenu href="export.html" suffix="format=" label="Exporter"}}
 			</p>
 
 			{{:include file="./_list.html"
@@ -261,6 +261,8 @@
 		{{/if}}
 
 		<style type="text/css">
+			p.actions.states, form p.actions { text-align: left; }
+			nav.tabs.periods sup.late { margin-left: .3em; font-size: .8em; }
 			#cheques thead th[data-key] { cursor: pointer; }
 			#cheques input[type=checkbox]:disabled + label::before { color: var(--gBorderColor); cursor: default; }
 			#cheques thead th.asc::after { content: " ▲"; }

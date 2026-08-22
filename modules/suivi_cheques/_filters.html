@@ -109,13 +109,11 @@
 			{{/if}}
 
 			{{if $in_exercise || $ym === $period}}
+				{{* Un mois passé où il reste des chèques à encaisser porte son compte : le signal
+				    est dans la barre parce que personne ne va plus rouvrir ces mois-là. Il est
+				    DANS le lien du mois, sinon nav.tabs en fait un onglet de plus. *}}
 				<li{{if $ym === $period}} class="current"{{/if}}>
-					<a href="index.html?period={{$ym|escape}}&amp;state={{$state|escape}}" title="{{$ym|escape}}">{{$label|escape}}</a>
-					{{* Un mois passé où il reste des chèques à encaisser : le signal est dans la
-					    barre parce que personne ne va plus rouvrir ces mois-là. *}}
-					{{if $ym < $now_ym && $n_todo > 0}}
-						<a href="index.html?period={{$ym|escape}}&amp;state=todo" title="{{$n_todo}} chèque(s) encore à encaisser sur un mois passé">⚠{{$n_todo}}</a>
-					{{/if}}
+					<a href="index.html?period={{$ym|escape}}&amp;state={{$state|escape}}" title="{{$ym|escape}}">{{$label|escape}}{{if $ym < $now_ym && $n_todo > 0}}<sup class="late" title="{{$n_todo}} chèque(s) encore à encaisser sur un mois passé">⚠{{$n_todo}}</sup>{{/if}}</a>
 				</li>
 			{{/if}}
 		{{/select}}
@@ -133,7 +131,7 @@
 {{else}}{{:assign cls_all="main"}}
 {{/if}}
 
-<p class="actions">
+<p class="actions states">
 	{{:linkbutton href="index.html?period=%s&state=todo"|args:$period label="À encaisser (%d)"|args:$c_todo class=$cls_todo}}
 	{{:linkbutton href="index.html?period=%s&state=deposited"|args:$period label="Déposé (%d)"|args:$c_deposited class=$cls_deposited}}
 	{{:linkbutton href="index.html?period=%s&state=cancelled"|args:$period label="Annulé (%d)"|args:$c_cancelled class=$cls_cancelled}}

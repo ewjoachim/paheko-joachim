@@ -2,6 +2,7 @@
 
 import zipfile
 
+import pytest
 from playwright.sync_api import Page, expect
 
 PERIODS = "nav.tabs.periods"
@@ -25,16 +26,20 @@ def test_a_past_month_with_a_backlog_is_flagged(admin_page: Page, module_url, re
     and clicking it lands on exactly those cheques. Nobody reopens a past month on
     their own, so the view has to say it."""
     reseed()
-    admin_page.goto(f"{module_url}/index.html?period=all&state=all", wait_until="domcontentloaded")
+    admin_page.goto(f"{module_url}/index.html?period=all&state=todo", wait_until="domcontentloaded")
 
-    late = admin_page.locator(f'{PERIODS} a[href*="period=2026-07"]', has_text="⚠")
+    late = admin_page.locator(f'{PERIODS} a[href*="period=2026-07"]', has_text="⚠1")
     expect(late).to_have_count(1)
     late.click()
     admin_page.wait_for_load_state("domcontentloaded")
 
-    assert "period=2026-07" in admin_page.url and "state=todo" in admin_page.url
+    assert "period=2026-07" in admin_page.url
     expect(admin_page.locator("table.list tbody tr")).to_have_count(1)
     expect(admin_page.locator("table.list")).to_contain_text("CHQ-0140")
+
+    # No marker on a month that is not behind: December is in the future, and
+    # July stops being flagged once its cheque is on a slip.
+    expect(admin_page.locator(f'{PERIODS} a[href*="period=2026-12"]', has_text="⚠")).to_have_count(0)
 
 
 def test_the_state_chips_count_and_filter(admin_page: Page, module_url, reseed):
@@ -68,14 +73,26 @@ def test_the_period_keeps_the_state_and_the_state_keeps_the_period(
     assert "period=2026-07" in chip.get_attribute("href")
 
 
+@pytest.mark.parametrize("label", ["Export CSV", "Export LibreOffice", "Export Excel"])
+def test_the_three_export_formats_download(admin_page: Page, module_url, reseed, label):
+    reseed()
+    admin_page.goto(f"{module_url}/index.html", wait_until="domcontentloaded")
+
+    admin_page.get_by_text("Exporter", exact=True).click()  # opens the export menu
+    with admin_page.expect_download() as caught:
+        admin_page.get_by_role("link", name=label).click()
+    assert caught.value.path().stat().st_size > 0
+
+
 def test_export_downloads_a_spreadsheet(admin_page: Page, module_url, reseed):
     """Every cheque, every column, no filter: it exists to be opened in a
     spreadsheet, where filtering is trivial."""
     reseed()
     admin_page.goto(f"{module_url}/index.html", wait_until="domcontentloaded")
 
+    admin_page.get_by_text("Exporter", exact=True).click()
     with admin_page.expect_download() as caught:
-        admin_page.get_by_role("link", name="Exporter").click()
+        admin_page.get_by_role("link", name="Export LibreOffice").click()
     path = caught.value.path()
 
     with zipfile.ZipFile(path) as z:
