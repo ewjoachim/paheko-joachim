@@ -39,8 +39,8 @@ repos:
   # errors point somewhere else entirely. See the script for the measurements.
   - repo: local
     hooks:
-      - id: brindille-sql-comments
-        name: "SQL comments in a Brindille {{#select}}"
-        entry: tools/lint-brindille-sql.py
+      - id: brindille-tags
+        name: "Brindille tags that silently misparse"
+        entry: tools/lint-brindille.py
         language: script
         files: ^modules/.*\.html$

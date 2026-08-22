@@ -242,6 +242,7 @@
 		{{else}}
 			<button type="button" class="main" onclick="window.print();return false;">Imprimer</button>
 		{{/if}}
+		{{:exportmenu href="export.html?batch=%s"|args:$batch_key suffix="format=" label="Exporter"}}
 	</p>
 
 	<h2>Bordereau de remise de chèques</h2>
@@ -256,9 +257,10 @@
 	</p>
 
 	<form method="post" action="">
-	<table class="list">
+	<table class="list" id="slip">
 		<thead>
 			<tr>
+				{{if $is_open}}<td class="check no-print"></td>{{/if}}
 				<th>#</th><th>N° de chèque</th><th>Membre</th><th class="money">Montant</th>
 				{{if $is_open}}<th class="actions no-print"></th>{{/if}}
 			</tr>
@@ -283,7 +285,10 @@
 				}}
 					{{:assign row="%d+1"|math:$row}}
 					{{:assign live_total="%d+%d"|math:$live_total:$amount}}
-					<tr>
+					<tr data-amount="{{$amount}}">
+						{{* Case de pointage : sans nom, donc jamais envoyée. Elle ne sert qu'à
+						    recompter la pile qu'on a en main sans perdre le fil. *}}
+						<td class="check no-print"><input type="checkbox" id="p-{{$skey|escape}}" /><label for="p-{{$skey|escape}}" aria-label="Pointer ce chèque"></label></td>
 						<td>{{$row}}</td>
 						<td>{{$cheque_ref|escape|or:'—'}}</td>
 						<td>{{if $uid}}{{#users id=$uid}}{{$_name|escape}}{{/users}}{{else}}—{{/if}}</td>
@@ -295,7 +300,7 @@
 						</td>
 					</tr>
 				{{else}}
-					<tr><td colspan="5">Ce bordereau est vide — ajoutez-y des chèques depuis la vue.</td></tr>
+					<tr><td colspan="6">Ce bordereau est vide — ajoutez-y des chèques depuis la vue.</td></tr>
 				{{/select}}
 			{{else}}
 				{{#foreach from=$b_lines item="l"}}
@@ -310,6 +315,7 @@
 				{{/foreach}}
 			{{/if}}
 			<tr class="total">
+				{{if $is_open}}<td class="no-print"></td>{{/if}}
 				<td colspan="3"><strong>Total — {{$row}} chèque(s)</strong></td>
 				<td class="money"><strong>{{$live_total|raw|money_currency}}</strong></td>
 				{{if $is_open}}<td class="no-print"></td>{{/if}}
@@ -317,6 +323,33 @@
 		</tbody>
 	</table>
 	</form>
+
+	{{if $is_open && $row > 0}}
+		<p class="help no-print" id="recount">
+			Cochez au fur et à mesure pour recompter la pile — ces cases ne sont pas enregistrées.
+		</p>
+		<script type="text/javascript">
+		(function () {
+			var table = document.getElementById('slip');
+			var out = document.getElementById('recount');
+			if (!table || !out) return;
+			var boxes = Array.prototype.slice.call(table.querySelectorAll('tbody input[type=checkbox]'));
+			var idle = out.textContent;
+			function refresh() {
+				var n = 0, total = 0;
+				boxes.forEach(function (box) {
+					if (!box.checked) return;
+					n++;
+					total += parseInt(box.closest('tr').dataset.amount, 10) || 0;
+				});
+				out.textContent = n ? 'Pointés : ' + n + ' / ' + boxes.length + ' chèque(s) — '
+					+ (total / 100).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €'
+					: idle;
+			}
+			boxes.forEach(function (box) { box.addEventListener('change', refresh); });
+		})();
+		</script>
+	{{/if}}
 
 	{{if $is_open}}
 		{{#restrict section="users" level="write"}}

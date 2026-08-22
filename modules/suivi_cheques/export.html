@@ -34,6 +34,33 @@
 {{/select}}
 {{if $name_sql}}{{:assign name_sql="TRIM(%s)"|args:$name_sql}}{{else}}{{:assign name_sql="NULL"}}{{/if}}
 
+{{* ?batch=<ref> : l'export d'un seul bordereau. L'API prend le SQL sous forme de
+    CHAÎNE, sans les :param d'un {{#select}}, donc la référence ne peut pas y être
+    liée — elle y est écrite. Deux précautions : la référence de l'URL sert d'abord
+    à retrouver le bordereau, en paramètre lié, et c'est celle relue en base qui
+    repart ; et c'est SQLite qui la met en littéral, via quote(), plutôt qu'un
+    échappement écrit à la main. *}}
+{{:assign batch_ref=null batch_ref_sql=null}}
+{{if $_GET.batch}}
+	{{#select
+		json_extract(document, '$.ref') AS r,
+		quote(json_extract(document, '$.ref')) AS q
+		FROM module_data_suivi_cheques
+		WHERE json_extract(document, '$.type') = 'deposit_batch'
+			AND json_extract(document, '$.ref') = :b
+		LIMIT 1;
+		:b=$_GET.batch
+	}}
+		{{:assign batch_ref=$r batch_ref_sql=$q}}
+	{{/select}}
+	{{if !$batch_ref}}
+		{{:admin_header title="Export"}}
+		<p class="block error">Bordereau introuvable.</p>
+		{{:admin_footer}}
+		{{:return}}
+	{{/if}}
+{{/if}}
+
 {{* @MEMBER_NAME@ plutôt que |args : le SQL est plein de % (printf, strftime), que
     le formatage consommerait. *}}
 {{:assign export_sql="
@@ -119,6 +146,34 @@ FROM (
 )
 ORDER BY planned_month, cheque_number
 "}}
+
+{{* Un bordereau : ses chèques, dans l'ordre du bordereau imprimé. La composition
+    se lit sur les chèques qui portent le batch_id, comme dans batch.html — un
+    bordereau en cours n'en a pas d'autre. *}}
+{{if $batch_ref}}
+	{{:assign export_sql="
+SELECT
+	cheque_ref AS [N° de chèque],
+	member_name AS [Membre],
+	user_id AS [Identifiant membre],
+	ROUND(amount / 100.0, 2) AS [Montant]
+FROM (
+	SELECT
+		COALESCE(json_extract(md.document, '$.cheque_number'), p.reference) AS cheque_ref,
+		COALESCE(CAST(json_extract(md.document, '$.amount') AS INT), p.amount) AS amount,
+		COALESCE(CAST(json_extract(md.document, '$.member_id') AS INT), t.user_id) AS user_id,
+		@MEMBER_NAME@ AS member_name
+	FROM module_data_suivi_cheques md
+	LEFT JOIN plugin_pos_tabs_payments p
+		ON md.key LIKE 'pay-%' AND p.id = CAST(substr(md.key, 5) AS INT)
+	LEFT JOIN plugin_pos_tabs t ON t.id = p.tab
+	LEFT JOIN users u ON u.id = COALESCE(CAST(json_extract(md.document, '$.member_id') AS INT), t.user_id)
+	WHERE json_extract(md.document, '$.batch_id') = @REF@
+)
+ORDER BY cheque_ref
+"}}
+	{{:assign export_sql=$export_sql|replace:"@REF@":$batch_ref_sql}}
+{{/if}}
 
 {{:assign export_sql=$export_sql|replace:"@MEMBER_NAME@":$name_sql}}
 
