@@ -66,9 +66,11 @@
 					json_extract(ov.document, '$.batch_id') AS batch_id
 				FROM plugin_pos_tabs_payments p
 				INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+				-- Jointure sur la CLE : voir _list.html. Ici la requete tourne une fois par
+				-- case cochee, donc un scan complet par cheque du bordereau.
 				LEFT JOIN module_data_suivi_cheques ov
-					ON json_extract(ov.document, '$.type') = 'cheque'
-					AND CAST(json_extract(ov.document, '$.payment_id') AS INT) = p.id
+					ON ov.key = 'pay-' || p.id
+					AND json_extract(ov.document, '$.type') = 'cheque'
 				UNION ALL
 				SELECT r.key AS skey, json_extract(r.document, '$.cheque_number') AS reference,
 					CAST(json_extract(r.document, '$.amount') AS INT) AS amount,

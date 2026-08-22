@@ -89,8 +89,8 @@ FROM (
 		AND CAST(json_extract(mm.document, '$.method_id') AS INT) = p.method
 	LEFT JOIN plugin_pos_methods pm ON pm.id = p.method
 	LEFT JOIN module_data_suivi_cheques ov
-		ON json_extract(ov.document, '$.type') = 'cheque'
-		AND CAST(json_extract(ov.document, '$.payment_id') AS INT) = p.id
+		ON ov.key = 'pay-' || p.id
+		AND json_extract(ov.document, '$.type') = 'cheque'
 	LEFT JOIN users u ON u.id = t.user_id
 
 	UNION ALL

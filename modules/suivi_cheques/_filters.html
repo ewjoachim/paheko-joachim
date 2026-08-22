@@ -80,9 +80,13 @@
 					INNER JOIN module_data_suivi_cheques mm
 						ON json_extract(mm.document, '$.type') = 'method_month_map'
 						AND CAST(json_extract(mm.document, '$.method_id') AS INT) = p.method
+					-- Jointure sur la CLE, pas sur json_extract(payment_id) : key est la seule
+					-- colonne indexee de module_data, et la convention pay-<payment_id> est le
+					-- contrat du module (cf. README). Par json_extract, chaque paiement
+					-- rescanne toute la table -- 7 s pour 3000 cheques, deux fois par page.
 					LEFT JOIN module_data_suivi_cheques ov
-						ON json_extract(ov.document, '$.type') = 'cheque'
-						AND CAST(json_extract(ov.document, '$.payment_id') AS INT) = p.id
+						ON ov.key = 'pay-' || p.id
+						AND json_extract(ov.document, '$.type') = 'cheque'
 
 					UNION ALL
 
