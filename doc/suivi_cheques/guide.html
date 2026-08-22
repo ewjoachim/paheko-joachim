@@ -124,8 +124,8 @@
 		<em>À venir</em>, tout ce qui reste à encaisser à partir d'aujourd'hui, et <em>Tous</em>.
 		La deuxième ligne filtre sur l'état, en annonçant combien il y en a&nbsp;:
 		<span class="tag enc">À encaisser</span>
-		<span class="tag lot">Dans un lot</span> (déjà sur un bordereau)
-		<span class="tag dep">Déposé</span>
+		<span class="tag lot">Dans un lot</span> (sur un bordereau en cours, donc encore là)
+		<span class="tag dep">Déposé</span> (parti en banque)
 		<span class="tag ann">Annulé</span>.
 	</p>
 	<figure>
@@ -183,35 +183,53 @@
 		automatique des annulations est activée — la page indique lequel des deux cas s'applique.
 	</div>
 
-	<h3>4. Préparer le bordereau de remise</h3>
+	<h3>4. Constituer un bordereau, puis le porter en banque</h3>
 	<p>
-		Avant d'aller à la banque, on coche dans la liste les chèques que l'on a physiquement en main,
-		puis <em>Générer le bordereau</em>. <strong>Rien n'est coché au départ.</strong> Les chèques qui
-		ne peuvent pas partir (annulés, déjà sur un bordereau) gardent une case grisée, à leur place dans
-		la colonne. <em>Tout cocher</em> prend ce que la liste affiche&nbsp;: avec un filtre en cours,
-		seulement les lignes visibles.
+		Ce sont deux moments distincts, et le module les distingue.
+	</p>
+	<p>
+		<strong>On constitue</strong> le bordereau depuis la liste : on coche les chèques que
+		l'on a en main et on clique <em>Ajouter au bordereau</em>. Le menu à côté du bouton
+		propose les bordereaux <strong>en cours</strong> et « Nouveau bordereau »&nbsp;; le plus
+		récent est déjà choisi, parce qu'un aller à la banque égale un bordereau. On peut donc
+		changer de mois, revenir, en ajouter d'autres — tout se cumule dans la même pile.
+		<strong>Rien n'est coché au départ.</strong> Les chèques qui ne peuvent pas partir
+		(annulés, déjà sur un bordereau) gardent une case grisée, à leur place dans la colonne.
 	</p>
 	<p>
 		À mesure qu'on coche, le compteur affiche <strong>combien de chèques et quel total</strong> —
-		de quoi vérifier l'écran contre la pile qu'on a en main avant de partir.
+		de quoi vérifier l'écran contre la pile qu'on a en main.
 	</p>
 	<figure>
 		<img src="screenshots/04-preparer-bordereau.png" alt="Sélection des chèques à déposer" />
-		<figcaption>Sélection des chèques physiquement apportés à la banque.</figcaption>
+		<figcaption>Sélection des chèques, et choix du bordereau auquel les ajouter.</figcaption>
 	</figure>
 	<p>
-		Le bordereau généré est <strong>figé</strong> : il liste exactement ce qui part à la banque, à une date
-		donnée. Il s'imprime pour être remis avec les chèques. Généré par erreur&nbsp;? Tant qu'il n'a pas encore été comptabilisé, le bouton «&nbsp;Annuler le bordereau&nbsp;» le supprime et rend ses chèques à l'état «&nbsp;À encaisser&nbsp;».
+		Tant qu'il est en cours, le bordereau se modifie : le bouton <em>Retirer</em> sort un
+		chèque, qui repasse aussitôt « à encaisser » et redevient sélectionnable. Il n'y a rien à
+		comptabiliser à ce stade — rien n'est encore parti.
+	</p>
+	<p>
+		<strong>On le porte en banque</strong> ensuite, et on le dit au module :
+		<em>Marquer comme déposé en banque</em>, avec la date du dépôt. C'est ce geste qui
+		<strong>fige</strong> le bordereau — il liste dès lors exactement ce qui est parti, à une
+		date donnée — qui le rend imprimable pour être remis avec les chèques, et qui le fait
+		entrer dans « à comptabiliser ».
 	</p>
 	<figure>
 		<img src="screenshots/05-bordereau.png" alt="Bordereau de remise figé, imprimable" />
-		<figcaption>Le bordereau figé, imprimable. Les chèques inclus passent à l'état « Dans un lot ».</figcaption>
+		<figcaption>Le bordereau déposé, figé et imprimable. Ses chèques passent à « Déposé ».</figcaption>
 	</figure>
-
-	<h3>5. Retrouver un bordereau déjà généré</h3>
 	<p>
-		L'onglet <em>Bordereaux</em> liste toutes les remises générées, de la plus récente à la plus
-		ancienne&nbsp;: date de dépôt, nombre de chèques, total, et si l'écriture comptable a été passée.
+		La banque a refusé un chèque au guichet, ou le bordereau est parti trop tôt&nbsp;? Tant
+		qu'il n'est pas comptabilisé, «&nbsp;Annuler le bordereau&nbsp;» le supprime et rend ses
+		chèques à l'état «&nbsp;À encaisser&nbsp;», pour le refaire.
+	</p>
+
+	<h3>5. Retrouver un bordereau</h3>
+	<p>
+		L'onglet <em>Bordereaux</em> les liste tous, ceux encore en cours d'abord&nbsp;: date de
+		dépôt, nombre de chèques, total, et si l'écriture comptable a été passée.
 		Cliquer sur la référence rouvre le bordereau imprimable — pratique pour ressortir une remise
 		d'il y a six mois quand la banque pose une question.
 	</p>

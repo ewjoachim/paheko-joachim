@@ -16,8 +16,9 @@
 	{{:include file="./_tabs.html" tab="batches"}}
 
 	<p class="help">
-		Tous les bordereaux générés, du plus récent au plus ancien. Un bordereau est
-		<strong>figé</strong> : il reflète ce qui est physiquement parti à la banque.
+		Tous les bordereaux, ceux encore en cours d'abord. Un bordereau se garnit tant
+		qu'il n'est pas porté en banque ; le dépôt le <strong>fige</strong>, et il reflète
+		alors ce qui est physiquement parti.
 	</p>
 
 	{{:assign n=0}}
@@ -27,7 +28,7 @@
 		<thead>
 			<tr>
 				<th>Référence</th>
-				<th>Date de dépôt</th>
+				<th>Déposé le</th>
 				<th>Chèques</th>
 				<th class="money">Total</th>
 				<th>Comptabilisation</th>
@@ -38,27 +39,38 @@
 			    définition robuste que to_record.html et batch.html : un id pointant sur
 			    une écriture supprimée depuis ne compte pas, et le lot est bien de retour
 			    dans la file « à comptabiliser ». *}}
+			{{* Nombre et total : lus sur les cheques qui portent le batch_id, pas sur la
+			    composition figee, qui n existe pas tant que le bordereau est en cours.
+			    Une fois depose, les deux disent la meme chose -- un cheque dans un lot
+			    n est plus modifiable. *}}
 			{{#select
-				json_extract(document, '$.ref') AS ref,
-				json_extract(document, '$.date') AS bdate,
-				json_array_length(json_extract(document, '$.lines')) AS nb_cheques,
-				CAST(json_extract(document, '$.total') AS INT) AS total,
-				CAST(json_extract(document, '$.deposit_txn_id') AS INT) AS txn_id,
+				json_extract(b.document, '$.ref') AS ref,
+				json_extract(b.document, '$.date') AS bdate,
+				(SELECT COUNT(*) FROM module_data_suivi_cheques c
+					WHERE json_extract(c.document, '$.batch_id') = json_extract(b.document, '$.ref')) AS nb_cheques,
+				(SELECT COALESCE(SUM(COALESCE(CAST(json_extract(c.document, '$.amount') AS INT), p.amount)), 0)
+					FROM module_data_suivi_cheques c
+					LEFT JOIN plugin_pos_tabs_payments p
+						ON c.key LIKE 'pay-%' AND p.id = CAST(substr(c.key, 5) AS INT)
+					WHERE json_extract(c.document, '$.batch_id') = json_extract(b.document, '$.ref')) AS total,
+				CAST(json_extract(b.document, '$.deposit_txn_id') AS INT) AS txn_id,
 				EXISTS (SELECT 1 FROM acc_transactions a
-					WHERE a.id = CAST(json_extract(document, '$.deposit_txn_id') AS INT)) AS txn_exists
-				FROM module_data_suivi_cheques
-				WHERE json_extract(document, '$.type') = 'deposit_batch'
-				ORDER BY bdate DESC, ref DESC
+					WHERE a.id = CAST(json_extract(b.document, '$.deposit_txn_id') AS INT)) AS txn_exists
+				FROM module_data_suivi_cheques b
+				WHERE json_extract(b.document, '$.type') = 'deposit_batch'
+				ORDER BY bdate IS NULL DESC, bdate DESC, ref DESC
 			}}
 				{{:assign n="%d+1"|math:$n}}
 				{{:assign grand_total="%d+%d"|math:$grand_total:$total}}
 				<tr>
 					<td>{{:link href="batch.html?batch=%s"|args:$ref label=$ref}}</td>
-					<td>{{$bdate|date_short}}</td>
+					<td>{{if $bdate}}{{$bdate|date_short}}{{else}}—{{/if}}</td>
 					<td>{{$nb_cheques}}</td>
 					<td class="money">{{$total|raw|money_currency}}</td>
 					<td>
-						{{if $txn_exists}}
+						{{if !$bdate}}
+							{{:tag label="En cours" color="blue"}}
+						{{elseif $txn_exists}}
 							{{:tag label="Comptabilisé" color="darkgreen"}}
 							{{#restrict section="accounting" level="read"}}
 								{{:link href="!acc/transactions/details.php?id=%d"|args:$txn_id label="Voir l'écriture"}}

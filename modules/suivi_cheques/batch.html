@@ -1,20 +1,36 @@
 {{* -*- brindille -*- *}}
 
-{{* Un bordereau de remise figé, imprimable : ce qui est physiquement parti à la
-    banque, indépendamment des modifications ultérieures des chèques. La génération
-    se fait dans index.html, en cochant.
+{{* Un bordereau de remise, dans l'un de ses trois états :
+
+      EN COURS    — la pile en cours de constitution. Pas de date de dépôt. On y
+                    ajoute des chèques depuis la vue (index.html) et on en retire
+                    ici. Sa composition n'est PAS stockée : elle se lit sur les
+                    chèques qui portent son batch_id, donc rien à tenir synchrone.
+      DÉPOSÉ      — porté physiquement en banque, à une date. C'est ce moment-là
+                    qui fige `lines` et `total`, nom des membres compris : le
+                    bordereau imprimé doit refléter ce qui est parti, quoi qu'il
+                    arrive ensuite. Il entre alors dans « à comptabiliser ».
+      COMPTABILISÉ — l'écriture de dépôt existe.
+
+    L'état se déduit de la date : pas de champ de statut qui pourrait la contredire.
 
     La page s'ouvre à membres = lecture (la comptabilité y arrive depuis « à
-    comptabiliser ») ; l'annulation du lot est réservée à membres = écriture. *}}
+    comptabiliser ») ; toutes les actions sont réservées à membres = écriture. *}}
 {{#restrict block=true section="users" level="read"}}{{/restrict}}
 
 {{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
 {{:assign batch_key=$_GET.batch|trim}}
 
+{{:assign today=null}}
+{{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
+
 {{:assign found=false b_date=null b_account=null b_total=0 b_lines=null b_txn=null}}
 {{#load type="deposit_batch" key="batch-%s"|args:$batch_key}}
 	{{:assign found=true b_date=$date b_account=$account b_total=$total b_lines=$lines b_txn=$deposit_txn_id}}
 {{/load}}
+
+{{:assign is_open=false}}
+{{if $found && !$b_date}}{{:assign is_open=true}}{{/if}}
 
 {{* Comptabilisé = id d'écriture présent ET écriture existante (même définition
     robuste que to_record.html : un id pointant sur une écriture supprimée ne compte pas). *}}
@@ -22,9 +38,140 @@
 {{if $b_txn}}{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$b_txn}}{{:assign comptabilised=true}}{{/select}}{{/if}}
 
 {{*=================================================================================
-    Annulation du bordereau (uniquement tant qu'il n'est PAS comptabilisé).
-    Aucune écriture à défaire : on déverrouille chaque chèque (batch_id -> null,
-    il repasse « à encaisser » et redevient sélectionnable) puis on supprime le lot.
+    Retirer un chèque — tant que le bordereau est ouvert. Le chèque repasse
+    « à encaisser » et redevient sélectionnable dans la vue.
+==================================================================================*}}
+{{#form on="remove"}}
+{{#restrict section="users" level="write"}}
+	{{if !$is_open}}{{:error message="Ce bordereau est déposé : sa composition ne change plus."}}{{/if}}
+
+	{{:assign rkey=$_POST.remove|trim}}
+	{{:assign rtype=null}}
+	{{#select json_extract(document, '$.type') AS t
+		FROM module_data_suivi_cheques
+		WHERE key = :k AND json_extract(document, '$.batch_id') = :ref
+		LIMIT 1; :k=$rkey :ref=$batch_key}}
+		{{:assign rtype=$t}}
+	{{/select}}
+	{{if !$rtype}}{{:error message="Ce chèque n'est pas dans ce bordereau."}}{{/if}}
+
+	{{if $rtype === 'cheque'}}
+		{{:save type="cheque" key=$rkey validate_schema="./cheque.schema.json" batch_id=null}}
+	{{else}}
+		{{:save type="cheque_rempl" key=$rkey validate_schema="./replacement.schema.json" batch_id=null}}
+	{{/if}}
+	{{:redirect to="batch.html?batch=%s&removed=1"|args:$batch_key}}
+{{/restrict}}
+{{/form}}
+
+{{*=================================================================================
+    Marquer comme déposé en banque — le fait physique. C'est ici que la composition
+    est figée, et ici seulement que le bordereau devient comptabilisable.
+==================================================================================*}}
+{{#form on="deposit"}}
+{{#restrict section="users" level="write"}}
+	{{if !$found}}{{:error message="Bordereau introuvable."}}{{/if}}
+	{{if !$is_open}}{{:error message="Ce bordereau est déjà déposé."}}{{/if}}
+
+	{{* Le champ date du cœur poste du JJ/MM/AAAA ; tout le reste du module écrit de
+	    l'ISO, et c'est sur cette date que les bordereaux se trient. date() rend NULL
+	    sur une saisie qui n'est pas une date, d'où le repli sur aujourd'hui. *}}
+	{{:assign dep_date=null}}
+	{{#select
+		COALESCE(
+			date(substr(:d, 7, 4) || '-' || substr(:d, 4, 2) || '-' || substr(:d, 1, 2)),
+			date('now', 'localtime')) AS iso;
+		:d=$_POST.deposit_date
+	}}
+		{{:assign dep_date=$iso}}
+	{{/select}}
+
+	{{* Composition figée, relue à la source : numéro et montant côté caisse pour un
+	    chèque de caisse, dans le document pour un chèque reçu en règlement. *}}
+	{{:assign lines=null}}
+	{{:assign total=0}}
+	{{:assign n=0}}
+	{{#select
+		md.key AS skey,
+		COALESCE(json_extract(md.document, '$.cheque_number'), p.reference) AS cheque_ref,
+		COALESCE(CAST(json_extract(md.document, '$.amount') AS INT), p.amount) AS amount,
+		COALESCE(CAST(json_extract(md.document, '$.member_id') AS INT), t.user_id) AS uid
+		FROM module_data_suivi_cheques md
+		-- p.id est la cle primaire : la lookup est immediate, alors qu une jointure
+		-- sur une expression de p rescannerait tous les paiements (cf. _list.html).
+		LEFT JOIN plugin_pos_tabs_payments p
+			ON md.key LIKE 'pay-%' AND p.id = CAST(substr(md.key, 5) AS INT)
+		LEFT JOIN plugin_pos_tabs t ON t.id = p.tab
+		WHERE json_extract(md.document, '$.batch_id') = :ref
+		ORDER BY cheque_ref;
+		:ref=$batch_key
+	}}
+		{{:assign mname=null}}
+		{{if $uid}}{{#users id=$uid}}{{:assign mname=$_name}}{{/users}}{{/if}}
+		{{:assign var="lines[%d][source_key]"|args:$n value=$skey}}
+		{{:assign var="lines[%d][cheque_ref]"|args:$n value=$cheque_ref}}
+		{{:assign var="lines[%d][member]"|args:$n value=$mname}}
+		{{:assign var="lines[%d][member_id]"|args:$n value=$uid|intval}}
+		{{:assign var="lines[%d][amount]"|args:$n value=$amount|intval}}
+		{{:assign total="%d+%d"|math:$total:$amount}}
+		{{:assign n="%d+1"|math:$n}}
+	{{/select}}
+
+	{{if $n < 1}}{{:error message="Ce bordereau est vide."}}{{/if}}
+
+	{{:save type="deposit_batch" key="batch-%s"|args:$batch_key
+		validate_schema="./deposit_batch.schema.json"
+		ref=$batch_key
+		date=$dep_date
+		account=$waiting_account
+		lines=$lines
+		total=$total|intval}}
+
+	{{* L'écriture est passée dans le second {{#form}} ci-dessous (voir le commentaire
+	    WORKAROUND qui s'y trouve). *}}
+	{{:assign posted_deposit=true}}
+{{/restrict}}
+{{/form}}
+
+{{* WORKAROUND (Paheko 1.3.22 regression) — l'écriture était passée dans le {{#form}}
+    ci-dessus, après le gel du lot. Depuis 1.3.22 les sections lisent sur une
+    connexion SQLite séparée, en lecture seule, alors que {{:save}} écrit sur la
+    connexion principale — dont {{#form}} tient la transaction ouverte jusqu'au
+    {{/form}}. Le bordereau figé quelques lignes plus haut se lit donc comme absent
+    (« Bordereau introuvable ou vide ») et aucune écriture n'est passée : le lot
+    retombe silencieusement dans la file « à comptabiliser ».
+
+    Un second {{#form}}, sur le même POST, ouvre une NOUVELLE transaction : ses
+    lectures voient les écritures du premier, et l'écriture comptable reste atomique
+    avec le deposit_txn_id que _record_deposit.html repose sur le lot. Même forme
+    qu'edit.html, où le raisonnement complet est écrit.
+
+    Corrigé en amont : git revert le commit qui a introduit ce bloc. *}}
+{{#form on="deposit"}}
+{{#restrict section="users" level="write"}}
+	{{if $posted_deposit}}
+		{{* Automatic mode (configuration): post the deposit entry right away, without
+		    requiring any accounting permission from whoever goes to the bank — the
+		    checkbox an admin ticked is what authorises it, mirroring the till's own
+		    setting. quiet=true: on failure the slip is still frozen and simply stays in
+		    the "to record" queue. *}}
+		{{:assign rec_txn_id=null rec_error=null}}
+		{{if $module.config.auto_record_deposits}}
+			{{:include file="./_record_deposit.html" ref=$batch_key quiet=true keep="rec_txn_id,rec_error"}}
+		{{/if}}
+
+		{{:assign qs="batch=%s&deposited=1"|args:$batch_key}}
+		{{if $rec_txn_id}}{{:assign qs="batch=%s&deposited=1&recorded=1"|args:$batch_key}}{{elseif $rec_error}}{{:assign qs="batch=%s&deposited=1&not_recorded=1"|args:$batch_key}}{{/if}}
+		{{:redirect to="batch.html?%s"|args:$qs}}
+	{{/if}}
+{{/restrict}}
+{{/form}}
+
+{{*=================================================================================
+    Supprimer / annuler le bordereau. Aucune écriture à défaire tant qu'il n'est pas
+    comptabilisé : on déverrouille chaque chèque (batch_id -> null) puis on supprime
+    le lot. C'est aussi la porte de sortie quand la banque refuse un chèque au
+    guichet : on annule et on refait.
 ==================================================================================*}}
 {{#form on="cancel"}}
 {{#restrict section="users" level="write"}}
@@ -59,13 +206,16 @@
 
 {{:form_errors}}
 
+{{if $_GET.removed}}<p class="block confirm">Chèque retiré du bordereau : il est repassé « à encaisser ».</p>{{/if}}
+{{if $_GET.added}}<p class="block confirm">{{$_GET.added|intval}} chèque(s) ajouté(s) au bordereau.</p>{{/if}}
+
 {{* Feedback from the automatic mode (see the module configuration) *}}
 {{* Comme dans index.html : le lien est sous {{#restrict}}, car en mode automatique
     l'écriture est passée sans regarder les droits de l'opérateur. Pas besoin de
     passer l'id dans l'URL, la page relit le lot et donc $b_txn. *}}
 {{if $_GET.recorded}}
 	<p class="block confirm">
-		Bordereau généré, et l'écriture comptable du dépôt a été créée.
+		Bordereau déposé, et l'écriture comptable du dépôt a été créée.
 		{{#restrict section="accounting" level="read"}}
 			{{if $b_txn}}{{:link href="!acc/transactions/details.php?id=%d"|args:$b_txn label="Voir l'écriture n°%d"|args:$b_txn}}{{/if}}
 		{{/restrict}}
@@ -73,7 +223,7 @@
 {{/if}}
 {{if $_GET.not_recorded}}
 	<p class="block alert">
-		Bordereau généré, mais l'écriture comptable du dépôt n'a pas pu être créée : elle reste
+		Bordereau déposé, mais l'écriture comptable du dépôt n'a pas pu être créée : elle reste
 		à passer depuis {{:link href="to_record.html" label="« Chèques à comptabiliser »"}}.
 	</p>
 {{/if}}
@@ -82,62 +232,195 @@
 	<p class="block error">Bordereau introuvable.</p>
 	<p class="actions">{{:linkbutton href="batches.html" label="Retour" shape="left"}}</p>
 {{else}}
+
+	{{* Barre du haut : uniquement ce qui navigue ou imprime. Détruire un bordereau
+	    n'est pas un déplacement — c'est en bas de page, avec ce qu'on lui fait. *}}
 	<p class="actions no-print">
 		{{:linkbutton href="batches.html" label="Retour" shape="left"}}
-		<button type="button" class="main" onclick="window.print();return false;">Imprimer</button>
-		{{#restrict section="users" level="write"}}
-			{{if !$comptabilised}}
-				<form method="post" action="" class="inline">
-					{{:button type="submit" name="cancel" value="1" label="Annuler le bordereau" shape="delete"
-						onclick="return confirm('Annuler ce bordereau ? Les chèques repasseront « à encaisser ».');"}}
-				</form>
-			{{/if}}
-		{{/restrict}}
+		{{if $is_open}}
+			{{:linkbutton href="index.html?period=all&state=todo" label="Ajouter des chèques" shape="plus"}}
+		{{else}}
+			<button type="button" class="main" onclick="window.print();return false;">Imprimer</button>
+		{{/if}}
+		{{:exportmenu href="export.html?batch=%s"|args:$batch_key suffix="format=" label="Exporter"}}
 	</p>
 
 	<h2>Bordereau de remise de chèques</h2>
 	<p>
 		Référence : <strong>{{$batch_key|escape}}</strong> —
-		Date de dépôt : <strong>{{$b_date|date_short}}</strong> —
-		Compte d'attente : <strong>{{$b_account|escape|or:$waiting_account}}</strong>
+		Compte d'attente : <strong>{{$b_account|escape|or:$waiting_account}}</strong> —
+		{{if $is_open}}
+			{{:tag label="En cours" color="blue"}} pas encore porté en banque
+		{{else}}
+			Déposé en banque le <strong>{{$b_date|date_short}}</strong>
+		{{/if}}
 	</p>
 
-	<table class="list">
-		<thead><tr><th>#</th><th>N° de chèque</th><th>Membre</th><th class="money">Montant</th></tr></thead>
+	<form method="post" action="">
+	<table class="list" id="slip">
+		<thead>
+			<tr>
+				{{if $is_open}}<td class="check no-print"></td>{{/if}}
+				<th>#</th><th>N° de chèque</th><th>Membre</th><th class="money">Montant</th>
+				{{if $is_open}}<th class="actions no-print"></th>{{/if}}
+			</tr>
+		</thead>
 		<tbody>
 			{{:assign row=0}}
-			{{#foreach from=$b_lines item="l"}}
-				{{:assign row="%d+1"|math:$row}}
-				<tr>
-					<td>{{$row}}</td>
-					<td>{{$l.cheque_ref|escape|or:'—'}}</td>
-					<td>{{$l.member|escape|or:'—'}}</td>
-					<td class="money">{{$l.amount|raw|money_currency}}</td>
-				</tr>
-			{{/foreach}}
+			{{:assign live_total=0}}
+			{{if $is_open}}
+				{{* Bordereau ouvert : la composition se lit sur les chèques eux-mêmes. *}}
+				{{#select
+					md.key AS skey,
+					COALESCE(json_extract(md.document, '$.cheque_number'), p.reference) AS cheque_ref,
+					COALESCE(CAST(json_extract(md.document, '$.amount') AS INT), p.amount) AS amount,
+					COALESCE(CAST(json_extract(md.document, '$.member_id') AS INT), t.user_id) AS uid
+					FROM module_data_suivi_cheques md
+					LEFT JOIN plugin_pos_tabs_payments p
+						ON md.key LIKE 'pay-%' AND p.id = CAST(substr(md.key, 5) AS INT)
+					LEFT JOIN plugin_pos_tabs t ON t.id = p.tab
+					WHERE json_extract(md.document, '$.batch_id') = :ref
+					ORDER BY cheque_ref;
+					:ref=$batch_key
+				}}
+					{{:assign row="%d+1"|math:$row}}
+					{{:assign live_total="%d+%d"|math:$live_total:$amount}}
+					<tr data-amount="{{$amount}}">
+						{{* Case de pointage : sans nom, donc jamais envoyée. Elle ne sert qu'à
+						    recompter la pile qu'on a en main sans perdre le fil. *}}
+						<td class="check no-print"><input type="checkbox" id="p-{{$skey|escape}}" /><label for="p-{{$skey|escape}}" aria-label="Pointer ce chèque"></label></td>
+						<td>{{$row}}</td>
+						<td>{{$cheque_ref|escape|or:'—'}}</td>
+						<td>{{if $uid}}{{#users id=$uid}}{{$_name|escape}}{{/users}}{{else}}—{{/if}}</td>
+						<td class="money">{{$amount|raw|money_currency}}</td>
+						<td class="actions no-print">
+							{{#restrict section="users" level="write"}}
+								{{:button type="submit" name="remove" value=$skey label="Retirer" shape="delete"}}
+							{{/restrict}}
+						</td>
+					</tr>
+				{{else}}
+					<tr><td colspan="6">Ce bordereau est vide — ajoutez-y des chèques depuis la vue.</td></tr>
+				{{/select}}
+			{{else}}
+				{{#foreach from=$b_lines item="l"}}
+					{{:assign row="%d+1"|math:$row}}
+					{{:assign live_total="%d+%d"|math:$live_total:$l.amount}}
+					<tr>
+						<td>{{$row}}</td>
+						<td>{{$l.cheque_ref|escape|or:'—'}}</td>
+						<td>{{$l.member|escape|or:'—'}}</td>
+						<td class="money">{{$l.amount|raw|money_currency}}</td>
+					</tr>
+				{{/foreach}}
+			{{/if}}
 			<tr class="total">
+				{{if $is_open}}<td class="no-print"></td>{{/if}}
 				<td colspan="3"><strong>Total — {{$row}} chèque(s)</strong></td>
-				<td class="money"><strong>{{$b_total|raw|money_currency}}</strong></td>
+				<td class="money"><strong>{{$live_total|raw|money_currency}}</strong></td>
+				{{if $is_open}}<td class="no-print"></td>{{/if}}
 			</tr>
 		</tbody>
 	</table>
+	</form>
 
-	<p class="help no-print">
-		{{if $b_txn}}
-			{{:tag label="Dépôt comptabilisé" color="darkgreen"}}
-			{{#restrict section="accounting" level="read"}}
-				{{:link href="!acc/transactions/details.php?id=%d"|args:$b_txn label="Voir l'écriture"}}
-			{{/restrict}}
-		{{else}}
-			Dépôt <strong>pas encore comptabilisé</strong> — la comptabilité le passera depuis
-			{{:link href="to_record.html" label="« Chèques à comptabiliser »"}}.
+	{{if $is_open && $row > 0}}
+		<p class="help no-print" id="recount">
+			Cochez au fur et à mesure pour recompter la pile — ces cases ne sont pas enregistrées.
+		</p>
+		<script type="text/javascript">
+		(function () {
+			var table = document.getElementById('slip');
+			var out = document.getElementById('recount');
+			if (!table || !out) return;
+			var boxes = Array.prototype.slice.call(table.querySelectorAll('tbody input[type=checkbox]'));
+			var idle = out.textContent;
+			function refresh() {
+				var n = 0, total = 0;
+				boxes.forEach(function (box) {
+					if (!box.checked) return;
+					n++;
+					total += parseInt(box.closest('tr').dataset.amount, 10) || 0;
+				});
+				out.textContent = n ? 'Pointés : ' + n + ' / ' + boxes.length + ' chèque(s) — '
+					+ (total / 100).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €'
+					: idle;
+			}
+			boxes.forEach(function (box) { box.addEventListener('change', refresh); });
+		})();
+		</script>
+	{{/if}}
+
+	{{if $is_open}}
+		{{#restrict section="users" level="write"}}
+			{{if $row > 0}}
+				<form method="post" action="">
+					<fieldset>
+						<legend>Porter en banque</legend>
+						<dl>
+							{{:input type="date" name="deposit_date" label="Date du dépôt" default=$today required=true
+								help="Le bordereau devient imprimable et n'est plus modifiable."}}
+						</dl>
+						<p class="submit">
+							{{:button type="submit" name="deposit" value="1" label="Marquer comme déposé en banque" shape="money" class="main"}}
+						</p>
+					</fieldset>
+				</form>
+			{{/if}}
+		{{/restrict}}
+	{{else}}
+		<p class="help no-print">
+			{{if $comptabilised}}
+				{{:tag label="Dépôt comptabilisé" color="darkgreen"}}
+				{{#restrict section="accounting" level="read"}}
+					{{:link href="!acc/transactions/details.php?id=%d"|args:$b_txn label="Voir l'écriture"}}
+				{{/restrict}}
+			{{else}}
+				Dépôt <strong>pas encore comptabilisé</strong> — la comptabilité le passera depuis
+				{{:link href="to_record.html" label="« Chèques à comptabiliser »"}}.
+			{{/if}}
+		</p>
+		<p class="help no-print">
+			Ce bordereau est <strong>figé</strong> : il reflète ce qui est physiquement parti à la
+			banque, indépendamment des modifications ultérieures des chèques.
+		</p>
+	{{/if}}
+
+	{{#restrict section="users" level="write"}}
+		{{if !$comptabilised}}
+			<form method="post" action="" class="no-print destructive">
+				<p class="help">
+					{{if $is_open}}
+						Supprimer ce bordereau rend ses {{$row}} chèque(s) à l'état « à encaisser ».
+					{{else}}
+						La banque a refusé un chèque au guichet, ou le bordereau est parti trop tôt ?
+						L'annuler le supprime et rend ses {{$row}} chèque(s) à l'état « à encaisser »,
+						pour le refaire.
+					{{/if}}
+				</p>
+				<p class="actions">
+					{{if $is_open}}
+						{{:button type="submit" name="cancel" value="1" label="Supprimer le bordereau" shape="delete"
+							onclick="return confirm('Supprimer ce bordereau ? Les chèques repasseront « à encaisser ».');"}}
+					{{else}}
+						{{:button type="submit" name="cancel" value="1" label="Annuler le bordereau" shape="delete"
+							onclick="return confirm('Annuler ce bordereau ? Les chèques repasseront « à encaisser ».');"}}
+					{{/if}}
+				</p>
+			</form>
 		{{/if}}
-	</p>
-	<p class="help no-print">
-		Ce bordereau est <strong>figé</strong> : il reflète ce qui est physiquement parti à la
-		banque, indépendamment des modifications ultérieures des chèques.
-	</p>
+	{{/restrict}}
 {{/if}}
+
+<style type="text/css">
+	{{* Le cœur n'a pas de style pour une action destructrice : les boutons y sont tous
+	    de la couleur du thème. Celui-ci doit se lire comme tel avant d'être cliqué. *}}
+	form.destructive { clear: both; margin-top: 2em; }
+	form.destructive p.actions { float: none; text-align: left; }
+	form.destructive button { color: darkred; border-color: rgba(139, 0, 0, .4); }
+	form.destructive button:hover { background-color: darkred; color: #fff !important; border-color: darkred; }
+	form.destructive button[data-icon]:before { color: darkred; }
+</style>
 
 {{:include file="./_doc_footer.html"}}
 

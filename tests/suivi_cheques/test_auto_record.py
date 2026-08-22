@@ -28,7 +28,7 @@ def _cancel_cheque(page: Page, module_url: str, pid: str) -> None:
 
 
 def test_cancellation_is_recorded_immediately(
-    admin_page: Page, module_url: str, reseed, module_config, transaction, seed
+    admin_page: Page, add_to_slip, take_to_bank, module_url: str, reseed, module_config, transaction, seed
 ):
     """CHQ-0140 (45,00) cancelled with nothing replacing it: the entry is posted on
     save — credit waiting 5112 = 4500, debit receivable 411 = 4500 — and the cheque
@@ -52,7 +52,7 @@ def test_cancellation_is_recorded_immediately(
 
 
 def test_cancellation_waits_in_the_queue_by_default(
-    admin_page: Page, module_url: str, reseed, transaction, seed
+    admin_page: Page, add_to_slip, take_to_bank, module_url: str, reseed, transaction, seed
 ):
     """Without the checkbox, saving a cancellation posts nothing: the cheque lands
     in the queue for the accounting side to validate."""
@@ -68,18 +68,18 @@ def test_cancellation_waits_in_the_queue_by_default(
 
 
 def test_deposit_slip_is_recorded_immediately(
-    admin_page: Page, module_url: str, reseed, module_config, transaction
+    admin_page: Page, add_to_slip, take_to_bank, module_url: str, reseed, module_config, transaction
 ):
-    """Generating a slip for July (CHQ-0140 only, 45,00) posts the deposit entry on
-    the spot: debit bank 512 = credit waiting 5112 = 4500."""
+    """Taking a July slip to the bank (CHQ-0140 only, 45,00) posts the deposit entry
+    on the spot: debit bank 512 = credit waiting 5112 = 4500."""
     reseed()
     module_config(auto_record_deposits=1)
 
     admin_page.goto(f"{module_url}/index.html?period=2026-07&state=todo", wait_until="domcontentloaded")
     # Cheques are unticked by default: take the whole slip in one click.
     admin_page.get_by_role("button", name="Tout cocher").click()
-    admin_page.get_by_role("button", name="Générer le bordereau").click()
-    admin_page.wait_for_load_state("domcontentloaded")
+    add_to_slip(admin_page)
+    take_to_bank(admin_page)
 
     expect(admin_page.locator(".confirm")).to_contain_text("l'écriture comptable du dépôt a été créée")
     # The slip is already marked as recorded, with a link to its entry.
@@ -88,7 +88,7 @@ def test_deposit_slip_is_recorded_immediately(
     # The batch reference is generated (timestamp), read it back from the URL.
     ref = re.search(r"[?&]batch=([^&]+)", admin_page.url).group(1)
     txn = transaction(f"Remise de chèques n°{ref}")
-    assert txn["found"], "the deposit entry was not posted on generation"
+    assert txn["found"], "the deposit entry was not posted when the slip went to the bank"
     debit, credit = _totals(txn["lines"])
     assert debit == credit == 4500, txn["lines"]
     assert any(l["account"] == "512" and l["debit"] == 4500 for l in txn["lines"])
@@ -102,14 +102,14 @@ def test_deposit_slip_is_recorded_immediately(
 
 
 def test_deposit_slip_waits_in_the_queue_by_default(
-    admin_page: Page, module_url: str, reseed, transaction
+    admin_page: Page, add_to_slip, take_to_bank, module_url: str, reseed, transaction
 ):
     reseed()
     admin_page.goto(f"{module_url}/index.html?period=2026-07&state=todo", wait_until="domcontentloaded")
     # Cheques are unticked by default: take the whole slip in one click.
     admin_page.get_by_role("button", name="Tout cocher").click()
-    admin_page.get_by_role("button", name="Générer le bordereau").click()
-    admin_page.wait_for_load_state("domcontentloaded")
+    add_to_slip(admin_page)
+    take_to_bank(admin_page)
 
     ref = re.search(r"[?&]batch=([^&]+)", admin_page.url).group(1)
     assert not transaction(f"Remise de chèques n°{ref}")["found"]
@@ -120,7 +120,7 @@ def test_deposit_slip_waits_in_the_queue_by_default(
 
 
 def test_checkboxes_round_trip_through_the_configuration_page(
-    admin_page: Page, module_url: str, reseed
+    admin_page: Page, add_to_slip, take_to_bank, module_url: str, reseed
 ):
     """Ticking the boxes in the configuration form is enough to switch the module
     to automatic mode (the other tests set the config directly, bypassing the UI)."""
@@ -142,7 +142,7 @@ def test_checkboxes_round_trip_through_the_configuration_page(
 
 
 def test_failed_automatic_entry_keeps_the_operational_save(
-    admin_page: Page, module_url: str, reseed, module_config, transaction, seed
+    admin_page: Page, add_to_slip, take_to_bank, module_url: str, reseed, module_config, transaction, seed
 ):
     """The accounting write must never take the operational save down with it: with
     a receivable account that does not exist, the entry is refused, yet the
@@ -162,7 +162,7 @@ def test_failed_automatic_entry_keeps_the_operational_save(
 
 
 def test_failed_automatic_entry_keeps_the_frozen_slip(
-    admin_page: Page, module_url: str, reseed, module_config, transaction
+    admin_page: Page, add_to_slip, take_to_bank, module_url: str, reseed, module_config, transaction
 ):
     """Same guarantee on the deposit side: a refused entry leaves the slip frozen
     and queued, rather than losing the trip to the bank."""
@@ -172,8 +172,8 @@ def test_failed_automatic_entry_keeps_the_frozen_slip(
     admin_page.goto(f"{module_url}/index.html?period=2026-07&state=todo", wait_until="domcontentloaded")
     # Cheques are unticked by default: take the whole slip in one click.
     admin_page.get_by_role("button", name="Tout cocher").click()
-    admin_page.get_by_role("button", name="Générer le bordereau").click()
-    admin_page.wait_for_load_state("domcontentloaded")
+    add_to_slip(admin_page)
+    take_to_bank(admin_page)
 
     expect(admin_page.locator(".alert")).to_contain_text("n'a pas pu être créée")
     ref = re.search(r"[?&]batch=([^&]+)", admin_page.url).group(1)

@@ -11,16 +11,16 @@
 			"description": "Référence du lot / du bordereau (= suffixe de la clé batch-<ref>). Le champ 'id' est réservé par :save, d'où 'ref'."
 		},
 		"date": {
-			"type": "string",
-			"description": "Date du dépôt physique (YYYY-MM-DD), figée à la génération."
+			"type": ["null", "string"],
+			"description": "Date du dépôt physique en banque (YYYY-MM-DD). NULLE tant que le bordereau est en cours : c'est ce champ qui porte son état, plutôt qu'un statut séparé qui pourrait le contredire."
 		},
 		"account": {
 			"type": ["null", "string"],
 			"description": "Compte d'attente crédité par l'écriture de dépôt (défaut 5112)."
 		},
 		"lines": {
-			"type": "array",
-			"description": "Composition figée du bordereau : un chèque par ligne.",
+			"type": ["null", "array"],
+			"description": "Composition figée au moment du dépôt : un chèque par ligne. Absente tant que le bordereau est en cours, où la composition se lit sur les chèques qui portent son batch_id — rien à tenir synchrone.",
 			"items": {
 				"type": "object",
 				"properties": {
@@ -34,13 +34,13 @@
 			}
 		},
 		"total": {
-			"type": "integer",
-			"description": "Montant total du lot, en centimes."
+			"type": ["null", "integer"],
+			"description": "Montant total du lot, en centimes, figé avec la composition."
 		},
 		"deposit_txn_id": {
 			"type": ["null", "integer"],
 			"description": "Identifiant de l'écriture de dépôt créée via :api par la comptable."
 		}
 	},
-	"required": ["type", "ref", "date", "lines", "total"]
+	"required": ["type", "ref"]
 }

@@ -14,6 +14,7 @@ Configuration comes from the environment, matching doc-tools/screenshots.mjs:
 import base64
 import json
 import os
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -46,6 +47,32 @@ def _php(code: str) -> str:
             f"container php failed (rc={proc.returncode}):\n{proc.stderr}\n{proc.stdout}"
         )
     return proc.stdout
+
+
+@pytest.fixture
+def add_to_slip():
+    """Tick nothing, just push the ticked cheques into a new slip and open it.
+
+    A slip is born *en cours*: it is only the trip to the bank that freezes it and
+    makes it something to record, which is what take_to_bank() does next."""
+
+    def _do(page) -> None:
+        page.get_by_role("button", name="Ajouter au bordereau").click()
+        page.wait_for_load_state("domcontentloaded")
+
+    return _do
+
+
+@pytest.fixture
+def take_to_bank():
+    """Mark the slip the page is on as physically deposited, and return its ref."""
+
+    def _do(page) -> str:
+        page.get_by_role("button", name="Marquer comme déposé").click()
+        page.wait_for_load_state("domcontentloaded")
+        return re.search(r"[?&]batch=([^&]+)", page.url).group(1)
+
+    return _do
 
 
 @pytest.fixture

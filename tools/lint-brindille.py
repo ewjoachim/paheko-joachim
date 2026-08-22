@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Catch the two SQL comments that break a Brindille {{#select}}.
+"""Catch the three ways a Brindille tag silently misparses.
 
 Sections::selectStart does not parse SQL. It runs strtok($sql, ';') and hands
 what follows to _parseArguments, whose tokeniser tracks string state by counting
@@ -33,6 +33,44 @@ import sys
 
 SELECT = re.compile(r"\{\{#select\b.*?\}\}", re.DOTALL)
 
+# Any tag, comments excluded. Modifier arguments are what follows `|name`, as a
+# run of `:`-separated values.
+TAG = re.compile(r"\{\{(?!\*)[:#/]?[^}]*?\}\}", re.DOTALL)
+MODIFIER = re.compile(r"\|\s*\w+((?::(?:\"[^\"]*\"|'[^']*'|[^\s:|}]+))+)")
+DOUBLE_QUOTED = re.compile(r'"([^"]*)"')
+
+
+def modifier_argument_quotes(text):
+    """Yield (line, tag, reason) for an apostrophe inside a modifier argument.
+
+    `{{$x|replace:"a":"c'est"}}` does not render "c'est" — the apostrophe ends a
+    string the tokeniser believes it is inside, and the rest of the tag is
+    swallowed as literal text, or the whole value comes out empty. It is the same
+    fault as the SQL one below: `'a' || 'b' -- l'un` breaks because `||` IS this
+    pipe, not because SQL concatenation is special.
+
+    Narrow on purpose, because three neighbouring shapes are fine and common:
+      - the value being modified: `{{"l'un"|escape}}`
+      - a tag parameter after the chain: `{{:link href="…"|args:$n label="l'an"}}`
+      - a single-quoted argument, where they are the delimiters: `{{$x|or:'—'}}`
+    """
+    seen = set()
+    for tag in TAG.finditer(text):
+        for mod in MODIFIER.finditer(tag.group(0)):
+            for arg in DOUBLE_QUOTED.finditer(mod.group(1)):
+                if "'" not in arg.group(1):
+                    continue
+                line = text.count("\n", 0, tag.start()) + 1
+                if line in seen:
+                    continue
+                seen.add(line)
+                yield (
+                    line,
+                    tag.group(0).split("\n")[0],
+                    "apostrophe inside a double-quoted modifier argument — the rest "
+                    "of the tag is swallowed",
+                )
+
 
 def problems(text: str):
     """Yield (line number within the file, offending line, reason)."""
@@ -62,11 +100,15 @@ def main(paths: list[str]) -> int:
     for path in paths:
         with open(path, encoding="utf-8") as f:
             text = f.read()
-        for lineno, line, reason in problems(text):
+        issues = sorted(
+            list(problems(text)) + list(modifier_argument_quotes(text)),
+            key=lambda i: i[0],
+        )
+        for lineno, line, reason in issues:
             found += 1
             print(f"{path}:{lineno}: {reason}\n    {line.strip()}")
     if found:
-        print(f"\n{found} problem(s). Rephrase: no ';', and no lone apostrophe.")
+        print(f"\n{found} problem(s).")
     return 1 if found else 0
 
 

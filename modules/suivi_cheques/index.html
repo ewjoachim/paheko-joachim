@@ -23,7 +23,7 @@
 {{/if}}
 
 {{:assign state=$_GET.state|trim}}
-{{if $state !== 'deposited' && $state !== 'cancelled' && $state !== 'all'}}
+{{if $state !== 'in_batch' && $state !== 'deposited' && $state !== 'cancelled' && $state !== 'all'}}
 	{{:assign state="todo"}}
 {{/if}}
 
@@ -44,80 +44,94 @@
 {{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
 
 {{*=================================================================================
-    POST — gel du lot + pose des batch_id. Réservé à qui gère les membres : c'est
-    l'acte de celui qui apporte physiquement les chèques à la banque.
+    POST — ajouter les chèques cochés à un bordereau : un nouveau, ou l'un de ceux
+    encore en cours. Réservé à qui gère les membres.
+
+    Rien n'est figé ici : un bordereau en cours n'a ni date, ni composition stockée
+    (cf. batch.html). Poser le batch_id sur chaque chèque suffit à le composer, et
+    c'est le passage en banque qui le fige et déclenche l'écriture comptable.
 ==================================================================================*}}
 {{#form on="deposit"}}
 {{#restrict section="users" level="write"}}
 
-	{{* Composition figée du bordereau. On re-dérive n° et montant depuis la source et
-	    on ne retient que les chèques éligibles (non annulés, pas déjà dans un lot). *}}
-	{{:assign lines=null}}
+	{{:assign target=$_POST.target|trim|or:'new'}}
+	{{:assign batch_id=null}}
+
+	{{if $target === 'new'}}
+		{{* Référence du bordereau : le jour, puis un rang. Un horodatage à la seconde
+		    donnait la même référence à deux bordereaux ouverts dans la même seconde,
+		    et {{:save}} fusionnait le second dans le premier sans rien dire. Le rang
+		    part du MAX et non du COUNT, pour qu'une suppression ne le fasse pas
+		    retomber sur une référence déjà prise. *}}
+		{{#select
+			strftime('%Y%m%d', 'now', 'localtime') || '-' || printf('%02d',
+				1 + COALESCE(MAX(CAST(substr(json_extract(document, '$.ref'), 10) AS INT)), 0)) AS bid
+			FROM module_data_suivi_cheques
+			WHERE json_extract(document, '$.type') = 'deposit_batch'
+				AND json_extract(document, '$.ref') LIKE strftime('%Y%m%d', 'now', 'localtime') || '-%'
+		}}
+			{{:assign batch_id=$bid}}
+		{{/select}}
+		{{* Garde-fou : si la référence était déjà prise, {{:save}} fusionnerait les deux
+		    piles au lieu d'en créer une. *}}
+		{{#load type="deposit_batch" key="batch-%s"|args:$batch_id}}
+			{{:error message="Impossible d'attribuer une référence de bordereau, réessayez."}}
+		{{/load}}
+	{{else}}
+		{{* On n'ajoute rien à un bordereau déjà parti en banque : la cible doit être
+		    en cours, donc sans date de dépôt. *}}
+		{{#load type="deposit_batch" key="batch-%s"|args:$target}}
+			{{if !$date}}{{:assign batch_id=$ref}}{{/if}}
+		{{/load}}
+		{{if !$batch_id}}{{:error message="Ce bordereau n'est plus en cours."}}{{/if}}
+	{{/if}}
+
+	{{* On ne retient que les chèques éligibles : non annulés, pas déjà dans un lot.
+	    La clé dit le type — pay-<id> pour un chèque de caisse — ce qui permet
+	    d'interroger la bonne table par sa clé primaire plutôt que de reconstruire
+	    l'union de toutes les sources pour chaque case cochée. *}}
 	{{:assign sel=null}}
-	{{:assign total=0}}
 	{{:assign n=0}}
 	{{#foreach from=$_POST.deposit key="skey" item="v"}}
 		{{#select
-			reference AS ref, amount AS amt, src_type, pid, uid
+			src_type, pid
 			FROM (
-				SELECT 'pay-' || p.id AS skey, p.reference AS reference, p.amount AS amount,
-					'caisse' AS src_type, p.id AS pid, t.user_id AS uid,
-					COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) AS cancelled,
-					json_extract(ov.document, '$.batch_id') AS batch_id
+				SELECT 'caisse' AS src_type, p.id AS pid
 				FROM plugin_pos_tabs_payments p
-				INNER JOIN plugin_pos_tabs t ON t.id = p.tab
-				-- Jointure sur la CLE : voir _list.html. Ici la requete tourne une fois par
-				-- case cochee, donc un scan complet par cheque du bordereau.
 				LEFT JOIN module_data_suivi_cheques ov
 					ON ov.key = 'pay-' || p.id
 					AND json_extract(ov.document, '$.type') = 'cheque'
+				WHERE :skey LIKE 'pay-%' AND p.id = CAST(substr(:skey, 5) AS INT)
+					AND COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 0
+					AND json_extract(ov.document, '$.batch_id') IS NULL
 				UNION ALL
-				SELECT r.key AS skey, json_extract(r.document, '$.cheque_number') AS reference,
-					CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
-					'rempl' AS src_type, NULL AS pid,
-					CAST(json_extract(r.document, '$.member_id') AS INT) AS uid,
-					COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) AS cancelled,
-					json_extract(r.document, '$.batch_id') AS batch_id
+				SELECT 'rempl', NULL
 				FROM module_data_suivi_cheques r
-				WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
+				WHERE r.key = :skey
+					AND json_extract(r.document, '$.type') = 'cheque_rempl'
+					AND COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) = 0
+					AND json_extract(r.document, '$.batch_id') IS NULL
 			)
-			WHERE skey = :skey AND cancelled = 0 AND batch_id IS NULL
 			LIMIT 1;
 			:skey=$skey
 		}}
-			{{* Nom du membre, figé dans le lot (bordereau = fait physique daté) *}}
-			{{:assign mname=null}}
-			{{if $uid}}{{#users id=$uid}}{{:assign mname=$_name}}{{/users}}{{/if}}
-			{{:assign var="lines[%d][source_key]"|args:$n value=$skey}}
-			{{:assign var="lines[%d][cheque_ref]"|args:$n value=$ref}}
-			{{:assign var="lines[%d][member]"|args:$n value=$mname}}
-			{{* L'id en plus du nom : le nom est ce qu'on imprime, l'id est ce qui permet de
-			    lier l'écriture de dépôt aux membres concernés (cf. _record_deposit.html). *}}
-			{{:assign var="lines[%d][member_id]"|args:$n value=$uid|intval}}
-			{{:assign var="lines[%d][amount]"|args:$n value=$amt|intval}}
 			{{:assign var="sel[%d][key]"|args:$n value=$skey}}
 			{{:assign var="sel[%d][type]"|args:$n value=$src_type}}
 			{{:assign var="sel[%d][pid]"|args:$n value=$pid}}
-			{{:assign total="%d+%d"|math:$total:$amt}}
 			{{:assign n="%d+1"|math:$n}}
 		{{/select}}
 	{{/foreach}}
 
 	{{if $n < 1}}{{:error message="Aucun chèque éligible sélectionné."}}{{/if}}
 
-	{{* Identifiant du lot (horodaté, sert de référence du bordereau) *}}
-	{{:assign batch_id=null}}
-	{{#select strftime('%Y%m%d-%H%M%S', 'now', 'localtime') AS bid}}{{:assign batch_id=$bid}}{{/select}}
-
-	{{:save type="deposit_batch"
-		key="batch-%s"|args:$batch_id
-		validate_schema="./deposit_batch.schema.json"
-		ref=$batch_id
-		date=$today
-		account=$waiting_account
-		lines=$lines
-		total=$total|intval
-	}}
+	{{if $target === 'new'}}
+		{{:save type="deposit_batch"
+			key="batch-%s"|args:$batch_id
+			validate_schema="./deposit_batch.schema.json"
+			ref=$batch_id
+			account=$waiting_account
+		}}
+	{{/if}}
 
 	{{* Pose de batch_id sur chaque chèque (merge -> les autres champs sont préservés) *}}
 	{{#foreach from=$sel item="row"}}
@@ -135,44 +149,7 @@
 		{{/if}}
 	{{/foreach}}
 
-	{{* L'écriture du dépôt est passée dans le second {{#form}} ci-dessous (voir le
-	    commentaire WORKAROUND qui s'y trouve). *}}
-	{{:assign posted_batch_id=$batch_id}}
-{{/restrict}}
-{{/form}}
-
-{{* WORKAROUND (Paheko 1.3.22 regression) — l'écriture était passée dans le {{#form}}
-    ci-dessus, après le gel du lot. Depuis 1.3.22 les sections lisent sur une
-    connexion SQLite séparée, en lecture seule, alors que {{:save}} écrit sur la
-    connexion principale — dont {{#form}} tient la transaction ouverte jusqu'au
-    {{/form}}. Le bordereau figé quelques lignes plus haut se lit donc comme absent
-    (« Bordereau introuvable ou vide ») et aucune écriture n'est passée : le lot
-    retombe silencieusement dans la file « à comptabiliser ».
-
-    Un second {{#form}}, sur le même POST, ouvre une NOUVELLE transaction : ses
-    lectures voient les écritures du premier, et l'écriture comptable reste atomique
-    avec le deposit_txn_id que _record_deposit.html repose sur le lot. Même forme
-    qu'edit.html, où le raisonnement complet est écrit.
-
-    Corrigé en amont : git revert le commit qui a introduit ce bloc. *}}
-{{#form on="deposit"}}
-{{#restrict section="users" level="write"}}
-	{{if $posted_batch_id}}
-		{{* Automatic mode (configuration): post the deposit entry right away, without
-		    requiring any accounting permission from whoever prepares the slip — the
-		    checkbox an admin ticked is what authorises it, mirroring the till's own
-		    setting. quiet=true: on failure the slip is still frozen and simply stays in
-		    the "to record" queue. The frozen batch above is the entry's only source, so
-		    this has to come after it. *}}
-		{{:assign rec_txn_id=null rec_error=null}}
-		{{if $module.config.auto_record_deposits}}
-			{{:include file="./_record_deposit.html" ref=$posted_batch_id quiet=true keep="rec_txn_id,rec_error"}}
-		{{/if}}
-
-		{{:assign qs="batch=%s"|args:$posted_batch_id}}
-		{{if $rec_txn_id}}{{:assign qs="batch=%s&recorded=1"|args:$posted_batch_id}}{{elseif $rec_error}}{{:assign qs="batch=%s&not_recorded=1"|args:$posted_batch_id}}{{/if}}
-		{{:redirect to="batch.html?%s"|args:$qs}}
-	{{/if}}
+	{{:redirect to="batch.html?batch=%s&added=%d"|args:$batch_id:$n}}
 {{/restrict}}
 {{/form}}
 
@@ -230,7 +207,26 @@
 					<button type="button" id="cheques-check">Tout cocher</button>
 					<button type="button" id="cheques-uncheck">Tout décocher</button>
 					<strong id="cheques-selection"></strong>
-					{{:button type="submit" name="deposit" value="1" label="Générer le bordereau" shape="money" class="main"}}
+					{{* Les bordereaux encore en cours, pour continuer d'en garnir un plutôt que
+					    d'en ouvrir un par passage. Le plus récent est pré-sélectionné : la pile
+					    en cours est presque toujours la bonne cible. *}}
+					<select name="target">
+						{{:assign first_open=true}}
+						{{#select
+							json_extract(b.document, '$.ref') AS ref,
+							(SELECT COUNT(*) FROM module_data_suivi_cheques c
+								WHERE json_extract(c.document, '$.batch_id') = json_extract(b.document, '$.ref')) AS n
+							FROM module_data_suivi_cheques b
+							WHERE json_extract(b.document, '$.type') = 'deposit_batch'
+								AND json_extract(b.document, '$.date') IS NULL
+							ORDER BY ref DESC
+						}}
+							<option value="{{$ref|escape}}"{{if $first_open}} selected="selected"{{/if}}>Bordereau {{$ref|escape}} ({{$n}} chèque(s))</option>
+							{{:assign first_open=false}}
+						{{/select}}
+						<option value="new"{{if $first_open}} selected="selected"{{/if}}>Nouveau bordereau</option>
+					</select>
+					{{:button type="submit" name="deposit" value="1" label="Ajouter au bordereau" shape="money" class="main"}}
 				{{/if}}
 				{{:exportmenu href="export.html" suffix="format=" label="Exporter"}}
 			</p>
