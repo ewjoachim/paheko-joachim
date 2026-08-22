@@ -33,7 +33,7 @@ def test_edit_planned_month_via_dropdown(
 
     # September stays in the reception year; March lands in the following one.
     admin_page.goto(
-        f"{module_url}/index.html?month={resolved_month(month)}",
+        f"{module_url}/index.html?period={resolved_month(month)}&state=all",
         wait_until="domcontentloaded",
     )
     expect(admin_page.locator("table.list", has_text="CHQ-0140")).to_have_count(1)
@@ -51,14 +51,14 @@ def test_method_month_year_follows_reception(
     reseed()
     till_payment(method=2, date="2026-07-01", amount=4200, reference="CHQ-0400")
 
-    admin_page.goto(f"{module_url}/index.html?month=2027-01", wait_until="domcontentloaded")
+    admin_page.goto(f"{module_url}/index.html?period=2027-01&state=all", wait_until="domcontentloaded")
     expect(admin_page.locator("table.list", has_text="CHQ-0400")).to_have_count(1)
 
-    admin_page.goto(f"{module_url}/index.html?month=2026-01", wait_until="domcontentloaded")
+    admin_page.goto(f"{module_url}/index.html?period=2026-01&state=all", wait_until="domcontentloaded")
     expect(admin_page.locator("table.list", has_text="CHQ-0400")).to_have_count(0)
 
     # And it is not due yet, so it stays out of a slip prepared for July 2026.
-    admin_page.goto(f"{module_url}/deposit.html?month=2026-07", wait_until="domcontentloaded")
+    admin_page.goto(f"{module_url}/index.html?period=2026-07&state=todo", wait_until="domcontentloaded")
     expect(admin_page.locator("table.list", has_text="CHQ-0400")).to_have_count(0)
 
 

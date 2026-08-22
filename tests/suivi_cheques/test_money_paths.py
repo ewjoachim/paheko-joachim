@@ -102,7 +102,7 @@ def test_cancel_deposit_slip_unlocks_cheques(
     cheque returns to the deposit selection (batch_id cleared)."""
     reseed()
     admin_page.on("dialog", lambda d: d.accept())  # the "are you sure?" confirm
-    admin_page.goto(f"{module_url}/deposit.html?batch=DEMO", wait_until="domcontentloaded")
+    admin_page.goto(f"{module_url}/batch.html?batch=DEMO", wait_until="domcontentloaded")
 
     admin_page.get_by_role("button", name="Annuler le bordereau").click()
     admin_page.wait_for_load_state("domcontentloaded")
@@ -114,5 +114,5 @@ def test_cancel_deposit_slip_unlocks_cheques(
         admin_page.locator('form:has(input[name="rec_id"][value="DEMO"])')
     ).to_have_count(0)
     # ...and CHQ-0143 is selectable again when preparing a July slip.
-    admin_page.goto(f"{module_url}/deposit.html?month=2026-07", wait_until="domcontentloaded")
+    admin_page.goto(f"{module_url}/index.html?period=2026-07&state=todo", wait_until="domcontentloaded")
     expect(admin_page.locator("table.list", has_text="CHQ-0143")).to_have_count(1)
