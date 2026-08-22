@@ -40,7 +40,7 @@ def test_unchecked_by_default(admin_page: Page, module_url, reseed):
     expect(admin_page.locator(f"{BOXES}:checked")).to_have_count(0)
 
     # Generating without ticking anything freezes nothing and says so.
-    admin_page.get_by_role("button", name="Générer").click()
+    admin_page.get_by_role("button", name="Ajouter au bordereau").click()
     admin_page.wait_for_load_state("domcontentloaded")
     expect(admin_page.locator(".error")).to_contain_text("Aucun chèque éligible sélectionné")
 
@@ -98,7 +98,7 @@ def test_filtering_and_sorting_never_untick(admin_page: Page, module_url, reseed
     expect(admin_page.locator("#cheques-selection")).to_contain_text("2 coché")
 
 
-def test_only_ticked_cheques_are_deposited(admin_page: Page, module_url, reseed):
+def test_only_ticked_cheques_go_into_the_slip(admin_page: Page, module_url, reseed):
     reseed()
     admin_page.goto(f"{module_url}/{VIEW % (MONTH, 'todo')}", wait_until="domcontentloaded")
 
@@ -107,7 +107,7 @@ def test_only_ticked_cheques_are_deposited(admin_page: Page, module_url, reseed)
     dropped = rows.nth(1).locator("td").nth(1).inner_text()
     rows.nth(0).locator('td.check input[type="checkbox"]').check()
 
-    admin_page.get_by_role("button", name="Générer").click()
+    admin_page.get_by_role("button", name="Ajouter au bordereau").click()
     admin_page.wait_for_load_state("domcontentloaded")
 
     slip = admin_page.locator("body")

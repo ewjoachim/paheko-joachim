@@ -189,6 +189,9 @@
 				CAST(json_extract(md.document, '$.total') AS INT) AS total
 				FROM module_data_suivi_cheques md
 				WHERE json_extract(md.document, '$.type') = 'deposit_batch'
+					-- Un bordereau en cours n a pas de date : il se garnit encore, il n y a
+					-- rien a comptabiliser tant qu il n est pas parti en banque.
+					AND json_extract(md.document, '$.date') IS NOT NULL
 					AND (json_extract(md.document, '$.deposit_txn_id') IS NULL
 						OR NOT EXISTS (SELECT 1 FROM acc_transactions a WHERE a.id = CAST(json_extract(md.document, '$.deposit_txn_id') AS INT)))
 				ORDER BY bdate

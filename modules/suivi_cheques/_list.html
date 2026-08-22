@@ -63,15 +63,20 @@
 					json_extract(ov.document, '$.reason') AS reason,
 					json_extract(ov.document, '$.notes') AS notes,
 					json_extract(ov.document, '$.batch_id') AS batch_id,
-					(SELECT json_extract(b.document, '$.deposit_txn_id')
+					-- Date du bordereau : nulle tant qu il est en cours, ce qui distingue
+					-- un cheque encore sur le bureau d un cheque parti en banque.
+					(SELECT json_extract(b.document, '$.date')
 						FROM module_data_suivi_cheques b
-						WHERE json_extract(b.document, '$.type') = 'deposit_batch'
-							AND b.key = 'batch-' || json_extract(ov.document, '$.batch_id')
-						LIMIT 1) AS batch_deposit_txn_id,
+						WHERE b.key = 'batch-' || json_extract(ov.document, '$.batch_id')
+						LIMIT 1) AS batch_date,
 					CASE
 						WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
-						WHEN json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'deposited'
-						ELSE 'todo'
+						WHEN json_extract(ov.document, '$.batch_id') IS NULL THEN 'todo'
+						WHEN (SELECT json_extract(b.document, '$.date')
+							FROM module_data_suivi_cheques b
+							WHERE b.key = 'batch-' || json_extract(ov.document, '$.batch_id')
+							LIMIT 1) IS NULL THEN 'in_batch'
+						ELSE 'deposited'
 					END AS cstate
 				FROM plugin_pos_tabs_payments p
 				INNER JOIN plugin_pos_tabs t ON t.id = p.tab
@@ -102,15 +107,20 @@
 					json_extract(ov2.document, '$.reason') AS reason,
 					json_extract(ov2.document, '$.notes') AS notes,
 					json_extract(ov2.document, '$.batch_id') AS batch_id,
-					(SELECT json_extract(b.document, '$.deposit_txn_id')
+					-- Date du bordereau : nulle tant qu il est en cours, ce qui distingue
+					-- un cheque encore sur le bureau d un cheque parti en banque.
+					(SELECT json_extract(b.document, '$.date')
 						FROM module_data_suivi_cheques b
-						WHERE json_extract(b.document, '$.type') = 'deposit_batch'
-							AND b.key = 'batch-' || json_extract(ov2.document, '$.batch_id')
-						LIMIT 1) AS batch_deposit_txn_id,
+						WHERE b.key = 'batch-' || json_extract(ov2.document, '$.batch_id')
+						LIMIT 1) AS batch_date,
 					CASE
 						WHEN COALESCE(CAST(json_extract(ov2.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
-						WHEN json_extract(ov2.document, '$.batch_id') IS NOT NULL THEN 'deposited'
-						ELSE 'todo'
+						WHEN json_extract(ov2.document, '$.batch_id') IS NULL THEN 'todo'
+						WHEN (SELECT json_extract(b.document, '$.date')
+							FROM module_data_suivi_cheques b
+							WHERE b.key = 'batch-' || json_extract(ov2.document, '$.batch_id')
+							LIMIT 1) IS NULL THEN 'in_batch'
+						ELSE 'deposited'
 					END AS cstate
 				FROM module_data_suivi_cheques ov2
 				WHERE json_extract(ov2.document, '$.type') = 'cheque_rempl'
@@ -135,6 +145,9 @@
 			{{:assign mname=null}}
 			{{if $user_id}}{{#users id=$user_id}}{{:assign mname=$_name}}{{/users}}{{/if}}
 			{{:assign mlabel=$mname|or:$tab_name|or:'—'}}
+			{{* date_short AVANT le formatage : dans "…%s"|args:$x|date_short le modificateur
+			    porterait sur le résultat de args, c'est-à-dire sur le libellé entier. *}}
+			{{:assign bdate_short=$batch_date|date_short}}
 
 			<tr{{if $cstate === 'cancelled'}} class="disabled"{{/if}} data-amount="{{$amount}}">
 				{{* La case est écrite à la main plutôt que par {{:input}} : le helper ajoute un
@@ -167,10 +180,12 @@
 					{{if $source === 'rempl'}}{{:tag label="Règlement" color="darkcyan"}} {{/if}}
 					{{if $cstate === 'cancelled'}}
 						{{:tag label="Annulé" color="grey"}} {{$reason|escape}}
-					{{elseif $batch_deposit_txn_id !== null}}
+					{{elseif $cstate === 'deposited'}}
 						{{:tag label="Déposé" color="darkgreen"}}
-					{{elseif $batch_id !== null}}
+						{{:link href="batch.html?batch=%s"|args:$batch_id label="bordereau du %s"|args:$bdate_short}}
+					{{elseif $cstate === 'in_batch'}}
 						{{:tag label="Dans un lot" color="blue"}}
+						{{:link href="batch.html?batch=%s"|args:$batch_id label="bordereau en cours"}}
 					{{else}}
 						{{:tag label="À encaisser" color="darkorange"}}
 					{{/if}}

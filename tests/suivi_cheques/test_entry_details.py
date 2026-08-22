@@ -20,7 +20,7 @@ def _entry_id_from_link(page: Page) -> int:
 
 
 def test_cancellation_names_the_member(
-    admin_page: Page, module_url, reseed, module_config, transaction, seed
+    admin_page: Page, add_to_slip, take_to_bank, module_url, reseed, module_config, transaction, seed
 ):
     """CHQ-0140 cancelled with nothing replacing it: the member owes 45,00, and both
     the entry label and the receivable line say who."""
@@ -44,7 +44,7 @@ def test_cancellation_names_the_member(
 
 
 def test_deposit_entry_is_linked_to_its_members(
-    admin_page: Page, module_url, reseed, module_config, transaction, seed
+    admin_page: Page, add_to_slip, take_to_bank, module_url, reseed, module_config, transaction, seed
 ):
     """The slip covers several cheques of the same member: the entry links them
     once, not once per cheque (the ids are deduplicated before being sent)."""
@@ -57,8 +57,8 @@ def test_deposit_entry_is_linked_to_its_members(
     assert count > 1, "this test needs a slip with more than one cheque"
     for i in range(count):
         boxes.nth(i).check()
-    admin_page.get_by_role("button", name="Générer le bordereau").click()
-    admin_page.wait_for_load_state("domcontentloaded")
+    add_to_slip(admin_page)
+    take_to_bank(admin_page)
 
     ref = re.search(r"[?&]batch=([^&]+)", admin_page.url).group(1)
     txn = transaction(f"Remise de chèques n°{ref}")
@@ -67,7 +67,7 @@ def test_deposit_entry_is_linked_to_its_members(
 
 
 def test_automatic_mode_links_to_the_created_entry(
-    admin_page: Page, module_url, reseed, module_config, transaction, seed
+    admin_page: Page, add_to_slip, take_to_bank, module_url, reseed, module_config, transaction, seed
 ):
     reseed()
     module_config(auto_record_cancellations=1)
@@ -83,7 +83,7 @@ def test_automatic_mode_links_to_the_created_entry(
 
 
 def test_the_queue_links_to_the_created_entry(
-    admin_page: Page, module_url, reseed, transaction
+    admin_page: Page, add_to_slip, take_to_bank, module_url, reseed, transaction
 ):
     """Same link on the manual path, where the entry is posted from the queue."""
     reseed()

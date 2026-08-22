@@ -5,7 +5,7 @@
 	Paramètres attendus :
 	  $period   'YYYY-MM' | 'upcoming' | 'all'
 	  $month    mois courant au format YYYY-MM (borne du mode 'upcoming')
-	  $state    'todo' | 'deposited' | 'cancelled' | 'all'
+	  $state    'todo' | 'in_batch' | 'deposited' | 'cancelled' | 'all'
 	Renvoie, via keep="f_n" : le nombre de chèques de la période ET de l'état
 	sélectionnés — ce que la pagination a à découper.
 
@@ -19,7 +19,7 @@
 
 {{* Accumulateurs des pastilles. Préfixe c_ : les colonnes de la requête ci-dessous
     s'appellent n_todo, n_deposited, n_cancelled et masqueraient ces variables. *}}
-{{:assign c_todo=0 c_deposited=0 c_cancelled=0}}
+{{:assign c_todo=0 c_in_batch=0 c_deposited=0 c_cancelled=0}}
 
 <nav class="tabs periods">
 	<ul>
@@ -33,13 +33,14 @@
 			END AS label,
 			MAX(in_exercise) AS in_exercise,
 			SUM(is_todo) AS n_todo,
+			SUM(is_in_batch) AS n_in_batch,
 			SUM(is_deposited) AS n_deposited,
 			SUM(is_cancelled) AS n_cancelled
 			FROM (
 				-- Squelette : les 12 mois de l exercice comptable ouvert, pour que la barre
 				-- soit complete meme la ou aucun cheque n est encore planifie. A defaut
 				-- d exercice ouvert, une fenetre glissante autour du mois courant.
-				SELECT ym, 1 AS in_exercise, 0 AS is_todo, 0 AS is_deposited, 0 AS is_cancelled
+				SELECT ym, 1 AS in_exercise, 0 AS is_todo, 0 AS is_in_batch, 0 AS is_deposited, 0 AS is_cancelled
 				FROM (
 					SELECT strftime('%Y-%m',
 						date(COALESCE(
@@ -55,6 +56,7 @@
 
 				SELECT planned_month AS ym, 0,
 					CASE WHEN state = 'todo' THEN 1 ELSE 0 END,
+					CASE WHEN state = 'in_batch' THEN 1 ELSE 0 END,
 					CASE WHEN state = 'deposited' THEN 1 ELSE 0 END,
 					CASE WHEN state = 'cancelled' THEN 1 ELSE 0 END
 				FROM (
@@ -72,8 +74,12 @@
 						) AS planned_month,
 						CASE
 							WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
-							WHEN json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'deposited'
-							ELSE 'todo'
+							WHEN json_extract(ov.document, '$.batch_id') IS NULL THEN 'todo'
+							WHEN (SELECT json_extract(b.document, '$.date')
+								FROM module_data_suivi_cheques b
+								WHERE b.key = 'batch-' || json_extract(ov.document, '$.batch_id')
+								LIMIT 1) IS NULL THEN 'in_batch'
+							ELSE 'deposited'
 						END AS state
 					FROM plugin_pos_tabs_payments p
 					INNER JOIN plugin_pos_tabs t ON t.id = p.tab
@@ -95,8 +101,12 @@
 						json_extract(ov2.document, '$.planned_month') AS planned_month,
 						CASE
 							WHEN COALESCE(CAST(json_extract(ov2.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
-							WHEN json_extract(ov2.document, '$.batch_id') IS NOT NULL THEN 'deposited'
-							ELSE 'todo'
+							WHEN json_extract(ov2.document, '$.batch_id') IS NULL THEN 'todo'
+							WHEN (SELECT json_extract(b.document, '$.date')
+								FROM module_data_suivi_cheques b
+								WHERE b.key = 'batch-' || json_extract(ov2.document, '$.batch_id')
+								LIMIT 1) IS NULL THEN 'in_batch'
+							ELSE 'deposited'
 						END AS state
 					FROM module_data_suivi_cheques ov2
 					WHERE json_extract(ov2.document, '$.type') = 'cheque_rempl'
@@ -108,6 +118,7 @@
 			{{* Même définition de période que _list.html, réécrite ici en Brindille. *}}
 			{{if $period === 'all' || $period === $ym || $period === 'upcoming' && $ym >= $month}}
 				{{:assign c_todo="%d+%d"|math:$c_todo:$n_todo}}
+				{{:assign c_in_batch="%d+%d"|math:$c_in_batch:$n_in_batch}}
 				{{:assign c_deposited="%d+%d"|math:$c_deposited:$n_deposited}}
 				{{:assign c_cancelled="%d+%d"|math:$c_cancelled:$n_cancelled}}
 			{{/if}}
@@ -126,10 +137,11 @@
 	</ul>
 </nav>
 
-{{:assign c_all="%d+%d+%d"|math:$c_todo:$c_deposited:$c_cancelled}}
+{{:assign c_all="%d+%d+%d+%d"|math:$c_todo:$c_in_batch:$c_deposited:$c_cancelled}}
 
-{{:assign cls_todo="" cls_deposited="" cls_cancelled="" cls_all=""}}
+{{:assign cls_todo="" cls_in_batch="" cls_deposited="" cls_cancelled="" cls_all=""}}
 {{if $state === 'todo'}}{{:assign cls_todo="main"}}
+{{elseif $state === 'in_batch'}}{{:assign cls_in_batch="main"}}
 {{elseif $state === 'deposited'}}{{:assign cls_deposited="main"}}
 {{elseif $state === 'cancelled'}}{{:assign cls_cancelled="main"}}
 {{else}}{{:assign cls_all="main"}}
@@ -137,6 +149,7 @@
 
 <p class="actions states">
 	{{:linkbutton href="index.html?period=%s&state=todo"|args:$period label="À encaisser (%d)"|args:$c_todo class=$cls_todo}}
+	{{:linkbutton href="index.html?period=%s&state=in_batch"|args:$period label="Dans un lot (%d)"|args:$c_in_batch class=$cls_in_batch}}
 	{{:linkbutton href="index.html?period=%s&state=deposited"|args:$period label="Déposé (%d)"|args:$c_deposited class=$cls_deposited}}
 	{{:linkbutton href="index.html?period=%s&state=cancelled"|args:$period label="Annulé (%d)"|args:$c_cancelled class=$cls_cancelled}}
 	{{:linkbutton href="index.html?period=%s&state=all"|args:$period label="Tous (%d)"|args:$c_all class=$cls_all}}
@@ -144,6 +157,7 @@
 
 {{:assign f_n=$c_all}}
 {{if $state === 'todo'}}{{:assign f_n=$c_todo}}
+{{elseif $state === 'in_batch'}}{{:assign f_n=$c_in_batch}}
 {{elseif $state === 'deposited'}}{{:assign f_n=$c_deposited}}
 {{elseif $state === 'cancelled'}}{{:assign f_n=$c_cancelled}}
 {{/if}}
