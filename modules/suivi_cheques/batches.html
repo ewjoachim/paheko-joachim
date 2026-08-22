@@ -1,16 +1,12 @@
 {{* -*- brindille -*- *}}
 
-{{* Historique des bordereaux de remise figés (type deposit_batch, cf. deposit.html
-    §6.3). Jusqu'ici un bordereau n'était atteignable qu'en connaissant sa référence
-    (deposit.html?batch=...) ou tant qu'il restait dans « à comptabiliser » : passé
-    cette étape il devenait introuvable. Cette page est cet index manquant.
+{{* Historique des bordereaux de remise figés (type deposit_batch). L'index des
+    bordereaux : passé la file « à comptabiliser », un bordereau n'était plus
+    atteignable qu'en connaissant sa référence.
 
-    Lecture seule : aucune action ici, la génération se fait dans deposit.html et
-    l'annulation d'un lot depuis le bordereau lui-même.
-
-    Droits : la page s'ouvre à membres = lecture, mais deposit.html est gardé
-    membres = ÉCRITURE, donc le lien vers le bordereau n'est posé que sous ce droit.
-    Même chose pour le lien vers l'écriture, réservé à comptabilité = lecture. *}}
+    Lecture seule : aucune action ici, la génération se fait dans index.html en
+    cochant, et l'annulation d'un lot depuis le bordereau lui-même. Le lien vers
+    l'écriture est réservé à comptabilité = lecture. *}}
 {{#restrict block=true section="users" level="read"}}{{/restrict}}
 
 {{:admin_header title="Bordereaux de remise" current="module_suivi_cheques"}}
@@ -39,7 +35,7 @@
 		</thead>
 		<tbody>
 			{{* « Comptabilisé » = id d'écriture présent ET écriture existante, même
-			    définition robuste que to_record.html et deposit.html : un id pointant sur
+			    définition robuste que to_record.html et batch.html : un id pointant sur
 			    une écriture supprimée depuis ne compte pas, et le lot est bien de retour
 			    dans la file « à comptabiliser ». *}}
 			{{#select
@@ -57,13 +53,7 @@
 				{{:assign n="%d+1"|math:$n}}
 				{{:assign grand_total="%d+%d"|math:$grand_total:$total}}
 				<tr>
-					<td>
-						{{#restrict section="users" level="write"}}
-							{{:link href="deposit.html?batch=%s"|args:$ref label=$ref}}
-						{{else}}
-							{{$ref|escape}}
-						{{/restrict}}
-					</td>
+					<td>{{:link href="batch.html?batch=%s"|args:$ref label=$ref}}</td>
 					<td>{{$bdate|date_short}}</td>
 					<td>{{$nb_cheques}}</td>
 					<td class="money">{{$total|raw|money_currency}}</td>
