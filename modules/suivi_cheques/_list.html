@@ -134,9 +134,11 @@
 
 			<tr{{if $cstate === 'cancelled'}} class="disabled"{{/if}} data-amount="{{$amount}}">
 				{{* La case est écrite à la main plutôt que par {{:input}} : le helper ajoute un
-				    champ caché deposit_present[…] par ligne, et une liste entière dépasserait
-				    max_input_vars (1000 par défaut) — PHP tronquerait le POST en silence. Le
-				    couple input + label est ce que la CSS du cœur dessine. *}}
+				    deposit_present[…] caché par ligne, cochée ou non, et une liste entière
+				    dépasserait max_input_vars (1000 par défaut). PHP jette alors le surplus de
+				    $_POST et sert la page quand même : le bordereau serait incomplet sans que
+				    rien ne le dise à l'écran. Ici seules les cases cochées sont envoyées.
+				    Le couple input + label est ce que la CSS du cœur dessine. *}}
 				<td class="check">
 					{{if $selectable}}
 						{{if $cstate === 'todo'}}

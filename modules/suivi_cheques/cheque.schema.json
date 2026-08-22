@@ -45,14 +45,14 @@
 				"null",
 				"integer"
 			],
-			"description": "Identifiant de l'écriture d'annulation créée via :api (CONCEPTION §6.2/§8). Lien primaire immuable module <-> compta."
+			"description": "Identifiant de l'écriture d'annulation créée via :api. Lien primaire immuable module <-> compta."
 		},
 		"batch_id": {
 			"type": [
 				"null",
 				"string"
 			],
-			"description": "Identifiant du lot de remise une fois le chèque parti à la banque (CONCEPTION §6.3). Verrouille le chèque."
+			"description": "Identifiant du lot de remise une fois le chèque parti à la banque. Verrouille le chèque."
 		}
 	},
 	"required": [
