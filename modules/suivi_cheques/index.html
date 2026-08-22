@@ -261,7 +261,9 @@
 		{{/if}}
 
 		<style type="text/css">
-			p.actions.states, form p.actions { text-align: left; }
+			{{* p.actions du cœur est en float: right — la barre d'état et la barre d'outils
+			    se lisent de gauche à droite avec le tableau qu'elles commandent. *}}
+			p.actions.states, form p.actions { float: none; text-align: left; }
 			nav.tabs.periods sup.late { margin-left: .3em; font-size: .8em; }
 			#cheques thead th[data-key] { cursor: pointer; }
 			#cheques input[type=checkbox]:disabled + label::before { color: var(--gBorderColor); cursor: default; }
