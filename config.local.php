@@ -19,6 +19,14 @@ const ENABLE_TECH_DETAILS = true;
 define(__NAMESPACE__ . '\WWW_URL', getenv('WWW_URL') ?: 'http://localhost:8080/');
 const WWW_URI = '/';
 
+// Paheko defaults to TRUNCATE (a rollback journal is the safe choice on NFS
+// hosting). paheko.cloud, where this module actually runs, is on WAL — and the
+// two modes differ in observable behaviour, not just in speed: a rollback journal
+// makes a writer wait for readers, so a nested {{#load}} creating its automatic
+// index inside an open {{#select}} deadlocks on TRUNCATE and goes through on WAL.
+// Matching production is what keeps the tests measuring bugs we actually have.
+const SQLITE_JOURNAL_MODE = 'WAL';
+
 // DATA_ROOT and DB_FILE keep their default values:
 //   DATA_ROOT = ROOT . '/data'
 //   DB_FILE   = DATA_ROOT . '/association.sqlite'

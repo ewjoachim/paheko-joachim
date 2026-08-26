@@ -135,14 +135,6 @@
 				</thead>
 				<tbody>
 					{{* type = 0 = Method::TYPE_TRACKED (« Suivi ») : on ignore espèces/ardoise/porte-monnaie. *}}
-					{{* WORKAROUND (Paheko 1.3.22 regression) — the month is joined in SQL instead of
-					    being read by a #load section nested in this loop. Since 1.3.22 sections read
-					    through a separate read-only SQLite connection, so the automatic CREATE INDEX
-					    a nested #load triggers (on the main connection) hits the lock held by the
-					    still-open cursor: "database is locked", HTTP 500. Only shows up on a fresh
-					    instance, where that index does not exist yet.
-					    Once fixed upstream: git revert the commit that introduced this block to get
-					    the more readable #load version back. *}}
 					{{#select m.id AS id, m.name AS name, json_extract(d.document, '$.month') AS cur
 						FROM plugin_pos_methods m
 						LEFT JOIN module_data_suivi_cheques d
