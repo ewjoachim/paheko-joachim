@@ -26,11 +26,21 @@ BK=/var/www/paheko/data/association.regen-backup.sqlite
 CACHE=/var/www/paheko/data/cache
 
 echo "==> Backing up the working database"
+# The instance runs in WAL, where the most recent commits live in the -wal sidecar
+# until a checkpoint folds them into the main file — so copy only after one.
+podman exec -i -u www-data -e DB="$DB" "$CONTAINER" php <<'PHP'
+<?php
+$db = new SQLite3(getenv('DB'));
+$db->exec('PRAGMA wal_checkpoint(TRUNCATE)');
+$db->close();
+PHP
 podman exec "$CONTAINER" cp "$DB" "$BK"
 
 restore() {
 	echo "==> Restoring the working database"
-	podman exec "$CONTAINER" sh -c "cp '$BK' '$DB' && rm -f '$BK' && rm -rf '$CACHE'/* 2>/dev/null || true"
+	# The -wal/-shm sidecars describe the database being replaced: SQLite would
+	# recover the seeded fixture's tail over the restored file.
+	podman exec "$CONTAINER" sh -c "cp '$BK' '$DB' && rm -f '$BK' '$DB-wal' '$DB-shm' && rm -rf '$CACHE'/* 2>/dev/null || true"
 }
 trap restore EXIT
 
