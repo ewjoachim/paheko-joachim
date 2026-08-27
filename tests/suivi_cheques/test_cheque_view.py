@@ -9,16 +9,53 @@ PERIODS = "nav.tabs.periods"
 
 
 def test_the_period_bar_shows_the_whole_exercise(admin_page: Page, module_url, reseed):
-    """Twelve months at once, plus the two overviews — no stepping month by month."""
+    """Twelve months at once, plus a year either side and the two overviews — no
+    stepping month by month."""
     reseed()
     admin_page.goto(f"{module_url}/index.html", wait_until="domcontentloaded")
 
     items = admin_page.locator(f"{PERIODS} li")
-    expect(items).to_have_count(14)
+    expect(items).to_have_count(16)
     expect(admin_page.locator(f"{PERIODS} li", has_text="À venir")).to_have_count(1)
     expect(admin_page.locator(f"{PERIODS} li", has_text="Tous")).to_have_count(1)
     # The view opens on the current month.
     expect(admin_page.locator(f"{PERIODS} li.current")).to_have_count(1)
+
+
+def test_the_bar_moves_a_year_at_a_time(admin_page: Page, module_url, reseed):
+    """A cheque planned outside the twelve months on show has to be reachable. The
+    arrows shift the whole bar by a year, and the month picked comes back with its
+    own window — so stepping forward then back lands where it started."""
+    reseed()
+    admin_page.goto(f"{module_url}/index.html?period=2026-09&state=todo", wait_until="domcontentloaded")
+
+    forward = admin_page.locator(f"{PERIODS} li a", has_text="2027").first
+    forward.click()
+    admin_page.wait_for_load_state("domcontentloaded")
+
+    expect(admin_page.locator(f'{PERIODS} a[href*="period=2027-06"]')).to_have_count(1)
+    expect(admin_page.locator(f'{PERIODS} a[href*="period=2026-09"]')).to_have_count(0)
+    # The state travels along, like everywhere else in the bar.
+    assert "state=todo" in admin_page.url
+
+    back = admin_page.locator(f"{PERIODS} li a", has_text="2026").first
+    back.click()
+    admin_page.wait_for_load_state("domcontentloaded")
+    expect(admin_page.locator(f'{PERIODS} a[href*="period=2026-09"]')).to_have_count(1)
+
+
+def test_a_month_outside_the_window_is_reachable(
+    admin_page: Page, module_url, reseed, till_payment
+):
+    """The point of the arrows: next year's cheques are listed, not lost."""
+    reseed()
+    # Seeded method 2 is mapped to January, so a cheque received in October 2027 is
+    # planned for January 2028 — two windows past the open exercise.
+    till_payment(method=2, date="2027-10-01", amount=6000, reference="CHQ-0900")
+
+    admin_page.goto(f"{module_url}/index.html?period=2028-01&state=todo", wait_until="domcontentloaded")
+    expect(admin_page.locator("table.list tbody tr", has_text="CHQ-0900")).to_have_count(1)
+    expect(admin_page.locator(f"{PERIODS} li.current")).to_contain_text("Janv")
 
 
 def test_a_past_month_with_a_backlog_is_flagged(admin_page: Page, module_url, reseed):
