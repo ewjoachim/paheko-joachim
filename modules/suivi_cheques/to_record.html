@@ -136,7 +136,7 @@
 	<h2 class="ruler">Règlements de créances à comptabiliser</h2>
 	<table class="list">
 		<thead>
-			<tr><th>Date</th><th>Membre</th><th>Chèque d'origine</th><th class="money">Montant</th><th class="actions"></th></tr>
+			<tr><th>Date</th><th>Membre</th><th>Moyen</th><th class="money">Montant</th><th class="actions"></th></tr>
 		</thead>
 		<tbody>
 			{{#select
@@ -144,10 +144,10 @@
 				json_extract(r.document, '$.date') AS rdate,
 				CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
 				CAST(json_extract(r.document, '$.member_id') AS INT) AS uid,
-				json_extract(c.document, '$.cheque_number') AS number
+				m.name AS method
 				FROM module_data_suivi_cheques r
-				LEFT JOIN module_data_suivi_cheques c
-					ON c.key = json_extract(r.document, '$.creance_key')
+				LEFT JOIN plugin_pos_methods m
+					ON m.id = CAST(json_extract(r.document, '$.method_id') AS INT)
 				WHERE json_extract(r.document, '$.type') = 'reglement'
 					AND (json_extract(r.document, '$.reglement_txn_id') IS NULL
 						OR NOT EXISTS (SELECT 1 FROM acc_transactions a WHERE a.id = CAST(json_extract(r.document, '$.reglement_txn_id') AS INT)))
@@ -156,7 +156,7 @@
 				<tr>
 					<td>{{$rdate|date_short}}</td>
 					<td>{{if $uid}}{{#users id=$uid}}{{:link href="!users/details.php?id=%d"|args:$uid label=$_name}}{{/users}}{{else}}—{{/if}}</td>
-					<td>{{$number|escape|or:'—'}}</td>
+					<td>{{$method|escape|or:'—'}}</td>
 					<td class="money">{{$amount|raw|money_currency}}</td>
 					<td class="actions">
 						{{#restrict section="accounting" level="write"}}

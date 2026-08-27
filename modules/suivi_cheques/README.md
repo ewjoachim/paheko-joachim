@@ -13,11 +13,15 @@ Guide utilisateur illustré : `doc/suivi_cheques/guide.html`.
   (juste « à terme »). L'accueil ne manipule que les données du module — y compris les
   créances (pourquoi : en tête de `_creance_sync.html`).
 - **Un fait, un document, une écriture.** Annuler un chèque ouvre une créance du
-  montant plein ; ce que le membre rend ensuite est un *règlement* de cette créance,
-  jamais une soustraction sur l'annulation. Chacun a son document, son `*_txn_id` et
-  sa ligne dans « à comptabiliser ». Un chèque rendu en règlement est un chèque suivi
-  comme un autre : s'il rejette à son tour, il ouvre sa propre créance — l'argent
-  manque une fois, à un endroit.
+  montant plein ; ce que le membre rend ensuite est un *règlement*, jamais une
+  soustraction sur l'annulation. Chacun a son document, son `*_txn_id` et sa ligne
+  dans « à comptabiliser ». Un chèque rendu en règlement est un chèque suivi comme un
+  autre : s'il rejette à son tour, il ouvre sa propre créance — l'argent manque une
+  fois, à un endroit.
+- **La dette est celle du membre, pas celle d'un chèque.** Une créance par chèque
+  revenu, parce que c'est le fait qui s'est produit ; mais on ne rembourse pas chèque
+  par chèque, donc un règlement porte l'identifiant du membre et rien d'autre
+  (`_member_debt.html`).
 - **La comptabilité** poste les écritures en un clic, via la fonction Brindille `{{:api}}`.
   Le module retient l'`id` de chaque écriture créée (lien robuste, insensible au
   renommage : on ne relit la comptabilité que pour vérifier l'existence de nos `id`).
@@ -67,12 +71,13 @@ réservée à `config = admin`.
 | `cheque` | `pay-<payment_id>` | **overlay** d'un paiement de caisse : uniquement ce que la caisse ignore (mois, annulation, liens compta, lot). Montant, numéro et date restent côté caisse |
 | `cheque_rempl` | `chq-<clé du règlement>` | chèque reçu en règlement d'une créance (`reglement_key`), jamais passé en caisse : le module en possède tout |
 | `creance` | `creance-<origin_key>` | dette née de l'annulation d'un chèque. Clé dérivée de l'origine, donc la création est **idempotente** |
-| `reglement` | `regl-<creance_key>-<horodatage>` | argent encaissé sur une créance ; plusieurs pour un règlement partiel |
+| `reglement` | `regl-<id du membre>-<horodatage>` | argent versé par un membre sur ce qu'il doit ; plusieurs documents pour un règlement en plusieurs fois |
 | `deposit_batch` | `batch-<ref>` | bordereau de remise figé |
 | `method_month_map` | `method-<id>` | configuration : moyen de paiement → mois |
 
-Le reste dû d'une créance n'est **pas stocké** : c'est `creance.amount` moins la somme
-des `reglement` qui la visent. Rien à maintenir en cohérence.
+Ce qu'un membre doit n'est **pas stocké** : c'est la somme de ses `creance` moins celle
+de ses `reglement`. Rien à répartir entre les chèques revenus, donc rien à maintenir en
+cohérence quand une créance naît ou disparaît.
 
 ## Hors périmètre (v1)
 

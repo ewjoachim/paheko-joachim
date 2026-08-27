@@ -53,22 +53,9 @@
 
 {{* Créance : ce que le module porte, pas ce que la comptabilité en reflète — les
     créances sont des documents du module (voir _creance_sync.html et debtors.html).
-    Somme des créances moins les règlements encaissés dessus, donc positif = doit,
-    et jamais négatif : settle.html refuse un règlement excédentaire. *}}
-{{:assign mp_receivable=0}}
-{{#select
-	COALESCE(SUM(CAST(json_extract(c.document, '$.amount') AS INT)
-		- COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
-			FROM module_data_suivi_cheques r
-			WHERE json_extract(r.document, '$.type') = 'reglement'
-				AND json_extract(r.document, '$.creance_key') = c.key), 0)), 0) AS receivable
-	FROM module_data_suivi_cheques c
-	WHERE json_extract(c.document, '$.type') = 'creance'
-		AND CAST(json_extract(c.document, '$.member_id') AS INT) = :uid;
-	:uid=$mp_user_id
-}}
-	{{:assign mp_receivable=$receivable|intval}}
-{{/select}}
+    Positif = doit, et jamais négatif : settle.html refuse un règlement excédentaire. *}}
+{{:include file="./_member_debt.html" md_user_id=$mp_user_id keep="md_owed"}}
+{{:assign mp_receivable=$md_owed}}
 
 {{if $mp_slate < 0 || $mp_receivable > 0}}
 	<p class="help">
@@ -187,37 +174,32 @@
 				-- 4. Creances portees par le module : nees quand un cheque est annule,
 				--    donc connues avant toute comptabilisation. On ne lit PAS les comptes
 				--    de tiers ici : la comptabilite est le reflet, pas la source
-				--    (voir _creance_sync.html).
+				--    (voir _creance_sync.html). Pas d etat par ligne : un versement solde
+				--    la dette entiere, donc dire d une creance qu elle est soldee
+				--    demanderait d inventer une repartition. Le solde est au-dessus.
 				SELECT json_extract(c.document, '$.date') AS mdate,
 					'receivable' AS kind,
 					'Créance sur chèque annulé' AS label,
 					json_extract(c.document, '$.reason') AS detail,
 					json_extract(c.document, '$.cheque_number') AS reference,
 					CAST(json_extract(c.document, '$.amount') AS INT) AS amount,
-					CASE WHEN CAST(json_extract(c.document, '$.amount') AS INT)
-						- COALESCE((SELECT SUM(CAST(json_extract(r2.document, '$.amount') AS INT))
-							FROM module_data_suivi_cheques r2
-							WHERE json_extract(r2.document, '$.type') = 'reglement'
-								AND json_extract(r2.document, '$.creance_key') = c.key), 0) > 0
-						THEN 'owed' ELSE 'settled' END AS state
+					NULL AS state
 				FROM module_data_suivi_cheques c
 				WHERE json_extract(c.document, '$.type') = 'creance'
 					AND CAST(json_extract(c.document, '$.member_id') AS INT) = :uid
 
 				UNION ALL
 
-				-- 5. Reglements encaisses sur une creance (settle.html). Le moyen est
+				-- 5. Ce que le membre a verse sur ses creances (settle.html). Le moyen est
 				--    celui choisi a la saisie, le reglement ne passant pas en caisse.
 				SELECT json_extract(rg.document, '$.date') AS mdate,
 					'receivable_paid' AS kind,
 					COALESCE(m2.name, 'Règlement de créance') AS label,
 					json_extract(rg.document, '$.notes') AS detail,
-					json_extract(cr.document, '$.cheque_number') AS reference,
+					NULL AS reference,
 					CAST(json_extract(rg.document, '$.amount') AS INT) AS amount,
 					NULL AS state
 				FROM module_data_suivi_cheques rg
-				LEFT JOIN module_data_suivi_cheques cr
-					ON cr.key = json_extract(rg.document, '$.creance_key')
 				LEFT JOIN plugin_pos_methods m2
 					ON m2.id = CAST(json_extract(rg.document, '$.method_id') AS INT)
 				WHERE json_extract(rg.document, '$.type') = 'reglement'
@@ -252,8 +234,6 @@
 					{{if $state === 'cancelled'}}{{:tag label="Annulé" color="grey"}}
 					{{elseif $state === 'deposited'}}{{:tag label="Déposé" color="darkgreen"}}
 					{{elseif $state === 'pending'}}{{:tag label="À encaisser" color="darkorange"}}
-					{{elseif $state === 'owed'}}{{:tag label="Dû" color="darkorange"}}
-					{{elseif $state === 'settled'}}{{:tag label="Soldée" color="darkgreen"}}
 					{{/if}}
 				</td>
 			</tr>

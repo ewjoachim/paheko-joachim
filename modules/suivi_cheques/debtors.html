@@ -59,9 +59,9 @@
 		<tbody>
 			{{* Positif = doit. Ardoise : consommée (paiements type 2) moins réglée
 			    (lignes de note type 1) — même appariement que Tabs::getUserBalancesQuery
-			    de la caisse. Créance : montant né de l'annulation moins les règlements
-			    encaissés dessus, une ligne par créance (l'agrégation est faite par le
-			    GROUP BY du dessus). *}}
+			    de la caisse. Créance : ce que les annulations ont ouvert moins ce que le
+			    membre a versé, les deux rattachés à LUI et non à un chèque (voir
+			    _member_debt.html, qui calcule la même chose pour un seul membre). *}}
 			{{#select
 				uid,
 				SUM(slate_owed) AS slate_owed,
@@ -82,13 +82,15 @@
 					UNION ALL
 					SELECT CAST(json_extract(c.document, '$.member_id') AS INT), 0,
 						CAST(json_extract(c.document, '$.amount') AS INT)
-						- COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
-							FROM module_data_suivi_cheques r
-							WHERE json_extract(r.document, '$.type') = 'reglement'
-								AND json_extract(r.document, '$.creance_key') = c.key), 0)
 						FROM module_data_suivi_cheques c
 						WHERE json_extract(c.document, '$.type') = 'creance'
 							AND json_extract(c.document, '$.member_id') IS NOT NULL
+					UNION ALL
+					SELECT CAST(json_extract(r.document, '$.member_id') AS INT), 0,
+						-CAST(json_extract(r.document, '$.amount') AS INT)
+						FROM module_data_suivi_cheques r
+						WHERE json_extract(r.document, '$.type') = 'reglement'
+							AND json_extract(r.document, '$.member_id') IS NOT NULL
 				)
 				GROUP BY uid
 				HAVING SUM(slate_owed) > 0 OR SUM(recv_owed) > 0
@@ -165,13 +167,11 @@
 	    simple nom donne une créance sans membre. Elle est réelle, mais aucune fiche ne
 	    peut la porter — et donc aucun règlement ne peut être saisi depuis settle.html,
 	    qui travaille par membre. *}}
+	{{* Rien à retrancher ici : un règlement se saisit par membre, donc une créance sans
+	    membre ne peut en porter aucun. *}}
 	{{:assign orphan_recv=0}}
 	{{#select
-		COALESCE(SUM(CAST(json_extract(c.document, '$.amount') AS INT)
-			- COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
-				FROM module_data_suivi_cheques r
-				WHERE json_extract(r.document, '$.type') = 'reglement'
-					AND json_extract(r.document, '$.creance_key') = c.key), 0)), 0) AS orphan_recv
+		COALESCE(SUM(CAST(json_extract(c.document, '$.amount') AS INT)), 0) AS orphan_recv
 		FROM module_data_suivi_cheques c
 		WHERE json_extract(c.document, '$.type') = 'creance'
 			AND json_extract(c.document, '$.member_id') IS NULL

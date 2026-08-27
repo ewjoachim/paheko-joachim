@@ -82,8 +82,10 @@ def test_a_cancellation_and_its_settlement_are_two_entries(
         l["account"] == "411" and l["debit"] == 3000 for l in cancellation["lines"]
     ), cancellation["lines"]
 
-    _record(admin_page, module_url, "settlement", "CHQ-0141")
-    settlement = transaction(f"Règlement créance — chèque annulé n°CHQ-0141 — {MEMBER}")
+    # The settlement queue names the member and the amount: a payment settles what
+    # the member owes, so it cannot name a cheque.
+    _record(admin_page, module_url, "settlement", "30,00")
+    settlement = transaction(f"Règlement de créance — {MEMBER}")
     assert settlement["found"]
     debit, credit = _totals(settlement["lines"])
     assert debit == credit == 3000, settlement["lines"]

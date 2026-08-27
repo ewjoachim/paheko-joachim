@@ -116,8 +116,36 @@ def test_partial_settlement_leaves_the_remainder(admin_page: Page, module_url, r
     admin_page.goto(
         f"{module_url}/settle.html?user={seed['camille_id']}", wait_until="domcontentloaded"
     )
-    expect(admin_page.locator("h2", has_text="CHQ-0142")).to_contain_text("reste 15,00")
+    expect(admin_page.locator("h2", has_text="Doit")).to_contain_text("15,00")
     assert admin_page.locator('input[name="amount"]').input_value() == "15,00"
+
+
+def test_one_payment_settles_every_bounced_cheque(
+    admin_page: Page, module_url, reseed, seed
+):
+    """What the member actually does: they come to the desk and pay what they owe,
+    not cheque n°such-and-such. With CHQ-0140 (45,00) bouncing on top of the 25,00
+    left on CHQ-0142, there is ONE form, defaulting to the whole 70,00 — and one
+    payment clears both."""
+    reseed()
+    cancel(admin_page, module_url, seed["pay_edit"])
+    assert owed(admin_page, module_url) == "70,00 €"
+
+    admin_page.goto(
+        f"{module_url}/settle.html?user={seed['camille_id']}", wait_until="domcontentloaded"
+    )
+    expect(admin_page.locator('input[name="amount"]')).to_have_count(1)
+    assert admin_page.locator('input[name="amount"]').input_value() == "70,00"
+    # Both bounced cheques are listed above the form: they explain the sum.
+    statement = admin_page.locator("table.list tbody")
+    expect(statement.locator("tr", has_text="CHQ-0140")).to_have_count(1)
+    expect(statement.locator("tr", has_text="CHQ-0142")).to_have_count(1)
+
+    admin_page.locator('select[name="method"]').select_option(label="Espèces")
+    admin_page.get_by_role("button", name="Enregistrer le règlement").click()
+    admin_page.wait_for_load_state("domcontentloaded")
+
+    assert owed(admin_page, module_url) == "—"
 
 
 def test_overpaying_is_refused(admin_page: Page, module_url, reseed, seed):
@@ -155,7 +183,7 @@ def test_uncancelling_after_a_settlement_is_refused(
     admin_page.get_by_role("button", name="Enregistrer").click()
     admin_page.wait_for_load_state("domcontentloaded")
 
-    expect(admin_page.locator(".error, .block.error")).to_contain_text("déjà été réglée")
+    expect(admin_page.locator(".error, .block.error")).to_contain_text("ne doit plus que")
     assert owed(admin_page, module_url) == "15,00 €", "the debt must survive intact"
 
 
@@ -169,12 +197,14 @@ def test_settlement_entry_is_balanced_and_links_the_member(
     settle(admin_page, module_url, seed["camille_id"])
 
     admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
-    admin_page.locator("tr", has_text="CHQ-0142").get_by_role(
-        "button", name="Comptabiliser"
-    ).last.click()
+    # The queue names the member and the method, not a cheque: 25,00 is the payment
+    # just made, next to the two seeded ones (30,00 and 20,00).
+    admin_page.locator(
+        'tr:has(input[name="rec_kind"][value="settlement"])'
+    ).filter(has_text="25,00").get_by_role("button", name="Comptabiliser").click()
     admin_page.wait_for_load_state("domcontentloaded")
 
-    txn = transaction("Règlement créance — chèque annulé n°CHQ-0142 — Camille Martin")
+    txn = transaction("Règlement de créance — Camille Martin")
     assert txn["found"], "the settlement entry was not posted"
     assert txn["users"] == [int(seed["camille_id"])], "the member must be linked"
 
@@ -200,7 +230,7 @@ def test_settlement_is_recorded_immediately(
     settle(admin_page, module_url, seed["camille_id"])
 
     expect(admin_page.locator(".confirm").first).to_contain_text("Règlement enregistré")
-    txn = transaction("Règlement créance — chèque annulé n°CHQ-0142 — Camille Martin")
+    txn = transaction("Règlement de créance — Camille Martin")
     assert txn["found"], "the entry was not posted on save"
     assert txn["users"] == [int(seed["camille_id"])], "the member must be linked"
 

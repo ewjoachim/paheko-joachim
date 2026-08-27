@@ -6,17 +6,13 @@
 			"type": "string",
 			"enum": ["reglement"]
 		},
-		"creance_key": {
-			"type": "string",
-			"description": "Clé de la créance réglée."
-		},
 		"member_id": {
-			"type": ["null", "integer"],
-			"description": "Membre, recopié de la créance : c'est lui qu'on lie à l'écriture (linked_users)."
+			"type": "integer",
+			"description": "Membre qui a réglé. Un règlement solde la dette du membre, pas un chèque annulé en particulier : c'est le seul rattachement, et c'est lui qu'on lie à l'écriture (linked_users). Voir _member_debt.html."
 		},
 		"amount": {
 			"type": "integer",
-			"description": "Montant encaissé, en centimes. Un règlement partiel est permis : plusieurs documents pointent alors vers la même créance."
+			"description": "Montant encaissé, en centimes. Un règlement partiel est permis : plusieurs documents s'additionnent alors face aux créances du membre."
 		},
 		"date": {
 			"type": "string",
@@ -38,5 +34,5 @@
 			"description": "Identifiant de l'écriture de règlement, créée via :api. Un document par écriture : c'est ce qui permet à ce règlement d'apparaître seul dans « à comptabiliser »."
 		}
 	},
-	"required": ["type", "creance_key", "amount", "date"]
+	"required": ["type", "member_id", "amount", "date"]
 }
