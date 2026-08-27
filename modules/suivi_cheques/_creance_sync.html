@@ -24,13 +24,14 @@
 {{if !$cs_error}}
 	{{:assign cw_key="creance-%s"|args:$cs_store_key}}
 
-	{{:assign cw_settled=0}}
-	{{#select COALESCE(SUM(CAST(json_extract(document, '$.amount') AS INT)), 0) AS s
-		FROM module_data_suivi_cheques
-		WHERE json_extract(document, '$.type') = 'reglement'
-			AND json_extract(document, '$.creance_key') = :k; :k=$cw_key}}
-		{{:assign cw_settled=$s|intval}}
-	{{/select}}
+	{{* Dette du membre, cette créance comprise tant qu'elle existe. *}}
+	{{:assign md_owed=0}}
+	{{if $cs_member_id}}
+		{{:include file="./_member_debt.html" md_user_id=$cs_member_id keep="md_owed"}}
+	{{/if}}
+
+	{{:assign cw_existing=0}}
+	{{#load type="creance" key=$cw_key}}{{:assign cw_existing=$amount|intval}}{{/load}}
 
 	{{if $cs_cancelled}}
 		{{* Date de naissance figée : celle de la créance existante, sinon aujourd'hui. *}}
@@ -47,11 +48,11 @@
 			date=$cw_date
 			reason=$cs_reason
 		}}
-	{{elseif $cw_settled > 0}}
-		{{* Décocher « non encaissé » effacerait une dette déjà réglée en partie, donc un
-		    règlement enregistré. Il faut supprimer le règlement d'abord. *}}
-		{{:assign cw_settled_h=$cw_settled|money_currency}}
-		{{:error message="Cette créance a déjà été réglée pour %s : supprimez d'abord le règlement."|args:$cw_settled_h}}
+	{{elseif $cw_existing > $md_owed}}
+		{{* Retirer cette créance rendrait la dette du membre inférieure à ce qu'il a
+		    déjà versé : on effacerait de l'argent reçu. *}}
+		{{:assign cw_owed_h=$md_owed|money_currency}}
+		{{:error message="Ce membre ne doit plus que %s : supprimez d'abord son règlement, sinon décocher effacerait de l'argent reçu."|args:$cw_owed_h}}
 	{{else}}
 		{{:delete type="creance" where="key = :k" :k=$cw_key}}
 	{{/if}}

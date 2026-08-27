@@ -26,14 +26,11 @@
 
 {{:assign receivable_account=$module.config.receivable_account|or:"411"}}
 
-{{:assign rs_amount=0 rs_date=null rs_account=null rs_member=null rs_ckey=null rs_already=null}}
+{{:assign rs_amount=0 rs_date=null rs_account=null rs_member=null rs_already=null}}
 {{#load type="reglement" key=$rid}}
 	{{:assign rs_amount=$amount|intval rs_date=$date rs_account=$account}}
-	{{:assign rs_member=$member_id rs_ckey=$creance_key rs_already=$reglement_txn_id}}
+	{{:assign rs_member=$member_id rs_already=$reglement_txn_id}}
 {{/load}}
-
-{{:assign rs_number=null}}
-{{#load type="creance" key=$rs_ckey}}{{:assign rs_number=$cheque_number}}{{/load}}
 
 {{if !$rs_amount}}
 	{{:assign rec_error="Règlement introuvable ou montant nul."}}
@@ -53,7 +50,6 @@
 	{{if $rs_member}}{{#users id=$rs_member}}{{:assign rs_member_name=$_name}}{{/users}}{{/if}}
 
 	{{:assign rs_label="Règlement de créance"}}
-	{{if $rs_number}}{{:assign rs_label="Règlement créance — chèque annulé n°%s"|args:$rs_number}}{{/if}}
 
 	{{:assign lines=null}}
 	{{:assign var="lines[0][account]" value=$rs_account}}
@@ -77,13 +73,14 @@
 	{{:assign created=null}}
 	{{:assign txn_label=$rs_label}}
 	{{if $rs_member_name}}{{:assign txn_label="%s — %s"|args:$rs_label:$rs_member_name}}{{/if}}
-	{{* La partie variable est réduite AVANT le formatage : dans "REGL-%s"|args:$x|or:$y
-	    le modificateur porterait sur le résultat de args, jamais vide. *}}
-	{{:assign rs_ref=$rs_number|or:$rs_ckey}}
+	{{* intval AVANT le formatage : dans "…%d…"|args:$x|intval le modificateur porterait
+	    sur le résultat de args, donc sur la référence entière. *}}
+	{{:assign rs_uid=$rs_member|intval}}
+	{{:assign rs_ref="REGL-%d-%s"|args:$rs_uid:$rs_date}}
 	{{:api method="POST" path="accounting/transaction" access="write" fail=$api_fail
 		id_year="match" type="advanced" date=$rs_date
 		label=$txn_label
-		reference="REGL-%s"|args:$rs_ref
+		reference=$rs_ref
 		lines=$lines linked_users=$users assign="created"}}
 
 	{{if $created}}

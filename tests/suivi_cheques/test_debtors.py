@@ -89,10 +89,10 @@ def test_settling_the_receivable_clears_the_column(
     # The entry waits in the queue (automatic recording is off by default).
     admin_page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
     expect(
-        admin_page.locator("table.list", has_text="CHQ-0142").locator(
-            "tr", has_text="25,00"
-        ).first
-    ).to_be_visible()
+        admin_page.locator('tr:has(input[name="rec_kind"][value="settlement"])').filter(
+            has_text="25,00"
+        )
+    ).to_have_count(1)
 
 
 def test_slate_row_offers_a_way_to_settle(admin_page: Page, module_url, reseed):

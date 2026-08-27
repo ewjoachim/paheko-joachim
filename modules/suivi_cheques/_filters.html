@@ -10,12 +10,58 @@
 	sélectionnés — ce que la pagination a à découper.
 
 	Une seule requête sert les deux barres : elle agrège les chèques par (mois, état)
-	et lui ajoute, en UNION, les 12 mois de l'exercice, pour que les mois sans aucun
-	chèque figurent quand même dans la barre.
+	et lui ajoute, en UNION, les 12 mois de la fenêtre affichée, pour que les mois
+	sans aucun chèque figurent quand même dans la barre.
 *}}
 
 {{:assign now_ym=null}}
 {{#select strftime('%Y-%m', 'now', 'localtime') AS m}}{{:assign now_ym=$m}}{{/select}}
+
+{{* Fenêtre de douze mois alignée sur le début de l'exercice (l'année scolaire, pas
+    l'année civile), et choisie par pas de douze mois pour contenir le mois affiché :
+    le mois sélectionné suffit donc à retrouver sa fenêtre, rien à porter dans l'URL.
+    Seule la barre est bornée : les pastilles comptent toute la période. *}}
+{{:assign anchor=$period}}
+{{if $period === 'upcoming' || $period === 'all'}}{{:assign anchor=$now_ym}}{{/if}}
+
+{{:assign window_start=null window_prev=null window_next=null}}
+{{:assign window_prev_label=null window_next_label=null}}
+{{#select
+	strftime('%Y-%m', first_month) AS start_ym,
+	strftime('%Y-%m', first_month, '-12 months') AS prev_ym,
+	strftime('%Y-%m', first_month, '+12 months') AS next_ym,
+	CASE WHEN strftime('%m', first_month) = '01' THEN strftime('%Y', first_month, '-12 months')
+		ELSE strftime('%Y', first_month, '-12 months') || '–' || strftime('%Y', first_month, '-1 months') END AS prev_label,
+	CASE WHEN strftime('%m', first_month) = '01' THEN strftime('%Y', first_month, '+12 months')
+		ELSE strftime('%Y', first_month, '+12 months') || '–' || strftime('%Y', first_month, '+23 months') END AS next_label
+	FROM (
+		-- Le modulo ramene le reste dans [0,11] avant la soustraction : la division
+		-- entiere de SQLite tronque vers zero, donc un mois anterieur a l exercice
+		-- tomberait dans la fenetre suivante. Et %+d, pas '+%d' : un decalage negatif
+		-- donnerait '+-12 months', que date() rend NULL sans rien signaler.
+		SELECT date(exercise_start,
+			printf('%+d months', months_from_start - ((months_from_start % 12) + 12) % 12)) AS first_month
+		FROM (
+			SELECT exercise_start,
+				(CAST(strftime('%Y', anchor_month) AS INT) * 12 + CAST(strftime('%m', anchor_month) AS INT))
+				- (CAST(strftime('%Y', exercise_start) AS INT) * 12 + CAST(strftime('%m', exercise_start) AS INT))
+				AS months_from_start
+			FROM (
+				SELECT
+					date(COALESCE(
+						(SELECT start_date FROM acc_years WHERE status = 0
+							ORDER BY (date('now') BETWEEN start_date AND end_date) DESC, start_date DESC
+							LIMIT 1),
+						date('now', '-5 months')), 'start of month') AS exercise_start,
+						COALESCE(date(:anchor || '-01'), date('now', 'localtime', 'start of month')) AS anchor_month
+			)
+		)
+	);
+	:anchor=$anchor
+}}
+	{{:assign window_start=$start_ym window_prev=$prev_ym window_next=$next_ym}}
+	{{:assign window_prev_label=$prev_label window_next_label=$next_label}}
+{{/select}}
 
 {{* Accumulateurs des pastilles. Préfixe c_ : les colonnes de la requête ci-dessous
     s'appellent n_todo, n_deposited, n_cancelled et masqueraient ces variables. *}}
@@ -23,6 +69,7 @@
 
 <nav class="tabs periods">
 	<ul>
+		<li><a href="index.html?period={{$window_prev|escape}}&amp;state={{$state|escape}}" title="Les douze mois précédents">‹ {{$window_prev_label|escape}}</a></li>
 		{{#select
 			ym,
 			CASE substr(ym, 6, 2)
@@ -31,24 +78,17 @@
 				WHEN '07' THEN 'Juil' WHEN '08' THEN 'Août' WHEN '09' THEN 'Sept'
 				WHEN '10' THEN 'Oct' WHEN '11' THEN 'Nov' WHEN '12' THEN 'Déc'
 			END AS label,
-			MAX(in_exercise) AS in_exercise,
+			MAX(in_window) AS in_window,
 			SUM(is_todo) AS n_todo,
 			SUM(is_in_batch) AS n_in_batch,
 			SUM(is_deposited) AS n_deposited,
 			SUM(is_cancelled) AS n_cancelled
 			FROM (
-				-- Squelette : les 12 mois de l exercice comptable ouvert, pour que la barre
-				-- soit complete meme la ou aucun cheque n est encore planifie. A defaut
-				-- d exercice ouvert, une fenetre glissante autour du mois courant.
-				SELECT ym, 1 AS in_exercise, 0 AS is_todo, 0 AS is_in_batch, 0 AS is_deposited, 0 AS is_cancelled
+				-- Squelette : les 12 mois de la fenetre affichee, pour que la barre soit
+				-- complete meme la ou aucun cheque n est encore planifie.
+				SELECT ym, 1 AS in_window, 0 AS is_todo, 0 AS is_in_batch, 0 AS is_deposited, 0 AS is_cancelled
 				FROM (
-					SELECT strftime('%Y-%m',
-						date(COALESCE(
-							(SELECT start_date FROM acc_years WHERE status = 0
-								ORDER BY (date('now') BETWEEN start_date AND end_date) DESC, start_date DESC
-								LIMIT 1),
-							date('now', '-5 months')), 'start of month'),
-						printf('+%d months', column1)) AS ym
+					SELECT strftime('%Y-%m', date(:window_start || '-01'), printf('+%d months', column1)) AS ym
 					FROM (VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11))
 				)
 
@@ -113,7 +153,8 @@
 				)
 			)
 			GROUP BY ym
-			ORDER BY ym
+			ORDER BY ym;
+			:window_start=$window_start
 		}}
 			{{* Même définition de période que _list.html, réécrite ici en Brindille. *}}
 			{{if $period === 'all' || $period === $ym || $period === 'upcoming' && $ym >= $month}}
@@ -123,7 +164,7 @@
 				{{:assign c_cancelled="%d+%d"|math:$c_cancelled:$n_cancelled}}
 			{{/if}}
 
-			{{if $in_exercise || $ym === $period}}
+			{{if $in_window || $ym === $period}}
 				{{* Un mois passé où il reste des chèques à encaisser porte son compte : le signal
 				    est dans la barre parce que personne ne va plus rouvrir ces mois-là. Il est
 				    DANS le lien du mois, sinon nav.tabs en fait un onglet de plus. *}}
@@ -132,6 +173,7 @@
 				</li>
 			{{/if}}
 		{{/select}}
+		<li><a href="index.html?period={{$window_next|escape}}&amp;state={{$state|escape}}" title="Les douze mois suivants">{{$window_next_label|escape}} ›</a></li>
 		<li{{if $period === 'upcoming'}} class="current"{{/if}}><a href="index.html?period=upcoming&amp;state={{$state|escape}}">À venir</a></li>
 		<li{{if $period === 'all'}} class="current"{{/if}}><a href="index.html?period=all&amp;state={{$state|escape}}">Tous</a></li>
 	</ul>
