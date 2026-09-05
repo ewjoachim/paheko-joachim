@@ -30,7 +30,7 @@ repos:
 
   # Security audit for the GitHub Actions workflows.
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: v1.29.0
+    rev: v1.30.0
     hooks:
       - id: zizmor
 
