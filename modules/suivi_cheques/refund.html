@@ -1,0 +1,199 @@
+{{* -*- brindille -*- *}}
+
+{{* Rembourser un membre : l'association lui a rendu de l'argent (un départ en
+    cours d'année décidé par le bureau, typiquement, quand ses chèques sont déjà
+    partis en banque). Saisi une fois l'argent parti : un remboursement, une
+    écriture, comme un règlement.
+
+    Supprimable tant que son écriture n'existe pas, comme un chèque reste
+    modifiable tant que son annulation n'est pas comptabilisée. *}}
+{{#restrict block=true section="users" level="write"}}{{/restrict}}
+
+{{:assign uid=$_GET.user|intval}}
+
+{{:assign today=null}}
+{{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
+
+{{#form on="refund"}}
+	{{:assign amt=$_POST.amount|money_int}}
+	{{:assign reason=$_POST.reason|trim}}
+	{{:assign rdate=$_POST.date|date:'Y-m-d'|or:$today}}
+	{{:assign means_id=$_POST.means|trim}}
+
+	{{if !$uid}}{{:error message="Membre inconnu."}}{{/if}}
+	{{if $amt <= 0}}{{:error message="Indiquez un montant supérieur à zéro."}}{{/if}}
+	{{if !$reason}}{{:error message="Indiquez le motif du remboursement."}}{{/if}}
+
+	{{:assign acct=null means=null}}
+	{{if $means_id === 'bank'}}
+		{{:assign acct=$module.config.bank_account|or:"512" means="Virement ou chèque"}}
+	{{else}}
+		{{#select account AS a, name AS n FROM plugin_pos_methods
+			WHERE id = :m AND type = 1 LIMIT 1; :m=$means_id|intval}}
+			{{:assign acct=$a means=$n}}
+		{{/select}}
+	{{/if}}
+	{{if !$acct}}{{:error message="Choisissez le moyen de remboursement."}}{{/if}}
+
+	{{:assign rkey=null}}
+	{{#select 'rmb-' || :u || '-' || strftime('%Y%m%d%H%M%S', 'now', 'localtime') AS k; :u=$uid}}
+		{{:assign rkey=$k}}
+	{{/select}}
+
+	{{:save type="remboursement"
+		key=$rkey
+		validate_schema="./remboursement.schema.json"
+		member_id=$uid
+		amount=$amt
+		reason=$reason
+		date=$rdate
+		means=$means
+		account=$acct
+	}}
+	{{:assign posted_rkey=$rkey}}
+{{/form}}
+
+{{* WORKAROUND (Paheko 1.3.22) — même raison qu'edit.html : _record_refund.html relit
+    le document, ce qui ne voit pas le {{:save}} du formulaire ci-dessus. *}}
+{{#form on="refund"}}
+	{{if $posted_rkey}}
+		{{:assign rec_txn_id=null rec_error=null}}
+		{{if $module.config.auto_record_settlements}}
+			{{:include file="./_record_refund.html" rid=$posted_rkey quiet=true keep="rec_txn_id,rec_error"}}
+		{{/if}}
+
+		{{:assign qs="user=%d&saved=1"|args:$uid}}
+		{{if $rec_txn_id}}
+			{{:assign qs="user=%d&saved=1&recorded=%d"|args:$uid:$rec_txn_id}}
+		{{elseif $rec_error}}
+			{{:assign qs="user=%d&saved=1&not_recorded=1"|args:$uid}}
+		{{/if}}
+		{{:redirect to="refund.html?%s"|args:$qs}}
+	{{/if}}
+{{/form}}
+
+{{#form on="refund_delete"}}
+	{{:assign rkey=$_POST.rb_key|trim}}
+	{{:assign found=false txn=null}}
+	{{#load type="remboursement" key=$rkey}}
+		{{if $member_id|intval === $uid}}{{:assign found=true txn=$remboursement_txn_id}}{{/if}}
+	{{/load}}
+	{{if !$found}}{{:error message="Remboursement introuvable."}}{{/if}}
+	{{if $txn}}
+		{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$txn}}
+			{{:error message="Ce remboursement est comptabilisé : supprimez d'abord son écriture en comptabilité."}}
+		{{/select}}
+	{{/if}}
+	{{:delete type="remboursement" where="key = :k" :k=$rkey}}
+	{{:redirect to="refund.html?user=%d&deleted=1"|args:$uid}}
+{{/form}}
+
+{{:assign member_name=null}}
+{{if $uid}}{{#users id=$uid}}{{:assign member_name=$_name}}{{/users}}{{/if}}
+
+{{:admin_header title="Rembourser — %s"|args:$member_name|or:"membre inconnu" current="module_suivi_cheques"}}
+
+{{:form_errors}}
+
+{{if $_GET.deleted}}
+	<p class="block confirm">Remboursement supprimé.</p>
+{{elseif $_GET.saved}}
+	<p class="block confirm">
+		Remboursement enregistré.
+		{{if $_GET.recorded}}
+			{{#restrict section="accounting" level="read"}}
+				{{:assign done_txn=$_GET.recorded|intval}}
+				{{:link href="!acc/transactions/details.php?id=%d"|args:$done_txn label="Voir l'écriture n°%d"|args:$done_txn}}
+			{{/restrict}}
+		{{elseif $_GET.not_recorded}}
+			L'écriture comptable n'a pas pu être passée : elle attend dans « À comptabiliser ».
+		{{/if}}
+	</p>
+{{/if}}
+
+{{if !$member_name}}
+	<p class="block error">Membre introuvable.</p>
+{{else}}
+
+	{{:include file="./_tabs.html" tab="debtors"}}
+
+	<form method="post" action="">
+		<fieldset>
+			<legend>Remboursement effectué</legend>
+			<dl>
+				{{:input type="money" name="amount" label="Montant remboursé" required=true}}
+				{{:input type="text" name="reason" label="Motif" required=true
+					help="Ex. : bureau du 12/03, déménagement."}}
+				<dt><label for="f_means">Moyen <b>*</b></label></dt>
+				<dd>
+					<select name="means" id="f_means" required="required">
+						<option value="bank">Virement ou chèque de l'association</option>
+						{{* Les moyens « informels » de la caisse (espèces) ont leur propre compte.
+						    Les moyens « chèque » n'y sont pas : leur compte reçoit les chèques des
+						    membres, pas ceux qu'émet l'association. *}}
+						{{#select id, name FROM plugin_pos_methods WHERE enabled = 1 AND type = 1 ORDER BY name}}
+							<option value="{{$id}}">{{$name|escape}}</option>
+						{{/select}}
+					</select>
+				</dd>
+				{{:input type="date" name="date" label="Date du remboursement" required=true default=$today
+					help="Détermine l'exercice de l'écriture : un exercice ouvert doit couvrir cette date."}}
+			</dl>
+		</fieldset>
+		<p class="submit">
+			{{:button type="submit" name="refund" label="Enregistrer le remboursement" shape="money" class="main"}}
+		</p>
+	</form>
+
+	{{if $module.config.auto_record_settlements}}
+		<p class="help">L'écriture comptable (membre lié) est passée immédiatement.</p>
+	{{else}}
+		<p class="help">Aucune écriture comptable n'est générée ici : le remboursement attend dans « À comptabiliser ».</p>
+	{{/if}}
+
+	<h2 class="ruler">Remboursements de ce membre</h2>
+	<table class="list">
+		<thead>
+			<tr><th>Date</th><th>Motif</th><th>Moyen</th><th class="money">Montant</th><th class="actions"></th></tr>
+		</thead>
+		<tbody>
+			{{#select
+				key AS rkey,
+				json_extract(document, '$.date') AS rdate,
+				json_extract(document, '$.reason') AS reason,
+				json_extract(document, '$.means') AS means,
+				CAST(json_extract(document, '$.amount') AS INT) AS amount,
+				EXISTS (SELECT 1 FROM acc_transactions a
+					WHERE a.id = CAST(json_extract(document, '$.remboursement_txn_id') AS INT)) AS recorded
+				FROM module_data_suivi_cheques
+				WHERE json_extract(document, '$.type') = 'remboursement'
+					AND CAST(json_extract(document, '$.member_id') AS INT) = :uid
+				ORDER BY rdate DESC;
+				:uid=$uid
+			}}
+				<tr>
+					<td>{{$rdate|date_short}}</td>
+					<td>{{$reason|escape}}</td>
+					<td>{{$means|escape}}</td>
+					<td class="money">{{$amount|raw|money_currency}}</td>
+					<td class="actions">
+						{{if !$recorded}}
+							<form method="post" action="" class="inline">
+								<input type="hidden" name="rb_key" value="{{$rkey|escape}}" />
+								{{:button type="submit" name="refund_delete" label="Supprimer" shape="delete"}}
+							</form>
+						{{/if}}
+					</td>
+				</tr>
+			{{else}}
+				<tr><td colspan="5">Aucun remboursement pour ce membre.</td></tr>
+			{{/select}}
+		</tbody>
+	</table>
+
+	<p class="actions">{{:linkbutton href="debtors.html" label="Retour aux impayés" shape="left"}}</p>
+{{/if}}
+
+{{:include file="./_doc_footer.html"}}
+
+{{:admin_footer}}

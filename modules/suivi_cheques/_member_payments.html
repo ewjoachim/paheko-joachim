@@ -218,6 +218,20 @@
 				FROM module_data_suivi_cheques ab
 				WHERE json_extract(ab.document, '$.type') = 'abandon'
 					AND CAST(json_extract(ab.document, '$.member_id') AS INT) = :uid
+
+				UNION ALL
+
+				-- 7. Ce que l association lui a rendu (refund.html).
+				SELECT json_extract(rb.document, '$.date') AS mdate,
+					'refund' AS kind,
+					json_extract(rb.document, '$.means') AS label,
+					json_extract(rb.document, '$.reason') AS detail,
+					NULL AS reference,
+					CAST(json_extract(rb.document, '$.amount') AS INT) AS amount,
+					NULL AS state
+				FROM module_data_suivi_cheques rb
+				WHERE json_extract(rb.document, '$.type') = 'remboursement'
+					AND CAST(json_extract(rb.document, '$.member_id') AS INT) = :uid
 			)
 			ORDER BY mdate DESC, kind
 			LIMIT :lim;
@@ -237,6 +251,7 @@
 					{{elseif $kind === 'receivable'}}{{:tag label="Créance" color="darkorange"}}
 					{{elseif $kind === 'receivable_paid'}}{{:tag label="Créance réglée" color="darkgreen"}}
 					{{elseif $kind === 'receivable_abandoned'}}{{:tag label="Dette abandonnée" color="grey"}}
+					{{elseif $kind === 'refund'}}{{:tag label="Remboursement" color="darkcyan"}}
 					{{/if}}
 				</td>
 				<td>

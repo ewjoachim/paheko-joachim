@@ -133,10 +133,10 @@
 					default=$module.config.auto_record_deposits
 					help="Sans risque : un bordereau est de toute façon figé au moment de sa génération."}}
 				{{:input type="checkbox" name="auto_record_settlements" value="1"
-					label="Comptabiliser automatiquement les règlements et abandons de dettes"
+					label="Comptabiliser automatiquement les règlements, abandons de dettes et remboursements"
 					default=$module.config.auto_record_settlements
-					help="Sans risque : un règlement ou un abandon ne se modifie pas.
-						L'écriture est datée du jour de l'encaissement ou de la décision, pas du jour du clic."}}
+					help="Sans risque : un règlement, un abandon ou un remboursement ne se modifie pas.
+						L'écriture est datée du jour où l'argent est entré ou sorti (ou de la décision d'abandon), pas du jour du clic."}}
 			</dl>
 			<p class="help">
 				Si une écriture ne peut pas être créée (aucun exercice ouvert ne couvre la date, par

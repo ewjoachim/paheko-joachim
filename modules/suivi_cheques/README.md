@@ -61,7 +61,7 @@ réservée à `config = admin`.
 - `bank_account` — compte bancaire des remises (défaut `512`).
 - `gesture_account` / `bad_debt_account` — comptes débités par un abandon de dette,
   selon sa raison : geste accordé (défaut `709`) ou impayé (défaut `654`).
-  `auto_record_settlements` couvre aussi les abandons.
+  `auto_record_settlements` couvre aussi les abandons et les remboursements.
 - `auto_record_cancellations` / `auto_record_settlements` / `auto_record_deposits` —
   comptabilisation automatique (défaut : désactivée, les écritures attendent dans
   « à comptabiliser »).
@@ -76,6 +76,7 @@ réservée à `config = admin`.
 | `creance` | `creance-<origin_key>` | dette née de l'annulation d'un chèque. Clé dérivée de l'origine, donc la création est **idempotente** |
 | `reglement` | `regl-<id du membre>-<horodatage>` | argent versé par un membre sur ce qu'il doit ; plusieurs documents pour un règlement en plusieurs fois |
 | `abandon` | `aband-<id du membre>-<horodatage>` | part de ce que doit un membre à laquelle le bureau renonce (geste accordé ou impayé) ; aucun argent ne bouge |
+| `remboursement` | `rmb-<id du membre>-<horodatage>` | argent rendu à un membre, saisi une fois parti ; son écriture débite `gesture_account` et crédite le compte d'où l'argent est sorti |
 | `deposit_batch` | `batch-<ref>` | bordereau de remise figé |
 | `method_month_map` | `method-<id>` | configuration : moyen de paiement → mois |
 
