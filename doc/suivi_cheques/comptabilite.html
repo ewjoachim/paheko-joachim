@@ -41,7 +41,7 @@
 	<h2 id="file">La file « à comptabiliser »</h2>
 	<p>
 		L'onglet <em>À comptabiliser</em> regroupe tout ce que l'accueil a fait et qui attend son écriture,
-		en cinq tableaux&nbsp;: annulations, règlements de créances, abandons de dettes, remboursements et
+		en cinq tableaux&nbsp;: annulations et rejets, règlements de créances, abandons de dettes, remboursements et
 		remises de chèques. Le bouton <em>Comptabiliser</em> d'une ligne crée l'écriture correspondante,
 		équilibrée, et le message de confirmation propose un lien vers elle.
 	</p>
@@ -85,6 +85,12 @@
 				<td>411 Créance du membre</td>
 				<td>5112, avec le numéro du chèque en référence</td>
 				<td>jour où l'annulation a été enregistrée</td>
+			</tr>
+			<tr>
+				<td>Rejet d'un chèque par la banque, après dépôt</td>
+				<td>411 Créance du membre</td>
+				<td>512 Banque, avec le numéro du chèque en référence</td>
+				<td>jour où le rejet a été enregistré</td>
 			</tr>
 			<tr>
 				<td>Règlement d'une créance</td>
@@ -165,8 +171,9 @@
 		<dd>Supprimer l'écriture concernée&nbsp;: la fiche redevient modifiable, et l'élément revient dans
 			la file une fois corrigé.</dd>
 		<dt>… un chèque revient impayé après avoir été déposé&nbsp;?</dt>
-		<dd>Le module ne le gère pas&nbsp;: passer l'écriture du rejet à la main, à partir du relevé
-			bancaire, en liant le membre.</dd>
+		<dd>Prévenir l'accueil, qui le signale comme <a href="cheques.html#rejet">rejeté par la
+			banque</a>&nbsp;: l'écriture du rejet arrive alors dans la file. Les éventuels frais de rejet
+			facturés par la banque restent à passer à la main.</dd>
 		<dt>… on clôture l'exercice&nbsp;?</dt>
 		<dd>Rien de particulier pour le module, qui ne dépend pas de l'exercice&nbsp;: les chèques et les
 			dettes continuent leur vie. Mieux vaut seulement avoir vidé la file avant la clôture.</dd>

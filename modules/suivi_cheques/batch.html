@@ -177,6 +177,14 @@
 {{#restrict section="users" level="write"}}
 	{{if !$found}}{{:error message="Bordereau introuvable."}}{{/if}}
 	{{if $comptabilised}}{{:error message="Ce bordereau est déjà comptabilisé : la correction se fait côté comptabilité."}}{{/if}}
+	{{* Un chèque rejeté est bien parti avec ce bordereau : le défaire en ferait une
+	    simple annulation, sortie du compte d'attente au lieu de la banque. *}}
+	{{#select 1 AS x FROM module_data_suivi_cheques
+		WHERE json_extract(document, '$.batch_id') = :ref
+			AND COALESCE(CAST(json_extract(document, '$.cancelled') AS INT), 0) = 1
+		LIMIT 1; :ref=$batch_key}}
+		{{:error message="Un chèque de ce bordereau a été rejeté par la banque : annulez d'abord ce rejet."}}
+	{{/select}}
 
 	{{* On collecte d'abord les chèques du lot (clé + type), puis on les met à jour
 	    hors de la boucle SELECT (éviter de modifier la table pendant son parcours). *}}

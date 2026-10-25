@@ -30,7 +30,7 @@
 
 
 {{:include file="./_cancelled_cheque.html" cs_kind=$kind cs_rid=$rid
-	keep="cs_error,cs_amount,cs_cheque_number,cs_member_id,cs_member_name,cs_already,cs_store_key,cs_store_type"}}
+	keep="cs_error,cs_amount,cs_cheque_number,cs_member_id,cs_member_name,cs_already,cs_store_key,cs_store_type,cs_rejected"}}
 
 {{if $cs_error}}{{:assign rec_error=$cs_error}}{{/if}}
 
@@ -43,13 +43,20 @@
 {{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
 {{:assign receivable_account=$module.config.receivable_account|or:"411"}}
 
+{{* A cheque rejected by the bank after deposit already left the waiting account
+    with the deposit entry: the money comes back out of the bank instead. *}}
+{{:assign cs_out_account=$waiting_account cs_word="annulé" cs_txn_word="Annulation" cs_ref_prefix="ANNUL"}}
+{{if $cs_rejected}}
+	{{:assign cs_out_account=$module.config.bank_account|or:"512" cs_word="rejeté" cs_txn_word="Rejet" cs_ref_prefix="REJET"}}
+{{/if}}
+
 {{:assign cs_lines=null}}
-{{:assign var="cs_lines[0][account]" value=$waiting_account}}
+{{:assign var="cs_lines[0][account]" value=$cs_out_account}}
 {{:assign var="cs_lines[0][credit]" value=$cs_amount|money}}
 {{:assign var="cs_lines[0][reference]" value=$cs_cheque_number}}
-{{:assign var="cs_lines[0][label]" value="Chèque annulé n°%s"|args:$cs_cheque_number}}
-{{:assign rcv_label="Créance — chèque annulé n°%s"|args:$cs_cheque_number}}
-{{if $cs_member_name}}{{:assign rcv_label="Créance %s — chèque annulé n°%s"|args:$cs_member_name:$cs_cheque_number}}{{/if}}
+{{:assign var="cs_lines[0][label]" value="Chèque %s n°%s"|args:$cs_word:$cs_cheque_number}}
+{{:assign rcv_label="Créance — chèque %s n°%s"|args:$cs_word:$cs_cheque_number}}
+{{if $cs_member_name}}{{:assign rcv_label="Créance %s — chèque %s n°%s"|args:$cs_member_name:$cs_word:$cs_cheque_number}}{{/if}}
 {{:assign var="cs_lines[1][account]" value=$receivable_account}}
 {{:assign var="cs_lines[1][debit]" value=$cs_amount|money}}
 {{:assign var="cs_lines[1][label]" value=$rcv_label}}
@@ -75,12 +82,12 @@
 
 {{if !$rec_error}}
 	{{:assign created=null}}
-	{{:assign txn_label="Annulation chèque n°%s"|args:$cs_cheque_number}}
-	{{if $cs_member_name}}{{:assign txn_label="Annulation chèque n°%s — %s"|args:$cs_cheque_number:$cs_member_name}}{{/if}}
+	{{:assign txn_label="%s chèque n°%s"|args:$cs_txn_word:$cs_cheque_number}}
+	{{if $cs_member_name}}{{:assign txn_label="%s chèque n°%s — %s"|args:$cs_txn_word:$cs_cheque_number:$cs_member_name}}{{/if}}
 	{{:api method="POST" path="accounting/transaction" access="write" fail=$api_fail
 		id_year="match" type="advanced" date=$rec_date
 		label=$txn_label
-		reference="ANNUL-%s"|args:$rid
+		reference="%s-%s"|args:$cs_ref_prefix:$rid
 		lines=$cs_lines linked_users=$users assign="created"}}
 
 	{{if $created}}

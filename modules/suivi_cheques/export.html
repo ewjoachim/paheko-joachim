@@ -74,6 +74,7 @@ SELECT
 	method AS [Moyen de paiement],
 	CASE state
 		WHEN 'cancelled' THEN 'Annulé'
+		WHEN 'rejected' THEN 'Rejeté'
 		WHEN 'deposited' THEN 'Déposé'
 		ELSE 'À encaisser'
 	END AS [État],
@@ -100,6 +101,8 @@ FROM (
 		p.date AS received_date,
 		pm.name AS method,
 		CASE
+			WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1
+				AND json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'rejected'
 			WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
 			WHEN json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'deposited'
 			ELSE 'todo'
@@ -131,6 +134,8 @@ FROM (
 		json_extract(r.document, '$.received_date'),
 		'Règlement de créance',
 		CASE
+			WHEN COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) = 1
+				AND json_extract(r.document, '$.batch_id') IS NOT NULL THEN 'rejected'
 			WHEN COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
 			WHEN json_extract(r.document, '$.batch_id') IS NOT NULL THEN 'deposited'
 			ELSE 'todo'
