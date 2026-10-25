@@ -1,0 +1,41 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"type": {
+			"type": "string",
+			"enum": ["abandon"]
+		},
+		"member_id": {
+			"type": "integer",
+			"description": "Membre dont on abandonne la dette. Comme un règlement, un abandon porte sur ce que le membre doit, pas sur un chèque annulé en particulier (voir _member_debt.html)."
+		},
+		"amount": {
+			"type": "integer",
+			"description": "Montant abandonné, en centimes. Un abandon partiel est permis."
+		},
+		"date": {
+			"type": "string",
+			"description": "Date de la décision (YYYY-MM-DD) : c'est aussi la date de l'écriture."
+		},
+		"nature": {
+			"type": "string",
+			"enum": ["geste", "impaye"],
+			"description": "geste = remise accordée par décision du bureau ; impaye = la somme ne sera pas récupérée. Chacune a son compte en configuration."
+		},
+		"reason": {
+			"type": "string",
+			"minLength": 1,
+			"description": "Motif, avec la référence de la décision du bureau le cas échéant."
+		},
+		"account": {
+			"type": "string",
+			"description": "Compte débité, figé à la saisie depuis la configuration de la nature choisie."
+		},
+		"abandon_txn_id": {
+			"type": ["null", "integer"],
+			"description": "Identifiant de l'écriture d'abandon, créée via :api."
+		}
+	},
+	"required": ["type", "member_id", "amount", "date", "nature", "reason", "account"]
+}

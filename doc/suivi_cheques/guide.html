@@ -293,6 +293,14 @@
 		<strong>L'ardoise et le porte-monnaie ne sont pas proposés</strong>&nbsp;: ils déplaceraient la dette
 		au lieu de l'éteindre.
 	</div>
+	<p>
+		Quand le bureau renonce à réclamer tout ou partie de la somme, le formulaire <em>Abandonner la
+		dette</em>, en bas de la même page, l'efface sans qu'aucun argent ne bouge. On y indique le
+		montant, la raison — <strong>geste accordé</strong> (décision du bureau&nbsp;: déménagement,
+		situation particulière…) ou <strong>impayé</strong> (la somme ne sera pas récupérée) — et un
+		motif, par exemple la date de la réunion du bureau. L'écriture part vers la comptabilité comme
+		celle d'un règlement.
+	</p>
 
 	<h2>Côté comptabilité</h2>
 
@@ -361,7 +369,9 @@
 	<ul>
 		<li><strong>compte d'attente</strong> des chèques (5112 par défaut) ;</li>
 		<li><strong>compte de créance</strong> des membres (411 par défaut) ;</li>
-		<li><strong>compte bancaire</strong> des remises (512 par défaut).</li>
+		<li><strong>compte bancaire</strong> des remises (512 par défaut)&nbsp;;</li>
+		<li>comptes des <strong>abandons de dettes</strong>&nbsp;: geste accordé (709 par défaut) et impayé
+			(654 par défaut). Le même compte peut servir aux deux si la distinction n'est pas utile.</li>
 	</ul>
 	<figure>
 		<img src="screenshots/11-configuration.png" alt="Page de configuration du module" />
@@ -378,8 +388,8 @@
 	<ul>
 		<li><strong>les annulations</strong> — l'écriture est passée dès que l'annulation est
 			enregistrée ;</li>
-		<li><strong>les règlements de créances</strong> — l'écriture est passée dès que l'argent est
-			encaissé ;</li>
+		<li><strong>les règlements et abandons de dettes</strong> — l'écriture est passée dès que l'argent
+			est encaissé, ou que l'abandon est enregistré ;</li>
 		<li><strong>les remises</strong> — l'écriture de dépôt est passée dès que le bordereau est
 			généré.</li>
 	</ul>

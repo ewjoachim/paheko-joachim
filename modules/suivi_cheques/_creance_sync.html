@@ -50,9 +50,9 @@
 		}}
 	{{elseif $cw_existing > $md_owed}}
 		{{* Retirer cette créance rendrait la dette du membre inférieure à ce qu'il a
-		    déjà versé : on effacerait de l'argent reçu. *}}
+		    déjà versé ou à ce qu'on lui a abandonné. *}}
 		{{:assign cw_owed_h=$md_owed|money_currency}}
-		{{:error message="Ce membre ne doit plus que %s : supprimez d'abord son règlement, sinon décocher effacerait de l'argent reçu."|args:$cw_owed_h}}
+		{{:error message="Ce membre ne doit plus que %s : supprimez d'abord son règlement ou l'abandon de sa dette, sinon décocher effacerait ce qui a été soldé."|args:$cw_owed_h}}
 	{{else}}
 		{{:delete type="creance" where="key = :k" :k=$cw_key}}
 	{{/if}}

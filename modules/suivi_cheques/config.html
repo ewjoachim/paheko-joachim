@@ -26,10 +26,16 @@
 	{{#foreach from=$_POST.receivable_account key="code" item="lbl"}}{{:assign ra=$code}}{{/foreach}}
 	{{:assign ba=null}}
 	{{#foreach from=$_POST.bank_account key="code" item="lbl"}}{{:assign ba=$code}}{{/foreach}}
+	{{:assign ga=null}}
+	{{#foreach from=$_POST.gesture_account key="code" item="lbl"}}{{:assign ga=$code}}{{/foreach}}
+	{{:assign bda=null}}
+	{{#foreach from=$_POST.bad_debt_account key="code" item="lbl"}}{{:assign bda=$code}}{{/foreach}}
 	{{:save key="config"
 		waiting_account=$wa|trim|or:"5112"
 		receivable_account=$ra|trim|or:"411"
 		bank_account=$ba|trim|or:"512"
+		gesture_account=$ga|trim|or:"709"
+		bad_debt_account=$bda|trim|or:"654"
 		auto_record_cancellations=$_POST.auto_record_cancellations|intval
 		auto_record_deposits=$_POST.auto_record_deposits|intval
 		auto_record_settlements=$_POST.auto_record_settlements|intval
@@ -68,6 +74,18 @@
 			{{#select label FROM acc_accounts WHERE code = :c ORDER BY id_chart DESC LIMIT 1; :c=$ba_cur}}{{:assign ba_label="%s — %s"|args:$ba_cur:$label}}{{/select}}
 			{{:assign ba_default=null}}
 			{{:assign var="ba_default[%s]"|args:$ba_cur value=$ba_label}}
+
+			{{:assign ga_cur=$module.config.gesture_account|or:"709"}}
+			{{:assign ga_label=$ga_cur}}
+			{{#select label FROM acc_accounts WHERE code = :c ORDER BY id_chart DESC LIMIT 1; :c=$ga_cur}}{{:assign ga_label="%s — %s"|args:$ga_cur:$label}}{{/select}}
+			{{:assign ga_default=null}}
+			{{:assign var="ga_default[%s]"|args:$ga_cur value=$ga_label}}
+
+			{{:assign bda_cur=$module.config.bad_debt_account|or:"654"}}
+			{{:assign bda_label=$bda_cur}}
+			{{#select label FROM acc_accounts WHERE code = :c ORDER BY id_chart DESC LIMIT 1; :c=$bda_cur}}{{:assign bda_label="%s — %s"|args:$bda_cur:$label}}{{/select}}
+			{{:assign bda_default=null}}
+			{{:assign var="bda_default[%s]"|args:$bda_cur value=$bda_label}}
 			<dl>
 				{{:input type="list" name="waiting_account" label="Compte d'attente des chèques"
 					target="!acc/charts/accounts/selector.php?key=code&types=3"
@@ -81,6 +99,14 @@
 					target="!acc/charts/accounts/selector.php?key=code&types=1"
 					default=$ba_default
 					help="Compte banque débité par l'écriture de dépôt d'un bordereau. Par défaut 512."}}
+				{{:input type="list" name="gesture_account" label="Abandon de dette : geste accordé"
+					target="!acc/charts/accounts/selector.php?key=code"
+					default=$ga_default
+					help="Compte débité quand le bureau renonce à une dette. Par défaut 709 (remises accordées)."}}
+				{{:input type="list" name="bad_debt_account" label="Abandon de dette : impayé"
+					target="!acc/charts/accounts/selector.php?key=code"
+					default=$bda_default
+					help="Compte débité quand une dette ne sera pas récupérée. Par défaut 654 (pertes sur créances). Mettez le même compte que ci-dessus si la distinction ne vous sert pas."}}
 			</dl>
 		</fieldset>
 
@@ -107,10 +133,10 @@
 					default=$module.config.auto_record_deposits
 					help="Sans risque : un bordereau est de toute façon figé au moment de sa génération."}}
 				{{:input type="checkbox" name="auto_record_settlements" value="1"
-					label="Comptabiliser automatiquement les règlements de créances"
+					label="Comptabiliser automatiquement les règlements et abandons de dettes"
 					default=$module.config.auto_record_settlements
-					help="Sans risque : un règlement encaissé ne se modifie pas, il se supprime.
-						L'écriture est datée du jour de l'encaissement, pas du jour du clic."}}
+					help="Sans risque : un règlement ou un abandon ne se modifie pas.
+						L'écriture est datée du jour de l'encaissement ou de la décision, pas du jour du clic."}}
 			</dl>
 			<p class="help">
 				Si une écriture ne peut pas être créée (aucun exercice ouvert ne couvre la date, par

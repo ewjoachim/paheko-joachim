@@ -1,0 +1,83 @@
+{{* -*- brindille -*- *}}
+
+{{* Écriture comptable d'un abandon de dette — partagée par la file
+    « à comptabiliser » (to_record.html) et le mode automatique de settle.html.
+    À inclure DANS un {{#form}}.
+
+    Débit du compte de la nature choisie (remise accordée ou perte), crédit du
+    compte de créance : la dette du membre s'éteint sans qu'aucun argent ne bouge.
+    Le membre est toujours lié, comme pour un règlement.
+
+    Paramètres :
+      $rid    clé du document abandon ;
+      $quiet  true = ne jamais lever d'erreur (contrat de _record_cancellation.html).
+    Renvoie, via keep="rec_txn_id,rec_error". *}}
+
+{{:assign rec_txn_id=null rec_error=null}}
+{{:assign api_fail=true}}
+{{if $quiet}}{{:assign api_fail=false}}{{/if}}
+
+{{:assign receivable_account=$module.config.receivable_account|or:"411"}}
+
+{{:assign ab_amount=0 ab_date=null ab_account=null ab_member=null ab_nature=null ab_reason=null ab_already=null}}
+{{#load type="abandon" key=$rid}}
+	{{:assign ab_amount=$amount|intval ab_date=$date ab_account=$account ab_member=$member_id}}
+	{{:assign ab_nature=$nature ab_reason=$reason ab_already=$abandon_txn_id}}
+{{/load}}
+
+{{if !$ab_amount}}
+	{{:assign rec_error="Abandon introuvable ou montant nul."}}
+{{/if}}
+
+{{if !$rec_error && $ab_already}}
+	{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$ab_already}}
+		{{:assign rec_error="Cet abandon est déjà comptabilisé."}}
+	{{/select}}
+{{/if}}
+
+{{if !$rec_error}}
+	{{:assign ab_member_name=null}}
+	{{if $ab_member}}{{#users id=$ab_member}}{{:assign ab_member_name=$_name}}{{/users}}{{/if}}
+
+	{{:assign ab_label="Abandon de dette (geste accordé)"}}
+	{{if $ab_nature === 'impaye'}}{{:assign ab_label="Abandon de dette (impayé)"}}{{/if}}
+
+	{{:assign lines=null}}
+	{{:assign var="lines[0][account]" value=$ab_account}}
+	{{:assign var="lines[0][debit]" value=$ab_amount|money}}
+	{{:assign var="lines[0][label]" value=$ab_reason}}
+	{{:assign var="lines[1][account]" value=$receivable_account}}
+	{{:assign var="lines[1][credit]" value=$ab_amount|money}}
+	{{:assign ab_line_label=$ab_label}}
+	{{if $ab_member_name}}{{:assign ab_line_label="Créance %s abandonnée"|args:$ab_member_name}}{{/if}}
+	{{:assign var="lines[1][label]" value=$ab_line_label}}
+
+	{{:assign users=null}}
+	{{if $ab_member}}{{:assign var="users[0]" value=$ab_member|intval}}{{/if}}
+
+	{{if $quiet}}
+		{{:include file="./_record_precheck.html" lines=$lines on_date=$ab_date on_match=true keep="rec_error"}}
+	{{/if}}
+{{/if}}
+
+{{if !$rec_error}}
+	{{:assign created=null}}
+	{{:assign txn_label=$ab_label}}
+	{{if $ab_member_name}}{{:assign txn_label="%s — %s"|args:$ab_label:$ab_member_name}}{{/if}}
+	{{:assign ab_uid=$ab_member|intval}}
+	{{:assign ab_ref="ABAND-%d-%s"|args:$ab_uid:$ab_date}}
+	{{:api method="POST" path="accounting/transaction" access="write" fail=$api_fail
+		id_year="match" type="advanced" date=$ab_date
+		label=$txn_label
+		reference=$ab_ref
+		lines=$lines linked_users=$users assign="created"}}
+
+	{{if $created}}
+		{{:save type="abandon" key=$rid abandon_txn_id=$created.id}}
+		{{:assign rec_txn_id=$created.id}}
+	{{else}}
+		{{:assign rec_error="L'écriture comptable n'a pas pu être créée."}}
+	{{/if}}
+{{/if}}
+
+{{if $rec_error && !$quiet}}{{:error message=$rec_error}}{{/if}}

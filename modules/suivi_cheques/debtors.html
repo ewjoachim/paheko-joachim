@@ -60,7 +60,7 @@
 			{{* Positif = doit. Ardoise : consommée (paiements type 2) moins réglée
 			    (lignes de note type 1) — même appariement que Tabs::getUserBalancesQuery
 			    de la caisse. Créance : ce que les annulations ont ouvert moins ce que le
-			    membre a versé, les deux rattachés à LUI et non à un chèque (voir
+			    membre a versé ou qu'on lui a abandonné, tous rattachés à LUI et non à un chèque (voir
 			    _member_debt.html, qui calcule la même chose pour un seul membre). *}}
 			{{#select
 				uid,
@@ -91,6 +91,11 @@
 						FROM module_data_suivi_cheques r
 						WHERE json_extract(r.document, '$.type') = 'reglement'
 							AND json_extract(r.document, '$.member_id') IS NOT NULL
+					UNION ALL
+					SELECT CAST(json_extract(a.document, '$.member_id') AS INT), 0,
+						-CAST(json_extract(a.document, '$.amount') AS INT)
+						FROM module_data_suivi_cheques a
+						WHERE json_extract(a.document, '$.type') = 'abandon'
 				)
 				GROUP BY uid
 				HAVING SUM(slate_owed) > 0 OR SUM(recv_owed) > 0
@@ -222,6 +227,11 @@
 				WHERE json_extract(r.document, '$.type') = 'reglement'
 					AND EXISTS (SELECT 1 FROM acc_transactions a
 						WHERE a.id = CAST(json_extract(r.document, '$.reglement_txn_id') AS INT))), 0)
+			- COALESCE((SELECT SUM(CAST(json_extract(ab.document, '$.amount') AS INT))
+				FROM module_data_suivi_cheques ab
+				WHERE json_extract(ab.document, '$.type') = 'abandon'
+					AND EXISTS (SELECT 1 FROM acc_transactions a
+						WHERE a.id = CAST(json_extract(ab.document, '$.abandon_txn_id') AS INT))), 0)
 			AS s
 		}}
 			{{:assign mod_posted=$s|intval}}
