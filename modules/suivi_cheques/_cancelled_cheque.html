@@ -20,6 +20,9 @@
       cs_member_name   son nom, pour les libellés ;
       cs_reason        motif saisi ;
       cs_cancelled     1 si le chèque est marqué non encaissé ;
+      cs_rejected      1 s'il l'est alors qu'il est parti sur un bordereau : la
+                       banque l'a renvoyé impayé (un chèque ne peut être annulé
+                       sur un bordereau qu'une fois celui-ci déposé) ;
       cs_already       id de l'écriture d'annulation déjà stockée (peut pointer vers
                        une écriture supprimée : au caller de vérifier) ;
       cs_store_type / cs_store_key  type et clé du document d'origine.
@@ -27,7 +30,7 @@
     Ne fait AUCUNE écriture : c'est une lecture, appelable hors {{#form}}. *}}
 
 {{:assign cs_error=null cs_amount=0 cs_cheque_number=null cs_member_id=null cs_member_name=null}}
-{{:assign cs_reason=null cs_cancelled=0 cs_already=null cs_store_key=null cs_store_type=null}}
+{{:assign cs_reason=null cs_cancelled=0 cs_rejected=0 cs_already=null cs_store_key=null cs_store_type=null}}
 
 {{if $cs_kind === 'annul_pay'}}
 	{{:assign cs_pid=$cs_rid|intval}}
@@ -39,12 +42,14 @@
 	{{/select}}
 	{{#load type="cheque" key="pay-%d"|args:$cs_pid}}
 		{{:assign cs_reason=$reason cs_already=$annulation_txn_id cs_cancelled=$cancelled|intval}}
+		{{if $batch_id}}{{:assign cs_rejected=1}}{{/if}}
 	{{/load}}
 	{{:assign cs_store_key="pay-%d"|args:$cs_pid cs_store_type="cheque"}}
 {{elseif $cs_kind === 'annul_rempl'}}
 	{{#load type="cheque_rempl" key=$cs_rid}}
 		{{:assign cs_amount=$amount cs_cheque_number=$cheque_number cs_reason=$reason}}
 		{{:assign cs_already=$annulation_txn_id cs_member_id=$member_id cs_cancelled=$cancelled|intval}}
+		{{if $batch_id}}{{:assign cs_rejected=1}}{{/if}}
 	{{/load}}
 	{{:assign cs_store_key=$cs_rid cs_store_type="cheque_rempl"}}
 {{else}}

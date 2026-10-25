@@ -56,17 +56,31 @@
 {{:assign cur_month_num=null}}
 {{if $cur_month}}{{#select CAST(substr(:m, 6, 2) AS INT) AS n; :m=$cur_month}}{{:assign cur_month_num=$n}}{{/select}}{{/if}}
 
-{{* Verrous : dans un lot, ou annulation déjà comptabilisée.
-    Pour l'annulation, on ne lit la compta que pour vérifier l'EXISTENCE de notre
-    propre id (seule lecture comptable autorisée). *}}
-{{:assign locked=false lock_msg=null}}
+{{* Verrous : sur un bordereau en cours, ou annulation déjà comptabilisée. Pour
+    l'annulation, on ne lit la compta que pour vérifier l'EXISTENCE de notre propre id.
+
+    Sur un bordereau déposé, le chèque est parti en banque : seul reste possible le
+    rejet par la banque, qui est une annulation sur un chèque déposé. Rien d'autre
+    ne distingue un rejet : un chèque ne peut être annulé sur un bordereau que
+    celui-ci une fois déposé. *}}
+{{:assign locked=false lock_msg=null deposited=false}}
 {{if $cur_batch_id !== null}}
-	{{:assign locked=true}}
-	{{:assign lock_msg="Ce chèque est dans un lot de remise : il n'est plus modifiable ici."}}
-{{elseif $cur_annul_txn}}
+	{{#load type="deposit_batch" key="batch-%s"|args:$cur_batch_id}}
+		{{if $date}}{{:assign deposited=true}}{{/if}}
+	{{/load}}
+	{{if !$deposited}}
+		{{:assign locked=true}}
+		{{:assign lock_msg="Ce chèque est sur un bordereau en cours : retirez-le du bordereau pour le modifier."}}
+	{{/if}}
+{{/if}}
+{{if !$locked && $cur_annul_txn}}
 	{{#select 1 AS x FROM acc_transactions WHERE id = :tid LIMIT 1; :tid=$cur_annul_txn}}
 		{{:assign locked=true}}
-		{{:assign lock_msg="L'annulation de ce chèque est comptabilisée : cette fiche n'est plus modifiable ici (voir la comptabilité)."}}
+		{{if $deposited}}
+			{{:assign lock_msg="Le rejet de ce chèque est comptabilisé : cette fiche n'est plus modifiable ici (voir la comptabilité)."}}
+		{{else}}
+			{{:assign lock_msg="L'annulation de ce chèque est comptabilisée : cette fiche n'est plus modifiable ici (voir la comptabilité)."}}
+		{{/if}}
 	{{/select}}
 {{/if}}
 
@@ -85,7 +99,15 @@
 
 	{{* {{:save}} fusionne avec le document existant : l'identité du chèque et les
 	    liens compta sont déjà stockés, on n'écrit que ce que ce formulaire édite. *}}
-	{{if $from_till}}
+	{{if $deposited}}
+		{{:assign store_schema="./replacement.schema.json"}}
+		{{if $from_till}}{{:assign store_schema="./cheque.schema.json"}}{{/if}}
+		{{:save type=$store_type key=$store_key validate_schema=$store_schema
+			cancelled=$_POST.cancelled|intval
+			reason=$_POST.reason|trim|or:null
+			notes=$_POST.notes|trim|or:null
+		}}
+	{{elseif $from_till}}
 		{{:save type="cheque" key=$store_key validate_schema="./cheque.schema.json"
 			payment_id=$pid
 			cheque_number=$new_number
@@ -176,6 +198,26 @@
 	<p class="actions">{{:linkbutton href="index.html" label="Retour" shape="left"}}</p>
 {{else}}
 <form method="post" action="">
+	{{if $deposited}}
+	<fieldset>
+		<legend>Rejet par la banque</legend>
+		<dl>
+			{{:input type="checkbox" name="cancelled" value="1" label="Rejeté par la banque" default=$cur_cancelled}}
+			{{:input type="text" name="reason" label="Motif" default=$cur_reason
+				help="Ex. : chèque sans provision, signature non conforme."}}
+		</dl>
+		<p class="help">
+			Ce chèque est parti en banque avec le bordereau {{:link href="batch.html?batch=%s"|args:$cur_batch_id label=$cur_batch_id}}.
+			Si la banque l'a renvoyé impayé, le membre <strong>doit de nouveau son montant</strong> : la
+			créance apparaît aussitôt dans « Impayés ». Le bordereau, lui, ne change pas.
+			{{if $module.config.auto_record_cancellations}}
+				L'écriture comptable est passée immédiatement, et la fiche n'est plus modifiable ensuite.
+			{{else}}
+				Aucune écriture comptable n'est générée ici : la comptabilité la passera ensuite.
+			{{/if}}
+		</p>
+	</fieldset>
+	{{else}}
 	<fieldset>
 		<legend>Encaissement</legend>
 		<dl>
@@ -219,6 +261,7 @@
 			{{/if}}
 		</p>
 	</fieldset>
+	{{/if}}
 
 	<fieldset>
 		<legend>Notes</legend>

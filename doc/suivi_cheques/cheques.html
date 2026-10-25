@@ -36,6 +36,7 @@
 			<li><a href="#exporter">Exporter</a></li>
 			<li><a href="#corriger">Corriger un chèque</a></li>
 			<li><a href="#annuler">Annuler un chèque</a></li>
+			<li><a href="#rejet">Chèque rejeté par la banque</a></li>
 			<li><a href="#que-faire">Que faire si…</a></li>
 		</ul>
 	</div>
@@ -56,7 +57,9 @@
 		<li><span class="tag lot">Dans un lot</span> il est sur un bordereau en cours&nbsp;: encore sur le
 			bureau, mais déjà dans la pile&nbsp;;</li>
 		<li><span class="tag dep">Déposé</span> il est parti en banque&nbsp;;</li>
-		<li><span class="tag ann">Annulé</span> il ne sera pas encaissé.</li>
+		<li><span class="tag ann">Annulé</span> il ne sera pas encaissé&nbsp;;</li>
+		<li><span class="tag" style="background:darkred">Rejeté</span> il est parti en banque, qui l'a
+			renvoyé impayé. Il est compté avec les annulés.</li>
 	</ul>
 	<figure>
 		<img src="screenshots/01-vue-cheques.png" alt="La vue des chèques d'un mois" />
@@ -153,6 +156,21 @@
 		<strong>Rien n'est écrit en comptabilité à ce stade</strong>, sauf si la comptabilisation
 		automatique des annulations est activée&nbsp;; la fiche indique lequel des deux cas s'applique.
 	</div>
+
+	<h2 id="rejet">Chèque rejeté par la banque</h2>
+	<p>
+		Un chèque déjà déposé peut revenir impayé&nbsp;: la banque le signale sur son relevé, souvent des
+		jours plus tard. Sur la ligne du chèque, le bouton <em>Rejeté par la banque&nbsp;?</em> ouvre sa
+		fiche, qui ne propose plus que cela&nbsp;: cocher <em>Rejeté par la banque</em> et indiquer un
+		motif.
+	</p>
+	<p>
+		Comme pour une annulation, le membre <strong>doit de nouveau le montant</strong>, et la créance
+		apparaît dans <em>Impayés</em>. Le bordereau ne change pas&nbsp;: le chèque est bien parti avec.
+		Côté comptabilité, l'argent est repris à la banque, et non au compte d'attente (voir
+		<a href="comptabilite.html#ecritures">les écritures</a>). Un rejet signalé par erreur se décoche
+		de la même façon, tant que son écriture n'est pas passée.
+	</p>
 
 	<h2 id="que-faire">Que faire si…</h2>
 	<dl class="faq">

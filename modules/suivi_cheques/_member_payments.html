@@ -139,6 +139,8 @@
 					p.amount AS amount,
 					CASE
 						WHEN ov.key IS NULL THEN NULL
+						WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1
+							AND json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'rejected'
 						WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
 						WHEN json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'deposited'
 						ELSE 'pending'
@@ -161,6 +163,8 @@
 					json_extract(r.document, '$.cheque_number') AS reference,
 					CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
 					CASE
+						WHEN COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) = 1
+							AND json_extract(r.document, '$.batch_id') IS NOT NULL THEN 'rejected'
 						WHEN COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) = 1 THEN 'cancelled'
 						WHEN json_extract(r.document, '$.batch_id') IS NOT NULL THEN 'deposited'
 						ELSE 'pending'
@@ -262,6 +266,7 @@
 				<td class="money">{{$amount|raw|money_currency}}</td>
 				<td>
 					{{if $state === 'cancelled'}}{{:tag label="Annulé" color="grey"}}
+					{{elseif $state === 'rejected'}}{{:tag label="Rejeté" color="darkred"}}
 					{{elseif $state === 'deposited'}}{{:tag label="Déposé" color="darkgreen"}}
 					{{elseif $state === 'pending'}}{{:tag label="À encaisser" color="darkorange"}}
 					{{/if}}

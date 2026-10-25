@@ -76,7 +76,7 @@
 		</p>
 	{{/if}}
 
-	<h2 class="ruler">Annulations à comptabiliser</h2>
+	<h2 class="ruler">Annulations et rejets à comptabiliser</h2>
 	<table class="list">
 		<thead>
 			<tr><th>N° de chèque</th><th>Membre</th><th class="money">Montant</th><th>Motif</th><th class="actions"></th></tr>
@@ -87,7 +87,8 @@
 				FROM (
 					SELECT 'annul_pay' AS kind, CAST(p.id AS TEXT) AS rid,
 						COALESCE(json_extract(ov.document, '$.cheque_number'), p.reference) AS number, p.amount AS amount, t.user_id AS uid,
-						json_extract(ov.document, '$.reason') AS reason
+						json_extract(ov.document, '$.reason') AS reason,
+						json_extract(ov.document, '$.batch_id') IS NOT NULL AS rejected
 					FROM plugin_pos_tabs_payments p
 					INNER JOIN plugin_pos_tabs t ON t.id = p.tab
 					INNER JOIN module_data_suivi_cheques ov
@@ -101,7 +102,8 @@
 						json_extract(r.document, '$.cheque_number') AS number,
 						CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
 						CAST(json_extract(r.document, '$.member_id') AS INT) AS uid,
-						json_extract(r.document, '$.reason') AS reason
+						json_extract(r.document, '$.reason') AS reason,
+						json_extract(r.document, '$.batch_id') IS NOT NULL AS rejected
 					FROM module_data_suivi_cheques r
 					WHERE json_extract(r.document, '$.type') = 'cheque_rempl'
 						AND COALESCE(CAST(json_extract(r.document, '$.cancelled') AS INT), 0) = 1
@@ -111,7 +113,7 @@
 				ORDER BY number
 			}}
 				<tr>
-					<td>{{$number|escape|or:'—'}}</td>
+					<td>{{if $rejected}}{{:tag label="Rejeté" color="darkred"}} {{/if}}{{$number|escape|or:'—'}}</td>
 					<td>{{if $uid}}{{#users id=$uid}}{{:link href="!users/details.php?id=%d"|args:$uid label=$_name}}{{/users}}{{else}}—{{/if}}</td>
 					<td class="money">{{$amount|raw|money_currency}}</td>
 					<td>{{$reason|escape|or:'—'}}</td>
@@ -128,7 +130,7 @@
 					</td>
 				</tr>
 			{{else}}
-				<tr><td colspan="5">Aucune annulation à comptabiliser.</td></tr>
+				<tr><td colspan="5">Aucune annulation ni aucun rejet à comptabiliser.</td></tr>
 			{{/select}}
 		</tbody>
 	</table>

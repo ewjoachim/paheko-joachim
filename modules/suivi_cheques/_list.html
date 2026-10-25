@@ -64,6 +64,8 @@
 					json_extract(ov.document, '$.reason') AS reason,
 					json_extract(ov.document, '$.notes') AS notes,
 					json_extract(ov.document, '$.batch_id') AS batch_id,
+					CASE WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1
+						AND json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 1 ELSE 0 END AS rejected,
 					-- Date du bordereau : nulle tant qu il est en cours, ce qui distingue
 					-- un cheque encore sur le bureau d un cheque parti en banque.
 					(SELECT json_extract(b.document, '$.date')
@@ -109,6 +111,8 @@
 					json_extract(ov2.document, '$.reason') AS reason,
 					json_extract(ov2.document, '$.notes') AS notes,
 					json_extract(ov2.document, '$.batch_id') AS batch_id,
+					CASE WHEN COALESCE(CAST(json_extract(ov2.document, '$.cancelled') AS INT), 0) = 1
+						AND json_extract(ov2.document, '$.batch_id') IS NOT NULL THEN 1 ELSE 0 END AS rejected,
 					-- Date du bordereau : nulle tant qu il est en cours, ce qui distingue
 					-- un cheque encore sur le bureau d un cheque parti en banque.
 					(SELECT json_extract(b.document, '$.date')
@@ -181,7 +185,10 @@
 				<td data-key="date" data-sort="{{$received_date|escape}}">{{$received_date|date_short}}</td>
 				<td>
 					{{if $source === 'rempl'}}{{:tag label="Règlement" color="darkcyan"}} {{/if}}
-					{{if $cstate === 'cancelled'}}
+					{{if $cstate === 'cancelled' && $rejected}}
+						{{:tag label="Rejeté" color="darkred"}} {{$reason|escape}}
+						{{:link href="batch.html?batch=%s"|args:$batch_id label="bordereau du %s"|args:$bdate_short}}
+					{{elseif $cstate === 'cancelled'}}
 						{{:tag label="Annulé" color="grey"}} {{$reason|escape}}
 					{{elseif $cstate === 'deposited'}}
 						{{:tag label="Déposé" color="darkgreen"}}
@@ -196,11 +203,14 @@
 				</td>
 				<td class="actions">
 					{{#restrict section="users" level="write"}}
-						{{if $batch_id === null}}
+						{{* Sur un bordereau déposé, la fiche ne sert plus qu'à signaler un rejet. *}}
+						{{if $batch_id === null || $cstate === 'deposited' || $rejected}}
+							{{:assign edit_label="Modifier / annuler"}}
+							{{if $cstate === 'deposited'}}{{:assign edit_label="Rejeté par la banque ?"}}{{elseif $rejected}}{{:assign edit_label="Modifier le rejet"}}{{/if}}
 							{{if $source === 'caisse'}}
-								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit.html?payment=%d&period=%s&state=%s"|args:$payment_id:$period:$state target="_dialog"}}
+								{{:linkbutton shape="edit" label=$edit_label href="edit.html?payment=%d&period=%s&state=%s"|args:$payment_id:$period:$state target="_dialog"}}
 							{{else}}
-								{{:linkbutton shape="edit" label="Modifier / annuler" href="edit.html?key=%s&period=%s&state=%s"|args:$skey:$period:$state target="_dialog"}}
+								{{:linkbutton shape="edit" label=$edit_label href="edit.html?key=%s&period=%s&state=%s"|args:$skey:$period:$state target="_dialog"}}
 							{{/if}}
 						{{/if}}
 					{{/restrict}}

@@ -85,5 +85,3 @@ de ses `reglement` et `abandon`. Rien à répartir entre les chèques revenus, d
 cohérence quand une créance naît ou disparaît.
 
 ## Hors périmètre (v1)
-
-- Rejet bancaire d'un chèque **après** dépôt (à traiter à la main en comptabilité).
