@@ -82,7 +82,7 @@
 				*
 				FROM (
 					SELECT 'annul_pay' AS kind, CAST(p.id AS TEXT) AS rid,
-						p.reference AS number, p.amount AS amount, t.user_id AS uid,
+						COALESCE(json_extract(ov.document, '$.cheque_number'), p.reference) AS number, p.amount AS amount, t.user_id AS uid,
 						json_extract(ov.document, '$.reason') AS reason
 					FROM plugin_pos_tabs_payments p
 					INNER JOIN plugin_pos_tabs t ON t.id = p.tab

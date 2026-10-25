@@ -12,6 +12,13 @@
 			"type": "integer",
 			"description": "Paiement caisse (plugin_pos_tabs_payments.id)."
 		},
+		"cheque_number": {
+			"type": [
+				"null",
+				"string"
+			],
+			"description": "Numéro corrigé, quand celui saisi en caisse est faux. NULL = celui de la caisse. Prioritaire partout dans le module, bordereau compris."
+		},
 		"planned_month": {
 			"type": [
 				"null",

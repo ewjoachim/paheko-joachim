@@ -43,7 +43,8 @@
 					'pay-' || p.id AS skey,
 					p.id AS payment_id,
 					'caisse' AS source,
-					p.reference AS cheque_number,
+					COALESCE(json_extract(ov.document, '$.cheque_number'), p.reference) AS cheque_number,
+					p.reference AS till_number,
 					p.amount AS amount,
 					p.date AS received_date,
 					t.user_id AS user_id,
@@ -99,6 +100,7 @@
 					NULL AS payment_id,
 					'rempl' AS source,
 					json_extract(ov2.document, '$.cheque_number') AS cheque_number,
+					NULL AS till_number,
 					CAST(json_extract(ov2.document, '$.amount') AS INT) AS amount,
 					json_extract(ov2.document, '$.received_date') AS received_date,
 					CAST(json_extract(ov2.document, '$.member_id') AS INT) AS user_id,
@@ -170,6 +172,7 @@
 				{{if $show_month_col}}<td data-key="month" data-sort="{{$planned_month|escape}}">{{$planned_month|escape|or:'—'}}</td>{{/if}}
 				<td data-key="number" data-sort="{{$cheque_number|escape}}">
 					{{if $cstate === 'cancelled'}}<del>{{$cheque_number|escape|or:'—'}}</del>{{else}}{{$cheque_number|escape|or:'—'}}{{/if}}
+					{{if $source === 'caisse' && $till_number !== $cheque_number}}<br /><small class="help">caisse : {{$till_number|escape|or:'—'}}</small>{{/if}}
 				</td>
 				<td data-key="member" data-sort="{{$mlabel|escape}}">
 					{{if $user_id}}{{:link href="!users/details.php?id=%d"|args:$user_id label=$mlabel}}{{else}}{{$mlabel|escape}}{{/if}}
