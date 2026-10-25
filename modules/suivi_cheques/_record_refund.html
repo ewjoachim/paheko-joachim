@@ -6,8 +6,6 @@
 
     Débit du compte du geste accordé (rembourser revient à accorder une remise,
     payée au lieu d'être effacée), crédit du compte d'où l'argent est parti.
-    N'existe qu'une fois l'argent parti : avant, la dette de l'association ne vit
-    que dans le module.
 
     Paramètres :
       $rid    clé du document remboursement ;
@@ -20,14 +18,12 @@
 
 {{:assign rb_amount=0 rb_date=null rb_account=null rb_member=null rb_reason=null rb_already=null}}
 {{#load type="remboursement" key=$rid}}
-	{{:assign rb_amount=$amount|intval rb_date=$paid_date rb_account=$account rb_member=$member_id}}
+	{{:assign rb_amount=$amount|intval rb_date=$date rb_account=$account rb_member=$member_id}}
 	{{:assign rb_reason=$reason rb_already=$remboursement_txn_id}}
 {{/load}}
 
 {{if !$rb_amount}}
 	{{:assign rec_error="Remboursement introuvable ou montant nul."}}
-{{elseif !$rb_date || !$rb_account}}
-	{{:assign rec_error="Ce remboursement n'a pas encore été payé."}}
 {{/if}}
 
 {{if !$rec_error && $rb_already}}

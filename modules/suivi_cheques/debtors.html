@@ -1,7 +1,6 @@
 {{* -*- brindille -*- *}}
 
-{{* Qui nous doit de l'argent, toutes causes confondues — et, plus bas, à qui
-    l'association doit de l'argent (remboursements décidés, refund.html). Jusqu'ici la réponse
+{{* Qui nous doit de l'argent, toutes causes confondues. Jusqu'ici la réponse
     demandait deux pages et une addition de tête : « Ardoises en cours » de la
     caisse d'un côté, « Comptes de membres » de la comptabilité de l'autre.
 
@@ -31,13 +30,12 @@
     qu'exige leur cible (convention de _tabs.html). *}}
 {{#restrict block=true section="users" level="read"}}{{/restrict}}
 
-{{:admin_header title="Soldes des membres" current="module_suivi_cheques"}}
+{{:admin_header title="Impayés" current="module_suivi_cheques"}}
 
 {{#extension name="caisse"}}
 
 	{{:include file="./_tabs.html" tab="debtors"}}
 
-	<h2 class="ruler">Ce que les membres doivent</h2>
 	<p class="help">
 		Les membres qui doivent encore quelque chose, du plus gros montant au plus petit.
 		L'<strong>ardoise</strong> se règle à la caisse, la <strong>créance</strong> s'encaisse
@@ -251,52 +249,6 @@
 			</p>
 		{{/if}}
 	{{/restrict}}
-
-	{{* L'autre sens : ce que l'association doit. Un remboursement décidé est une
-	    dette dès sa saisie, bien avant que l'argent parte et qu'une écriture existe. *}}
-	<h2 class="ruler">Ce que l'association doit</h2>
-	{{:assign n_refund=0 total_refund=0}}
-	<table class="list">
-		<thead>
-			<tr><th>Membre</th><th>Décidé le</th><th>Motif</th><th class="money">À rembourser</th><th class="actions"></th></tr>
-		</thead>
-		<tbody>
-			{{#select
-				CAST(json_extract(document, '$.member_id') AS INT) AS uid,
-				json_extract(document, '$.decided_date') AS ddate,
-				json_extract(document, '$.reason') AS reason,
-				CAST(json_extract(document, '$.amount') AS INT) AS amount
-				FROM module_data_suivi_cheques
-				WHERE json_extract(document, '$.type') = 'remboursement'
-					AND json_extract(document, '$.paid_date') IS NULL
-				ORDER BY ddate
-			}}
-				{{:assign n_refund="%d+1"|math:$n_refund}}
-				{{:assign total_refund="%d+%d"|math:$total_refund:$amount}}
-				<tr>
-					<td>{{#users id=$uid}}{{:link href="!users/details.php?id=%d"|args:$uid label=$_name}}{{/users}}</td>
-					<td>{{$ddate|date_short}}</td>
-					<td>{{$reason|escape}}</td>
-					<td class="money">{{$amount|raw|money_currency}}</td>
-					<td class="actions">
-						{{#restrict section="users" level="write"}}
-							{{:linkbutton href="refund.html?user=%d"|args:$uid label="Rembourser" shape="money"}}
-						{{/restrict}}
-					</td>
-				</tr>
-			{{else}}
-				<tr><td colspan="5">Aucun remboursement en attente.</td></tr>
-			{{/select}}
-		</tbody>
-		{{if $n_refund > 1}}
-			<tfoot>
-				<tr><th colspan="3">{{$n_refund}} remboursements</th><td class="money"><strong>{{$total_refund|raw|money_currency}}</strong></td><td></td></tr>
-			</tfoot>
-		{{/if}}
-	</table>
-	<p class="help">
-		Pour décider un remboursement, passer par la fiche du membre (encart « Paiements »).
-	</p>
 
 {{else}}
 	<p class="block error">L'extension Caisse n'est pas active, ce module ne peut pas fonctionner.</p>

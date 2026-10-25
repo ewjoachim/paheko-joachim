@@ -177,7 +177,7 @@
 		numéro de la caisse. On peut aussi changer le
 		mois d'encaissement prévu, et marquer le chèque comme <strong>non encaissé</strong>, avec un
 		motif. Le membre <strong>doit alors son montant</strong> : la créance apparaît aussitôt dans
-		<em>Soldes</em>, où on l'encaisse quand il repaie — en espèces, en carte, ou par un nouveau
+		<em>Impayés</em>, où on l'encaisse quand il repaie — en espèces, en carte, ou par un nouveau
 		chèque, qui sera suivi comme celui-ci (voir l'étape 7).
 	</p>
 	<figure>
@@ -251,7 +251,7 @@
 
 	<h3>6. Savoir qui doit encore de l'argent</h3>
 	<p>
-		L'onglet <em>Soldes</em> répond à une question qui demandait jusqu'ici d'ouvrir deux pages et de
+		L'onglet <em>Impayés</em> répond à une question qui demandait jusqu'ici d'ouvrir deux pages et de
 		faire l'addition de tête&nbsp;: qui nous doit quelque chose, toutes causes confondues. Du plus gros
 		montant au plus petit, avec un lien vers la fiche de chacun.
 	</p>
@@ -304,27 +304,15 @@
 
 	<h3>8. Rembourser un membre</h3>
 	<p>
-		Quand c'est l'association qui doit de l'argent — un départ en cours d'année accepté par le bureau
-		alors que les chèques sont déjà en banque, par exemple — le lien <em>Rembourser ce membre</em>, sur
-		sa fiche (encart «&nbsp;Paiements&nbsp;»), ouvre la page de remboursement. Elle se remplit en
-		<strong>deux temps</strong>, parce que la décision et le virement ne sont pas toujours faits par la
-		même personne&nbsp;:
+		Quand l'association a rendu de l'argent à un membre — un départ en cours d'année accepté par le
+		bureau alors que ses chèques étaient déjà en banque, par exemple — on l'enregistre une fois le
+		virement fait, depuis le lien <em>Rembourser ce membre</em> de sa fiche (encart
+		«&nbsp;Paiements&nbsp;»)&nbsp;: <strong>montant</strong>, <strong>motif</strong> (la décision du
+		bureau), <strong>moyen</strong> (virement ou chèque de l'association, ou espèces) et
+		<strong>date</strong>. Le remboursement apparaît dans l'historique du membre, et l'écriture part
+		vers la comptabilité comme celle d'un règlement. Tant qu'elle n'existe pas, un remboursement saisi
+		par erreur peut être supprimé.
 	</p>
-	<ol>
-		<li>on enregistre le <strong>montant</strong> et le <strong>motif</strong> (la décision du bureau)&nbsp;:
-			le remboursement apparaît aussitôt en bas de l'onglet <em>Soldes</em>, dans
-			«&nbsp;Ce que l'association doit&nbsp;»&nbsp;;</li>
-		<li>quand l'argent est parti, on indique la <strong>date</strong> et le <strong>moyen</strong>
-			(virement ou chèque de l'association, ou espèces) avec <em>Marquer comme remboursé</em>.</li>
-	</ol>
-	<p>
-		L'écriture comptable n'est préparée qu'à la seconde étape&nbsp;: avant, aucun argent n'a bougé.
-		Tant qu'elle n'existe pas, un remboursement saisi par erreur peut être supprimé.
-	</p>
-	<div class="note">
-		<strong>À la clôture d'un exercice</strong>, prévenir la comptabilité des remboursements encore
-		«&nbsp;à rembourser&nbsp;»&nbsp;: ils ne sont dans aucune écriture.
-	</div>
 
 	<h2>Côté comptabilité</h2>
 
@@ -355,7 +343,7 @@
 	<div class="warn">
 		<strong>La recette n'est jamais annulée.</strong> Un chèque impayé ne « défait » pas la recette
 		enregistrée : la part non recouvrée devient une créance du membre (compte 411 par défaut). Si le
-		membre repaie, l'accueil l'encaisse depuis <em>Soldes</em> et l'écriture arrive ici. S'il faut
+		membre repaie, l'accueil l'encaisse depuis <em>Impayés</em> et l'écriture arrive ici. S'il faut
 		passer la somme en perte, cela se fait en comptabilité — le module ne connaît que l'encaissement.
 	</div>
 
@@ -413,7 +401,7 @@
 		<li><strong>les annulations</strong> — l'écriture est passée dès que l'annulation est
 			enregistrée ;</li>
 		<li><strong>les règlements, abandons de dettes et remboursements</strong> — l'écriture est passée
-			dès que l'argent est encaissé ou parti, ou que l'abandon est enregistré ;</li>
+			dès qu'ils sont enregistrés ;</li>
 		<li><strong>les remises</strong> — l'écriture de dépôt est passée dès que le bordereau est
 			généré.</li>
 	</ul>

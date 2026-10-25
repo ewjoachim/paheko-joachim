@@ -57,18 +57,7 @@
 {{:include file="./_member_debt.html" md_user_id=$mp_user_id keep="md_owed"}}
 {{:assign mp_receivable=$md_owed}}
 
-{{* L'autre sens : ce que l'association lui doit, tant que l'argent n'est pas parti. *}}
-{{:assign mp_refund=0}}
-{{#select COALESCE(SUM(CAST(json_extract(document, '$.amount') AS INT)), 0) AS s
-	FROM module_data_suivi_cheques
-	WHERE json_extract(document, '$.type') = 'remboursement'
-		AND json_extract(document, '$.paid_date') IS NULL
-		AND CAST(json_extract(document, '$.member_id') AS INT) = :uid;
-	:uid=$mp_user_id}}
-	{{:assign mp_refund=$s|intval}}
-{{/select}}
-
-{{if $mp_slate < 0 || $mp_receivable > 0 || $mp_refund > 0}}
+{{if $mp_slate < 0 || $mp_receivable > 0}}
 	<p class="help">
 		{{if $mp_slate < 0}}
 			{{* On pointe vers la LISTE des ardoises de la caisse (type 2 =
@@ -98,10 +87,6 @@
 			{{else}}
 				s'encaisse au bureau.
 			{{/restrict}}
-		{{/if}}
-		{{if $mp_refund > 0}}
-			{{:tag label="À rembourser" color="darkcyan"}}
-			l'association lui doit <strong>{{$mp_refund|raw|money_currency}}</strong>.
 		{{/if}}
 	</p>
 {{/if}}
@@ -236,15 +221,14 @@
 
 				UNION ALL
 
-				-- 7. Ce que l association lui rend (refund.html), date de decision
-				--    tant que l argent n est pas parti.
-				SELECT COALESCE(json_extract(rb.document, '$.paid_date'), json_extract(rb.document, '$.decided_date')) AS mdate,
+				-- 7. Ce que l association lui a rendu (refund.html).
+				SELECT json_extract(rb.document, '$.date') AS mdate,
 					'refund' AS kind,
 					json_extract(rb.document, '$.means') AS label,
 					json_extract(rb.document, '$.reason') AS detail,
 					NULL AS reference,
 					CAST(json_extract(rb.document, '$.amount') AS INT) AS amount,
-					CASE WHEN json_extract(rb.document, '$.paid_date') IS NULL THEN 'to_refund' ELSE 'refunded' END AS state
+					NULL AS state
 				FROM module_data_suivi_cheques rb
 				WHERE json_extract(rb.document, '$.type') = 'remboursement'
 					AND CAST(json_extract(rb.document, '$.member_id') AS INT) = :uid
@@ -280,8 +264,6 @@
 					{{if $state === 'cancelled'}}{{:tag label="Annulé" color="grey"}}
 					{{elseif $state === 'deposited'}}{{:tag label="Déposé" color="darkgreen"}}
 					{{elseif $state === 'pending'}}{{:tag label="À encaisser" color="darkorange"}}
-					{{elseif $state === 'to_refund'}}{{:tag label="À rembourser" color="darkorange"}}
-					{{elseif $state === 'refunded'}}{{:tag label="Remboursé" color="darkgreen"}}
 					{{/if}}
 				</td>
 			</tr>
