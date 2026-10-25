@@ -231,7 +231,7 @@
 	<p class="block error">Membre introuvable.</p>
 {{else}}
 
-	{{* Sous-page d'Impayés : l'onglet reste surligné là, c'est de là qu'on vient. *}}
+	{{* Sous-page de Soldes : l'onglet reste surligné là, c'est de là qu'on vient. *}}
 	{{:include file="./_tabs.html" tab="debtors"}}
 
 	{{:include file="./_member_debt.html" md_user_id=$uid keep="md_creances,md_settled,md_owed"}}
@@ -393,7 +393,7 @@
 		</p>
 	{{/if}}
 
-	<p class="actions">{{:linkbutton href="debtors.html" label="Retour aux impayés" shape="left"}}</p>
+	<p class="actions">{{:linkbutton href="debtors.html" label="Retour aux soldes" shape="left"}}</p>
 {{/if}}
 
 {{:include file="./_doc_footer.html"}}

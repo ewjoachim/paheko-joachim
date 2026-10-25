@@ -1,0 +1,44 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"type": {
+			"type": "string",
+			"enum": ["remboursement"]
+		},
+		"member_id": {
+			"type": "integer",
+			"description": "Membre à qui l'association doit cette somme."
+		},
+		"amount": {
+			"type": "integer",
+			"description": "Montant à rembourser, en centimes."
+		},
+		"reason": {
+			"type": "string",
+			"minLength": 1,
+			"description": "Motif, avec la référence de la décision du bureau le cas échéant."
+		},
+		"decided_date": {
+			"type": "string",
+			"description": "Date de la décision (YYYY-MM-DD)."
+		},
+		"paid_date": {
+			"type": ["null", "string"],
+			"description": "Date à laquelle l'argent est parti (YYYY-MM-DD). NULL = encore à rembourser. C'est aussi la date de l'écriture."
+		},
+		"means": {
+			"type": ["null", "string"],
+			"description": "Moyen utilisé, en clair, pour l'affichage."
+		},
+		"account": {
+			"type": ["null", "string"],
+			"description": "Compte crédité (banque, caisse), figé au paiement."
+		},
+		"remboursement_txn_id": {
+			"type": ["null", "integer"],
+			"description": "Identifiant de l'écriture de remboursement, créée via :api une fois l'argent parti."
+		}
+	},
+	"required": ["type", "member_id", "amount", "reason", "decided_date"]
+}

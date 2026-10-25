@@ -1,0 +1,79 @@
+{{* -*- brindille -*- *}}
+
+{{* Écriture comptable d'un remboursement à un membre — partagée par la file
+    « à comptabiliser » (to_record.html) et le mode automatique de refund.html.
+    À inclure DANS un {{#form}}.
+
+    Débit du compte du geste accordé (rembourser revient à accorder une remise,
+    payée au lieu d'être effacée), crédit du compte d'où l'argent est parti.
+    N'existe qu'une fois l'argent parti : avant, la dette de l'association ne vit
+    que dans le module.
+
+    Paramètres :
+      $rid    clé du document remboursement ;
+      $quiet  true = ne jamais lever d'erreur (contrat de _record_cancellation.html).
+    Renvoie, via keep="rec_txn_id,rec_error". *}}
+
+{{:assign rec_txn_id=null rec_error=null}}
+{{:assign api_fail=true}}
+{{if $quiet}}{{:assign api_fail=false}}{{/if}}
+
+{{:assign rb_amount=0 rb_date=null rb_account=null rb_member=null rb_reason=null rb_already=null}}
+{{#load type="remboursement" key=$rid}}
+	{{:assign rb_amount=$amount|intval rb_date=$paid_date rb_account=$account rb_member=$member_id}}
+	{{:assign rb_reason=$reason rb_already=$remboursement_txn_id}}
+{{/load}}
+
+{{if !$rb_amount}}
+	{{:assign rec_error="Remboursement introuvable ou montant nul."}}
+{{elseif !$rb_date || !$rb_account}}
+	{{:assign rec_error="Ce remboursement n'a pas encore été payé."}}
+{{/if}}
+
+{{if !$rec_error && $rb_already}}
+	{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$rb_already}}
+		{{:assign rec_error="Ce remboursement est déjà comptabilisé."}}
+	{{/select}}
+{{/if}}
+
+{{if !$rec_error}}
+	{{:assign rb_member_name=null}}
+	{{if $rb_member}}{{#users id=$rb_member}}{{:assign rb_member_name=$_name}}{{/users}}{{/if}}
+
+	{{:assign lines=null}}
+	{{:assign var="lines[0][account]" value=$module.config.gesture_account|or:"709"}}
+	{{:assign var="lines[0][debit]" value=$rb_amount|money}}
+	{{:assign var="lines[0][label]" value=$rb_reason}}
+	{{:assign var="lines[1][account]" value=$rb_account}}
+	{{:assign var="lines[1][credit]" value=$rb_amount|money}}
+	{{:assign var="lines[1][label]" value="Remboursement"}}
+
+	{{:assign users=null}}
+	{{if $rb_member}}{{:assign var="users[0]" value=$rb_member|intval}}{{/if}}
+
+	{{if $quiet}}
+		{{:include file="./_record_precheck.html" lines=$lines on_date=$rb_date on_match=true keep="rec_error"}}
+	{{/if}}
+{{/if}}
+
+{{if !$rec_error}}
+	{{:assign created=null}}
+	{{:assign txn_label="Remboursement"}}
+	{{if $rb_member_name}}{{:assign txn_label="Remboursement — %s"|args:$rb_member_name}}{{/if}}
+	{{:assign rb_uid=$rb_member|intval}}
+	{{:assign rb_ref="RMB-%d-%s"|args:$rb_uid:$rb_date}}
+	{{:api method="POST" path="accounting/transaction" access="write" fail=$api_fail
+		id_year="match" type="advanced" date=$rb_date
+		label=$txn_label
+		reference=$rb_ref
+		lines=$lines linked_users=$users assign="created"}}
+
+	{{if $created}}
+		{{:save type="remboursement" key=$rid remboursement_txn_id=$created.id}}
+		{{:assign rec_txn_id=$created.id}}
+	{{else}}
+		{{:assign rec_error="L'écriture comptable n'a pas pu être créée."}}
+	{{/if}}
+{{/if}}
+
+{{if $rec_error && !$quiet}}{{:error message=$rec_error}}{{/if}}

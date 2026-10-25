@@ -19,7 +19,7 @@ def test_lists_both_debtors_biggest_first(admin_page: Page, module_url, reseed):
     assert admin_page.locator(".exception, .error").count() == 0
 
     # Only the two seeded debtors: nobody who owes nothing may show up here.
-    rows = admin_page.locator("table.list tbody tr")
+    rows = admin_page.locator("table.list").first.locator("tbody tr")
     expect(rows).to_have_count(2)
 
     # Camille owes on both sides (40,00 slate + 25,00 receivable), Sofia 60,00 on
@@ -122,4 +122,4 @@ def test_unattached_slate_debt_is_announced_not_swallowed(
     expect(warning).to_contain_text("15,00 €")
     expect(warning).to_contain_text("aucune fiche membre")
     # It is not silently folded into the per-member rows either.
-    expect(admin_page.locator("table.list tbody tr")).to_have_count(2)
+    expect(admin_page.locator("table.list").first.locator("tbody tr")).to_have_count(2)
