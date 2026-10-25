@@ -28,13 +28,17 @@
 {{:assign api_fail=true}}
 {{if $quiet}}{{:assign api_fail=false}}{{/if}}
 
-{{:assign rec_today=null}}
-{{#select date('now', 'localtime') AS d}}{{:assign rec_today=$d}}{{/select}}
 
 {{:include file="./_cancelled_cheque.html" cs_kind=$kind cs_rid=$rid
 	keep="cs_error,cs_amount,cs_cheque_number,cs_member_id,cs_member_name,cs_already,cs_store_key,cs_store_type"}}
 
 {{if $cs_error}}{{:assign rec_error=$cs_error}}{{/if}}
+
+{{* Dated the day the cancellation was saved (when the receivable was born), not
+    the day it is recorded: accounting often catches up weeks later. *}}
+{{:assign rec_date=null}}
+{{#select date('now', 'localtime') AS d}}{{:assign rec_date=$d}}{{/select}}
+{{#load type="creance" key="creance-%s"|args:$cs_store_key}}{{:assign rec_date=$date|or:$rec_date}}{{/load}}
 
 {{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
 {{:assign receivable_account=$module.config.receivable_account|or:"411"}}
@@ -65,7 +69,7 @@
 	{{* Automatic mode only: give up before :api rather than let a refusal roll the
 	    caller's operational save back. See _record_precheck.html. *}}
 	{{if $quiet}}
-		{{:include file="./_record_precheck.html" lines=$cs_lines on_date=$rec_today keep="rec_error"}}
+		{{:include file="./_record_precheck.html" lines=$cs_lines on_date=$rec_date on_match=true keep="rec_error"}}
 	{{/if}}
 {{/if}}
 
@@ -74,7 +78,7 @@
 	{{:assign txn_label="Annulation chèque n°%s"|args:$cs_cheque_number}}
 	{{if $cs_member_name}}{{:assign txn_label="Annulation chèque n°%s — %s"|args:$cs_cheque_number:$cs_member_name}}{{/if}}
 	{{:api method="POST" path="accounting/transaction" access="write" fail=$api_fail
-		id_year="current" type="advanced" date=$rec_today
+		id_year="match" type="advanced" date=$rec_date
 		label=$txn_label
 		reference="ANNUL-%s"|args:$rid
 		lines=$cs_lines linked_users=$users assign="created"}}

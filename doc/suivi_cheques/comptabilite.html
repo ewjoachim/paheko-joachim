@@ -78,13 +78,13 @@
 				<td>Remise en banque d'un bordereau</td>
 				<td>512 Banque, le total</td>
 				<td>5112, une ligne par chèque, avec son numéro en référence</td>
-				<td>jour où elle est comptabilisée</td>
+				<td>jour du dépôt en banque</td>
 			</tr>
 			<tr>
 				<td>Annulation d'un chèque</td>
 				<td>411 Créance du membre</td>
 				<td>5112, avec le numéro du chèque en référence</td>
-				<td>jour où elle est comptabilisée</td>
+				<td>jour où l'annulation a été enregistrée</td>
 			</tr>
 			<tr>
 				<td>Règlement d'une créance</td>
@@ -118,9 +118,9 @@
 		abandon) a sa propre écriture.
 	</div>
 	<p>
-		Une remise et une annulation sont datées du jour où on clique <em>Comptabiliser</em>&nbsp;: un
-		exercice ouvert doit couvrir ce jour-là. Les autres opérations gardent leur date propre, et c'est
-		l'exercice qui couvre cette date qui est utilisé.
+		Chaque écriture porte la date de l'opération, pas celle du clic sur <em>Comptabiliser</em>&nbsp;:
+		on peut comptabiliser des semaines plus tard sans fausser les dates. L'écriture va dans
+		l'exercice qui couvre cette date, qui doit donc être encore ouvert.
 	</p>
 
 	<h2 id="maitresse">La comptabilité reste maîtresse</h2>
