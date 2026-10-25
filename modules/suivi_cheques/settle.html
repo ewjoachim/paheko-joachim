@@ -204,6 +204,46 @@
 	{{/if}}
 {{/form}}
 
+{{* Supprimer un règlement ou un abandon saisi par erreur, tant que son écriture
+    n'existe pas. Le membre doit alors de nouveau la somme. Un règlement par chèque
+    emporte ce chèque, sauf s'il a déjà une vie propre (sur un bordereau, ou annulé
+    avec sa propre créance) : il faut alors d'abord défaire celle-ci. *}}
+{{#form on="settle_delete"}}
+	{{:assign dkind=$_POST.del_kind|trim}}
+	{{:assign dkey=$_POST.del_key|trim}}
+
+	{{:assign d_found=false d_txn=null}}
+	{{if $dkind === 'reglement'}}
+		{{#load type="reglement" key=$dkey}}
+			{{if $member_id|intval === $uid}}{{:assign d_found=true d_txn=$reglement_txn_id}}{{/if}}
+		{{/load}}
+	{{elseif $dkind === 'abandon'}}
+		{{#load type="abandon" key=$dkey}}
+			{{if $member_id|intval === $uid}}{{:assign d_found=true d_txn=$abandon_txn_id}}{{/if}}
+		{{/load}}
+	{{/if}}
+	{{if !$d_found}}{{:error message="Ligne introuvable."}}{{/if}}
+	{{if $d_txn}}
+		{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$d_txn}}
+			{{:error message="Cette ligne est comptabilisée : supprimez d'abord son écriture en comptabilité."}}
+		{{/select}}
+	{{/if}}
+
+	{{if $dkind === 'reglement'}}
+		{{:assign chq_key="chq-%s"|args:$dkey}}
+		{{#load type="cheque_rempl" key=$chq_key}}
+			{{if $batch_id}}
+				{{:error message="Le chèque reçu pour ce règlement est sur un bordereau : retirez-le d'abord du bordereau."}}
+			{{elseif $cancelled}}
+				{{:error message="Le chèque reçu pour ce règlement est annulé : rétablissez-le d'abord."}}
+			{{/if}}
+		{{/load}}
+		{{:delete type="cheque_rempl" where="key = :k" :k=$chq_key}}
+	{{/if}}
+	{{:delete type=$dkind where="key = :k" :k=$dkey}}
+	{{:redirect to="settle.html?user=%d&deleted=1"|args:$uid}}
+{{/form}}
+
 {{:assign member_name=null}}
 {{if $uid}}{{#users id=$uid}}{{:assign member_name=$_name}}{{/users}}{{/if}}
 
@@ -211,6 +251,9 @@
 
 {{:form_errors}}
 
+{{if $_GET.deleted}}
+	<p class="block confirm">Ligne supprimée : la somme est de nouveau due.</p>
+{{/if}}
 {{if $_GET.saved || $_GET.abandoned}}
 	<p class="block confirm">
 		{{if $_GET.abandoned}}Abandon enregistré.{{else}}Règlement enregistré.{{/if}}
@@ -238,13 +281,19 @@
 
 	{{if $md_owed <= 0}}
 		<p class="block confirm">Ce membre ne doit plus rien au titre des créances. 🎉</p>
-	{{else}}
+	{{/if}}
 
-		{{* D'où vient la somme due : chèques revenus et versements déjà encaissés. *}}
-		<h2 class="ruler">Doit {{$md_owed|raw|money_currency}}</h2>
+	{{* L'historique reste affiché une fois la dette soldée : c'est d'ici qu'on
+	    supprime un règlement ou un abandon saisi par erreur. *}}
+	{{if $md_creances > 0}}
+		{{if $md_owed > 0}}
+			<h2 class="ruler">Doit {{$md_owed|raw|money_currency}}</h2>
+		{{else}}
+			<h2 class="ruler">Historique</h2>
+		{{/if}}
 		<table class="list">
 			<thead>
-				<tr><th>Date</th><th>Origine</th><th>Motif / notes</th><th class="money">Montant</th></tr>
+				<tr><th>Date</th><th>Origine</th><th>Motif / notes</th><th class="money">Montant</th><th class="actions"></th></tr>
 			</thead>
 			<tbody>
 				{{#select
@@ -257,7 +306,8 @@
 							CAST(json_extract(c.document, '$.amount') AS INT) AS amount,
 							json_extract(c.document, '$.origin_kind') AS okind,
 							json_extract(c.document, '$.origin_key') AS okey,
-							REPLACE(json_extract(c.document, '$.origin_key'), 'pay-', '') AS opid
+							REPLACE(json_extract(c.document, '$.origin_key'), 'pay-', '') AS opid,
+							NULL AS dkey, 1 AS recorded
 						FROM module_data_suivi_cheques c
 						WHERE json_extract(c.document, '$.type') = 'creance'
 							AND CAST(json_extract(c.document, '$.member_id') AS INT) = :uid
@@ -269,7 +319,10 @@
 							m.name AS number,
 							json_extract(r.document, '$.notes') AS detail,
 							-CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
-							NULL AS okind, NULL AS okey, NULL AS opid
+							NULL AS okind, NULL AS okey, NULL AS opid,
+							r.key AS dkey,
+							EXISTS (SELECT 1 FROM acc_transactions t
+								WHERE t.id = CAST(json_extract(r.document, '$.reglement_txn_id') AS INT)) AS recorded
 						FROM module_data_suivi_cheques r
 						LEFT JOIN plugin_pos_methods m
 							ON m.id = CAST(json_extract(r.document, '$.method_id') AS INT)
@@ -283,7 +336,10 @@
 							json_extract(a.document, '$.nature') AS number,
 							json_extract(a.document, '$.reason') AS detail,
 							-CAST(json_extract(a.document, '$.amount') AS INT) AS amount,
-							NULL AS okind, NULL AS okey, NULL AS opid
+							NULL AS okind, NULL AS okey, NULL AS opid,
+							a.key AS dkey,
+							EXISTS (SELECT 1 FROM acc_transactions t
+								WHERE t.id = CAST(json_extract(a.document, '$.abandon_txn_id') AS INT)) AS recorded
 						FROM module_data_suivi_cheques a
 						WHERE json_extract(a.document, '$.type') = 'abandon'
 							AND CAST(json_extract(a.document, '$.member_id') AS INT) = :uid
@@ -310,6 +366,16 @@
 						</td>
 						<td>{{$detail|escape|or:'—'}}</td>
 						<td class="money">{{$amount|raw|money_currency}}</td>
+						<td class="actions">
+							{{if $dkey && !$recorded}}
+								<form method="post" action="" class="inline">
+									<input type="hidden" name="del_kind" value="{{$kind|escape}}" />
+									<input type="hidden" name="del_key" value="{{$dkey|escape}}" />
+									{{:button type="submit" name="settle_delete" label="Supprimer" shape="delete"
+										onclick="return confirm('Supprimer cette ligne ? Ce membre devra de nouveau la somme.');"}}
+								</form>
+							{{/if}}
+						</td>
 					</tr>
 				{{/select}}
 			</tbody>
@@ -317,9 +383,13 @@
 				<tr>
 					<th colspan="3">Reste à régler</th>
 					<td class="money"><strong>{{$md_owed|raw|money_currency}}</strong></td>
+					<td></td>
 				</tr>
 			</tfoot>
 		</table>
+	{{/if}}
+
+	{{if $md_owed > 0}}
 
 		<form method="post" action="">
 			<fieldset>
