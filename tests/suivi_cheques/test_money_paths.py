@@ -38,6 +38,9 @@ def test_record_deposit(admin_page: Page, module_url: str, reseed, transaction):
     debit, credit = _totals(txn["lines"])
     assert debit == credit == 5000, txn["lines"]
     assert any(l["account"] == "512" and l["debit"] == 5000 for l in txn["lines"])
+    # Dated the day the slip went to the bank (seeded 2026-07-06), not today:
+    # accounting often records weeks after the fact.
+    assert txn["date"] == "2026-07-06", txn["date"]
     assert sum(l["credit"] for l in txn["lines"] if l["account"] == "5112") == 5000
 
 
@@ -72,6 +75,8 @@ def test_a_cancellation_and_its_settlement_are_two_entries(
     _record(admin_page, module_url, "annul_pay", "CHQ-0141")
     cancellation = transaction(f"Annulation chèque n°CHQ-0141 — {MEMBER}")
     assert cancellation["found"]
+    # Dated when the cancellation was saved (the seeded receivable's date), not today.
+    assert cancellation["date"] == "2026-07-01", cancellation["date"]
     debit, credit = _totals(cancellation["lines"])
     assert debit == credit == 3000, cancellation["lines"]
     assert any(

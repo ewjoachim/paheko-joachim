@@ -130,8 +130,9 @@ namespace Paheko;
 require '/var/www/paheko/include/init.php';
 $db = DB::getInstance();
 $label = base64_decode('%s');
-$id = $db->firstColumn('SELECT id FROM acc_transactions WHERE label = ? ORDER BY id DESC LIMIT 1', $label);
-if (!$id) { echo json_encode(['found' => false]); exit; }
+$txn = $db->first('SELECT id, date FROM acc_transactions WHERE label = ? ORDER BY id DESC LIMIT 1', $label);
+if (!$txn) { echo json_encode(['found' => false]); exit; }
+$id = $txn->id;
 $rows = $db->get('SELECT a.code AS account, l.debit AS debit, l.credit AS credit,
     l.reference AS ref, l.label AS label
     FROM acc_transactions_lines l INNER JOIN acc_accounts a ON a.id = l.id_account
@@ -141,6 +142,7 @@ $users = $db->get('SELECT id_user FROM acc_transactions_users
 echo json_encode([
     'found' => true,
     'id' => (int) $id,
+    'date' => (string) $txn->date,
     'lines' => array_map(fn($r) => [
         'account' => $r->account,
         'debit' => (int) $r->debit,

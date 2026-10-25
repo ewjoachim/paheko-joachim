@@ -13,7 +13,10 @@
     null), and why it was given up on (or null).
 
     As in _record_cancellation.html, AUTHORISATION is the caller's responsibility:
-    {{:api access="write"}} does not look at the user's permissions. *}}
+    {{:api access="write"}} does not look at the user's permissions.
+
+    Dated the day the slip went to the bank, not the day it is recorded:
+    accounting often catches up weeks later. *}}
 
 {{:assign rec_txn_id=null rec_error=null}}
 {{:assign api_fail=true}}
@@ -21,12 +24,9 @@
 
 {{:assign waiting_account=$module.config.waiting_account|or:"5112"}}
 {{:assign bank_account=$module.config.bank_account|or:"512"}}
-{{:assign rec_today=null}}
-{{#select date('now', 'localtime') AS d}}{{:assign rec_today=$d}}{{/select}}
-
-{{:assign b_total=0 b_lines=null b_account=null b_done=null}}
+{{:assign b_total=0 b_lines=null b_account=null b_done=null b_date=null}}
 {{#load type="deposit_batch" key="batch-%s"|args:$ref}}
-	{{:assign b_total=$total b_lines=$lines b_account=$account b_done=$deposit_txn_id}}
+	{{:assign b_total=$total b_lines=$lines b_account=$account b_done=$deposit_txn_id b_date=$date}}
 {{/load}}
 
 {{* Already recorded = we stored an id AND that entry still exists (§8). *}}
@@ -37,6 +37,8 @@
 {{/if}}
 {{if !$rec_error && !$b_total}}
 	{{:assign rec_error="Bordereau introuvable ou vide."}}
+{{elseif !$rec_error && !$b_date}}
+	{{:assign rec_error="Ce bordereau n'est pas encore déposé."}}
 {{/if}}
 
 {{if !$rec_error}}
@@ -63,14 +65,14 @@
 	{{* Automatic mode only: give up before :api rather than let a refusal roll the
 	    caller's operational save back. See _record_precheck.html. *}}
 	{{if $quiet}}
-		{{:include file="./_record_precheck.html" lines=$lines on_date=$rec_today keep="rec_error"}}
+		{{:include file="./_record_precheck.html" lines=$lines on_date=$b_date on_match=true keep="rec_error"}}
 	{{/if}}
 {{/if}}
 
 {{if !$rec_error}}
 	{{:assign created=null}}
 	{{:api method="POST" path="accounting/transaction" access="write" fail=$api_fail
-		id_year="current" type="advanced" date=$rec_today
+		id_year="match" type="advanced" date=$b_date
 		label="Remise de chèques n°%s"|args:$ref
 		reference="DEPOT-%s"|args:$ref
 		lines=$lines linked_users=$users assign="created"}}
