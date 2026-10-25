@@ -1,21 +1,23 @@
 {{* -*- brindille -*- *}}
 
-{{* Ce qu'un membre doit au titre des créances, et ce qu'il a déjà rendu.
+{{* Ce qu'un membre doit au titre des créances, ce qu'il a déjà rendu, et ce qu'on
+    lui a abandonné.
 
-    Une créance naît par chèque revenu, mais un règlement ne vise aucune créance en
-    particulier : il porte l'identifiant du membre, et la dette est la soustraction
-    des deux sommes.
+    Une créance naît par chèque revenu, mais ni un règlement ni un abandon ne vise
+    une créance en particulier : ils portent l'identifiant du membre, et la dette
+    est la soustraction des sommes.
 
     Paramètres :
       $md_user_id  identifiant du membre.
     Renvoie, via keep :
       md_creances  total des créances nées de ses chèques annulés, en centimes ;
       md_settled   total de ce qu'il a réglé dessus ;
+      md_abandoned total de ce qui lui a été abandonné ;
       md_owed      ce qui reste dû (jamais négatif : settle.html refuse l'excédent).
 
     Lecture pure, appelable hors {{#form}}. *}}
 
-{{:assign md_creances=0 md_settled=0 md_owed=0}}
+{{:assign md_creances=0 md_settled=0 md_abandoned=0 md_owed=0}}
 
 {{#select
 	COALESCE((SELECT SUM(CAST(json_extract(c.document, '$.amount') AS INT))
@@ -25,9 +27,13 @@
 	COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
 		FROM module_data_suivi_cheques r
 		WHERE json_extract(r.document, '$.type') = 'reglement'
-			AND CAST(json_extract(r.document, '$.member_id') AS INT) = :uid), 0) AS settled;
+			AND CAST(json_extract(r.document, '$.member_id') AS INT) = :uid), 0) AS settled,
+	COALESCE((SELECT SUM(CAST(json_extract(a.document, '$.amount') AS INT))
+		FROM module_data_suivi_cheques a
+		WHERE json_extract(a.document, '$.type') = 'abandon'
+			AND CAST(json_extract(a.document, '$.member_id') AS INT) = :uid), 0) AS abandoned;
 	:uid=$md_user_id
 }}
-	{{:assign md_creances=$creances|intval md_settled=$settled|intval}}
-	{{:assign md_owed="%d-%d"|math:$md_creances:$md_settled}}
+	{{:assign md_creances=$creances|intval md_settled=$settled|intval md_abandoned=$abandoned|intval}}
+	{{:assign md_owed="%d-%d-%d"|math:$md_creances:$md_settled:$md_abandoned}}
 {{/select}}

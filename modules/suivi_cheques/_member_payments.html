@@ -204,6 +204,20 @@
 					ON m2.id = CAST(json_extract(rg.document, '$.method_id') AS INT)
 				WHERE json_extract(rg.document, '$.type') = 'reglement'
 					AND CAST(json_extract(rg.document, '$.member_id') AS INT) = :uid
+
+				UNION ALL
+
+				-- 6. Ce que le bureau a renonce a reclamer (settle.html).
+				SELECT json_extract(ab.document, '$.date') AS mdate,
+					'receivable_abandoned' AS kind,
+					CASE json_extract(ab.document, '$.nature') WHEN 'impaye' THEN 'Impayé' ELSE 'Geste accordé' END AS label,
+					json_extract(ab.document, '$.reason') AS detail,
+					NULL AS reference,
+					CAST(json_extract(ab.document, '$.amount') AS INT) AS amount,
+					NULL AS state
+				FROM module_data_suivi_cheques ab
+				WHERE json_extract(ab.document, '$.type') = 'abandon'
+					AND CAST(json_extract(ab.document, '$.member_id') AS INT) = :uid
 			)
 			ORDER BY mdate DESC, kind
 			LIMIT :lim;
@@ -222,6 +236,7 @@
 					{{elseif $kind === 'settling_cheque'}}{{:tag label="Règlement" color="darkcyan"}}
 					{{elseif $kind === 'receivable'}}{{:tag label="Créance" color="darkorange"}}
 					{{elseif $kind === 'receivable_paid'}}{{:tag label="Créance réglée" color="darkgreen"}}
+					{{elseif $kind === 'receivable_abandoned'}}{{:tag label="Dette abandonnée" color="grey"}}
 					{{/if}}
 				</td>
 				<td>

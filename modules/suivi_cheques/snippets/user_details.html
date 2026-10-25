@@ -2,7 +2,7 @@
 
 {{* Encart « Paiements » sur la fiche membre : journal de tout ce que ce membre a
     acheté et réglé, toutes sources confondues (caisse, chèques suivis, chèques de
-    remplacement, ardoise, créances et leurs règlements). Voir _member_payments.html
+    remplacement, ardoise, créances, leurs règlements et abandons). Voir _member_payments.html
     pour la règle de présentation et les limites du rattachement au membre.
 
     Visibilité : le rendu des snippets n'applique pas le restrict du module ; elle est
@@ -25,7 +25,7 @@
 					AND CAST(json_extract(r.document, '$.member_id') AS INT) = :uid)
 			+
 			(SELECT COUNT(*) FROM module_data_suivi_cheques c
-				WHERE json_extract(c.document, '$.type') IN ('creance', 'reglement')
+				WHERE json_extract(c.document, '$.type') IN ('creance', 'reglement', 'abandon')
 					AND CAST(json_extract(c.document, '$.member_id') AS INT) = :uid)
 		) AS n;
 		:uid=$user.id

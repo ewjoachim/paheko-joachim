@@ -59,6 +59,9 @@ réservée à `config = admin`.
 - `receivable_account` — compte de créance des membres pour le non-couvert d'une
   annulation (défaut `411`).
 - `bank_account` — compte bancaire des remises (défaut `512`).
+- `gesture_account` / `bad_debt_account` — comptes débités par un abandon de dette,
+  selon sa raison : geste accordé (défaut `709`) ou impayé (défaut `654`).
+  `auto_record_settlements` couvre aussi les abandons.
 - `auto_record_cancellations` / `auto_record_settlements` / `auto_record_deposits` —
   comptabilisation automatique (défaut : désactivée, les écritures attendent dans
   « à comptabiliser »).
@@ -68,19 +71,18 @@ réservée à `config = admin`.
 
 | Type | Clé | Rôle |
 |---|---|---|
-| `cheque` | `pay-<payment_id>` | **overlay** d'un paiement de caisse : uniquement ce que la caisse ignore (mois, annulation, liens compta, lot). Montant, numéro et date restent côté caisse |
+| `cheque` | `pay-<payment_id>` | **overlay** d'un paiement de caisse : uniquement ce que la caisse ignore (mois, annulation, liens compta, lot). Montant et date restent côté caisse ; le numéro aussi, sauf correction (`cheque_number`) |
 | `cheque_rempl` | `chq-<clé du règlement>` | chèque reçu en règlement d'une créance (`reglement_key`), jamais passé en caisse : le module en possède tout |
 | `creance` | `creance-<origin_key>` | dette née de l'annulation d'un chèque. Clé dérivée de l'origine, donc la création est **idempotente** |
 | `reglement` | `regl-<id du membre>-<horodatage>` | argent versé par un membre sur ce qu'il doit ; plusieurs documents pour un règlement en plusieurs fois |
+| `abandon` | `aband-<id du membre>-<horodatage>` | part de ce que doit un membre à laquelle le bureau renonce (geste accordé ou impayé) ; aucun argent ne bouge |
 | `deposit_batch` | `batch-<ref>` | bordereau de remise figé |
 | `method_month_map` | `method-<id>` | configuration : moyen de paiement → mois |
 
 Ce qu'un membre doit n'est **pas stocké** : c'est la somme de ses `creance` moins celle
-de ses `reglement`. Rien à répartir entre les chèques revenus, donc rien à maintenir en
+de ses `reglement` et `abandon`. Rien à répartir entre les chèques revenus, donc rien à maintenir en
 cohérence quand une créance naît ou disparaît.
 
 ## Hors périmètre (v1)
 
 - Rejet bancaire d'un chèque **après** dépôt (à traiter à la main en comptabilité).
-- Passer une créance **en perte** (se fait en comptabilité ; le module ne connaît que
-  l'encaissement, et la page Impayés signalera alors l'écart).

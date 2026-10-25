@@ -49,7 +49,7 @@ foreach ([2 => 1] as $mid => $month) {
 }
 
 // --- 2. Purge (throwaway db): start from an empty caisse for clean captures
-$db->exec(sprintf('DELETE FROM %s WHERE json_extract(document, \'$.type\') IN (\'cheque\', \'cheque_rempl\', \'deposit_batch\', \'creance\', \'reglement\');', $mdt));
+$db->exec(sprintf('DELETE FROM %s WHERE json_extract(document, \'$.type\') IN (\'cheque\', \'cheque_rempl\', \'deposit_batch\', \'creance\', \'reglement\', \'abandon\');', $mdt));
 $db->exec('DELETE FROM plugin_pos_tabs_payments;');
 $db->exec('DELETE FROM plugin_pos_tabs_items;');
 $db->exec('DELETE FROM plugin_pos_tabs;');
