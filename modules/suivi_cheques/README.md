@@ -5,7 +5,7 @@ en caisse). Il suit chaque chèque saisi via l'extension **Caisse**, planifie so
 d'encaissement, gère les annulations et ce qu'elles laissent dû, produit les bordereaux de remise, et
 prépare pour la comptabilité des écritures « prêtes à valider ».
 
-Guide utilisateur illustré : `doc/suivi_cheques/guide.html`.
+Guide utilisateur illustré : `doc/suivi_cheques/` (une page par tâche, `index.html` pour commencer).
 
 ## Principe
 

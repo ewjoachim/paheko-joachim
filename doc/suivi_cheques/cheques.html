@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Les chèques au quotidien — Suivi des chèques</title>
+<link rel="stylesheet" href="guide.css" />
+</head>
+<body>
+<header class="top">
+	<div class="wrap">
+		<p class="kicker"><a href="index.html">Suivi des chèques — guide d'utilisation</a></p>
+		<h1>Les chèques au quotidien</h1>
+		<p>La liste des chèques, leur mois d'encaissement, les corriger et les annuler.</p>
+	</div>
+</header>
+<nav class="guide">
+	<ul>
+		<li><a href="index.html">Accueil</a></li>
+		<li><a href="cheques.html" aria-current="page">Les chèques</a></li>
+		<li><a href="bordereaux.html">Bordereaux</a></li>
+		<li><a href="dettes.html">Dettes et remboursements</a></li>
+		<li><a href="comptabilite.html">Comptabilité</a></li>
+		<li><a href="configuration.html">Configuration</a></li>
+	</ul>
+</nav>
+
+<div class="wrap">
+
+	<div class="toc">
+		<p>Sur cette page</p>
+		<ul>
+			<li><a href="#liste">La liste des chèques</a></li>
+			<li><a href="#plusieurs-mois">Voir plusieurs mois à la fois</a></li>
+			<li><a href="#mois">Le mois d'encaissement</a></li>
+			<li><a href="#exporter">Exporter</a></li>
+			<li><a href="#corriger">Corriger un chèque</a></li>
+			<li><a href="#annuler">Annuler un chèque</a></li>
+			<li><a href="#que-faire">Que faire si…</a></li>
+		</ul>
+	</div>
+
+	<h2 id="liste">La liste des chèques</h2>
+	<p>
+		La page d'accueil du module montre les chèques d'<strong>un mois</strong>, celui en cours à
+		l'ouverture. La barre du haut donne les douze mois de l'exercice, encadrés par l'année précédente
+		et la suivante&nbsp;: <em>‹&nbsp;2025-2026</em> et <em>2027-2028&nbsp;›</em> font défiler la barre
+		d'une année entière. Elle donne aussi <em>À venir</em>, tout ce qui reste à encaisser à partir
+		d'aujourd'hui, et <em>Tous</em>.
+	</p>
+	<p>
+		La deuxième ligne filtre sur l'état, en annonçant combien il y en a&nbsp;:
+	</p>
+	<ul>
+		<li><span class="tag enc">À encaisser</span> le chèque attend son mois&nbsp;;</li>
+		<li><span class="tag lot">Dans un lot</span> il est sur un bordereau en cours&nbsp;: encore sur le
+			bureau, mais déjà dans la pile&nbsp;;</li>
+		<li><span class="tag dep">Déposé</span> il est parti en banque&nbsp;;</li>
+		<li><span class="tag ann">Annulé</span> il ne sera pas encaissé.</li>
+	</ul>
+	<figure>
+		<img src="screenshots/01-vue-cheques.png" alt="La vue des chèques d'un mois" />
+		<figcaption>Les chèques d'un mois, la barre des périodes et les compteurs par état.</figcaption>
+	</figure>
+	<p>
+		Le champ <em>Filtrer</em> réduit la liste au fur et à mesure de la frappe, sur le numéro, le membre
+		ou les notes&nbsp;; les en-têtes de colonnes trient au clic. L'un comme l'autre agissent sur la
+		liste affichée&nbsp;: <strong>ils ne décochent jamais rien</strong>. On peut donc chercher un
+		chèque, le cocher, vider le champ et passer au suivant.
+	</p>
+	<p>
+		Un chèque marqué <span class="tag" style="background:darkcyan">Règlement</span> n'a pas été saisi
+		en caisse&nbsp;: c'est un chèque qu'un membre a donné pour régler une dette (voir
+		<a href="dettes.html#encaisser">encaisser une créance</a>). Il se dépose et s'annule comme les
+		autres.
+	</p>
+	<div class="note">
+		<strong>Un mois passé où il reste des chèques à encaisser</strong> porte un «&nbsp;⚠&nbsp;» suivi
+		du nombre, dans la barre des mois. Cliquer dessus va droit à ces chèques-là&nbsp;: c'est le seul
+		rappel, puisque personne ne rouvre un mois passé de lui-même.
+	</div>
+
+	<h2 id="plusieurs-mois">Voir plusieurs mois à la fois</h2>
+	<p>
+		Un membre paie souvent en plusieurs chèques, un par mois. <em>À venir</em> et <em>Tous</em> les
+		montrent ensemble, avec une colonne <em>Mois prévu</em>. Ces deux vues sont paginées, avec un
+		bouton <em>Tout afficher</em> quand on veut la liste entière sous la main.
+	</p>
+	<figure>
+		<img src="screenshots/02-tous-les-mois.png" alt="Les chèques de tous les mois" />
+		<figcaption>Tous les chèques restant à encaisser, regroupés par mois.</figcaption>
+	</figure>
+
+	<h2 id="mois">Le mois d'encaissement</h2>
+	<p>
+		Le mois vient du <strong>moyen de paiement</strong> choisi en caisse&nbsp;: «&nbsp;Chèque
+		janvier&nbsp;» part en janvier. La correspondance se règle une fois pour toutes dans la
+		<a href="configuration.html#mois">configuration</a>.
+	</p>
+	<p>
+		L'<strong>année</strong> se déduit de la date de réception&nbsp;: c'est le prochain mois de ce nom
+		après la remise du chèque. Un chèque «&nbsp;septembre&nbsp;» reçu fin août, pendant les
+		inscriptions, part donc en septembre suivant, pas en septembre de l'année passée. L'exercice
+		comptable ne joue aucun rôle ici.
+	</p>
+	<p>
+		Pour un chèque particulier, on peut forcer un autre mois depuis sa fiche (ci-dessous). Revenir à
+		«&nbsp;déduit du moyen de paiement&nbsp;» rend le mois automatique.
+	</p>
+
+	<h2 id="exporter">Exporter</h2>
+	<p>
+		Le menu <em>Exporter</em>, au-dessus de la liste, télécharge <strong>tous</strong> les chèques en
+		CSV, LibreOffice ou Excel&nbsp;: mois prévu, numéro, montant, membre, date de réception, moyen de
+		paiement, état, bordereau et date de dépôt, motif d'annulation et notes. L'export ne tient pas compte des filtres&nbsp;:
+		filtrer dans un tableur est immédiat, autant partir de la liste complète.
+	</p>
+
+	<h2 id="corriger">Corriger un chèque</h2>
+	<p>
+		Le bouton <em>Modifier / annuler</em> d'un chèque ouvre sa fiche. On peut y&nbsp;:
+	</p>
+	<ul>
+		<li><strong>corriger son numéro</strong>, s'il a été mal saisi à l'inscription. C'est le numéro
+			corrigé qui figure sur le bordereau, et la liste rappelle en dessous celui saisi en caisse.
+			Vider le champ revient au numéro de la caisse&nbsp;;</li>
+		<li><strong>forcer le mois d'encaissement</strong>&nbsp;;</li>
+		<li>ajouter des <strong>notes</strong>, qui apparaissent sous l'état dans la liste et sont prises
+			en compte par le filtre.</li>
+	</ul>
+	<figure>
+		<img src="screenshots/03-annuler.png" alt="Fiche d'un chèque" />
+		<figcaption>La fiche d'un chèque&nbsp;: numéro, mois d'encaissement, annulation et notes.</figcaption>
+	</figure>
+	<p>
+		La fiche n'est plus modifiable dans deux cas&nbsp;: quand le chèque est sur un bordereau (le retirer
+		du bordereau d'abord, s'il est encore en cours), ou quand son annulation est comptabilisée.
+	</p>
+
+	<h2 id="annuler">Annuler un chèque</h2>
+	<p>
+		Cocher <em>Chèque non encaissé</em>, avec un motif, retire le chèque des remises à venir. Le membre
+		<strong>doit alors son montant</strong>&nbsp;: la créance apparaît aussitôt dans l'onglet
+		<em>Impayés</em>, où on l'encaissera quand il repaiera (voir
+		<a href="dettes.html">Dettes et remboursements</a>).
+	</p>
+	<p>
+		C'est toujours le montant <strong>entier</strong> qui est dû, même si le membre a déjà apporté
+		de quoi le remplacer&nbsp;: ce qu'il donne ensuite s'enregistre comme un règlement de cette dette.
+		Chaque opération garde ainsi sa trace, et son écriture.
+	</p>
+	<div class="note">
+		<strong>Rien n'est écrit en comptabilité à ce stade</strong>, sauf si la comptabilisation
+		automatique des annulations est activée&nbsp;; la fiche indique lequel des deux cas s'applique.
+	</div>
+
+	<h2 id="que-faire">Que faire si…</h2>
+	<dl class="faq">
+		<dt>… un membre veut remplacer un chèque par un autre&nbsp;?</dt>
+		<dd>Annuler l'ancien (motif&nbsp;: «&nbsp;remplacé&nbsp;»), puis
+			<a href="dettes.html#encaisser">encaisser la créance</a> en choisissant un moyen
+			«&nbsp;chèque&nbsp;» et en saisissant le numéro du nouveau. Le nouveau chèque est alors suivi
+			comme les autres.</dd>
+		<dt>… le numéro a été mal saisi&nbsp;?</dt>
+		<dd>Le corriger sur la fiche du chèque, tant qu'il n'est pas sur un bordereau.</dd>
+		<dt>… un chèque doit partir un autre mois que prévu&nbsp;?</dt>
+		<dd>Forcer le mois sur sa fiche. Inutile si c'est seulement un retard&nbsp;: un chèque d'un mois
+			passé reste proposé, et le «&nbsp;⚠&nbsp;» de la barre des mois le rappelle.</dd>
+		<dt>… j'ai annulé un chèque par erreur&nbsp;?</dt>
+		<dd>Décocher <em>Chèque non encaissé</em> et enregistrer&nbsp;: la créance disparaît. Le module
+			refuse si le membre a déjà réglé une partie de cette dette, ou si elle a été abandonnée&nbsp;:
+			il faudrait d'abord défaire ce règlement ou cet abandon.</dd>
+		<dt>… la fiche refuse toute modification&nbsp;?</dt>
+		<dd>Le chèque est sur un bordereau, ou son annulation est comptabilisée. Dans le second cas, seule
+			la comptabilité peut débloquer, en supprimant l'écriture d'annulation.</dd>
+		<dt>… un chèque saisi en caisse n'apparaît pas&nbsp;?</dt>
+		<dd>Son moyen de paiement n'est relié à aucun mois. Seuls les moyens de type «&nbsp;Suivi&nbsp;» de
+			la caisse, reliés à un mois dans la <a href="configuration.html#mois">configuration</a>, sont
+			suivis.</dd>
+	</dl>
+
+	<nav class="pager">
+		<a href="index.html">← Suivi des chèques</a>
+		<a href="bordereaux.html">Bordereaux et remises →</a>
+	</nav>
+	<footer>
+		<p>Module <strong>Suivi des chèques</strong> pour Paheko.</p>
+	</footer>
+
+</div>
+</body>
+</html>

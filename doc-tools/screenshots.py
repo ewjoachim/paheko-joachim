@@ -27,6 +27,7 @@ PASSWORD = os.environ.get("ADMIN_PASSWORD", "demo-screenshots-2026")
 # error page and an empty form — neither workflow passes these variables.
 CAMILLE = os.environ.get("CAMILLE_ID", "2")
 PAY_EDIT = os.environ.get("PAY_EDIT", "1")
+SOFIA = os.environ.get("SOFIA_ID", "3")
 
 OUT = Path(__file__).resolve().parent.parent / "doc" / "suivi_cheques" / "screenshots"
 M = f"{BASE}/m/suivi_cheques"
@@ -49,6 +50,7 @@ SHOTS = [
     ("09-a-comptabiliser.png", f"{M}/to_record.html", "table.list"),
     ("10-fiche-membre.png", f"{BASE}/admin/users/details.php?id={CAMILLE}", "table.list"),
     ("11-configuration.png", f"{M}/config.html", "form"),
+    ("12-rembourser.png", f"{M}/refund.html?user={SOFIA}", "table.list"),
 ]
 
 

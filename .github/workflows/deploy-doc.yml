@@ -64,6 +64,7 @@ jobs:
             echo "ADMIN_PASSWORD=$(printf '%s\n' "$SEED_OUT" | sed -n 's/^ADMIN_PASSWORD=//p')"
             echo "CAMILLE_ID=$(printf '%s\n' "$SEED_OUT" | sed -n 's/^CAMILLE_ID=//p')"
             echo "PAY_EDIT=$(printf '%s\n' "$SEED_OUT" | sed -n 's/^PAY_EDIT=//p')"
+            echo "SOFIA_ID=$(printf '%s\n' "$SEED_OUT" | sed -n 's/^SOFIA_ID=//p')"
           } >> "$GITHUB_ENV"
 
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
@@ -82,7 +83,7 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          sed -i -E "s#(src=\"screenshots/[a-z0-9-]+\.png)\"#\1?v=${TAG}\"#g" doc/suivi_cheques/guide.html
+          sed -i -E "s#(src=\"screenshots/[a-z0-9-]+\.png)\"#\1?v=${TAG}\"#g" doc/suivi_cheques/*.html
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

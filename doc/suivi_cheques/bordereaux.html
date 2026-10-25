@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bordereaux et remises — Suivi des chèques</title>
+<link rel="stylesheet" href="guide.css" />
+</head>
+<body>
+<header class="top">
+	<div class="wrap">
+		<p class="kicker"><a href="index.html">Suivi des chèques — guide d'utilisation</a></p>
+		<h1>Bordereaux et remises</h1>
+		<p>Préparer la pile, la porter en banque, retrouver un ancien bordereau.</p>
+	</div>
+</header>
+<nav class="guide">
+	<ul>
+		<li><a href="index.html">Accueil</a></li>
+		<li><a href="cheques.html">Les chèques</a></li>
+		<li><a href="bordereaux.html" aria-current="page">Bordereaux</a></li>
+		<li><a href="dettes.html">Dettes et remboursements</a></li>
+		<li><a href="comptabilite.html">Comptabilité</a></li>
+		<li><a href="configuration.html">Configuration</a></li>
+	</ul>
+</nav>
+
+<div class="wrap">
+
+	<div class="toc">
+		<p>Sur cette page</p>
+		<ul>
+			<li><a href="#constituer">Constituer un bordereau</a></li>
+			<li><a href="#en-cours">Tant qu'il est en cours</a></li>
+			<li><a href="#deposer">Le porter en banque</a></li>
+			<li><a href="#annuler">Annuler un bordereau déposé</a></li>
+			<li><a href="#retrouver">Retrouver un bordereau</a></li>
+			<li><a href="#que-faire">Que faire si…</a></li>
+		</ul>
+	</div>
+
+	<p class="lead">
+		Un bordereau passe par trois états&nbsp;: <strong>en cours</strong> (on remplit la pile),
+		<strong>déposé</strong> (elle est partie en banque) et <strong>comptabilisé</strong> (l'écriture
+		de remise est passée). Seul le passage au guichet le fige.
+	</p>
+
+	<h2 id="constituer">Constituer un bordereau</h2>
+	<p>
+		Depuis la <a href="cheques.html#liste">liste des chèques</a>, on coche ceux qu'on a en main et on
+		clique <em>Ajouter au bordereau</em>. <strong>Rien n'est coché au départ</strong>&nbsp;; les chèques
+		qui ne peuvent pas partir (annulés, déjà sur un bordereau) gardent une case grisée.
+	</p>
+	<p>
+		Le menu à côté du bouton propose les bordereaux en cours et «&nbsp;Nouveau bordereau&nbsp;». Le
+		plus récent est choisi d'office, puisqu'un passage à la banque égale un bordereau. On peut donc
+		changer de mois, revenir, ajouter d'autres chèques&nbsp;: tout se cumule dans la même pile.
+	</p>
+	<p>
+		À mesure qu'on coche, le compteur affiche <strong>combien de chèques et quel total</strong>, de
+		quoi vérifier l'écran contre la pile qu'on a en main.
+	</p>
+	<figure>
+		<img src="screenshots/04-preparer-bordereau.png" alt="Sélection des chèques à déposer" />
+		<figcaption>Sélection des chèques, et choix du bordereau auquel les ajouter.</figcaption>
+	</figure>
+
+	<h2 id="en-cours">Tant qu'il est en cours</h2>
+	<p>Le bordereau en cours se modifie librement&nbsp;:</p>
+	<ul>
+		<li><em>Ajouter des chèques</em> ramène à la liste&nbsp;;</li>
+		<li><em>Retirer</em> sort un chèque, qui repasse aussitôt «&nbsp;à encaisser&nbsp;»&nbsp;;</li>
+		<li>la case devant chaque ligne sert à <strong>pointer</strong> la pile qu'on a en main&nbsp;: elle
+			n'enregistre rien, elle aide seulement à ne pas perdre le fil en recomptant&nbsp;;</li>
+		<li><em>Supprimer le bordereau</em> rend tous ses chèques à l'état «&nbsp;à encaisser&nbsp;».</li>
+	</ul>
+	<p>Rien n'est à comptabiliser à ce stade&nbsp;: aucun chèque n'est encore parti.</p>
+
+	<h2 id="deposer">Le porter en banque</h2>
+	<p>
+		De retour de la banque, <em>Marquer comme déposé en banque</em>, avec la date du dépôt. Ce geste
+		<strong>fige</strong> le bordereau&nbsp;: il liste désormais exactement ce qui est parti, à une date
+		donnée. Il devient aussi imprimable, pour être remis avec les chèques ou classé, et il entre dans
+		«&nbsp;<a href="comptabilite.html#file">à comptabiliser</a>&nbsp;».
+	</p>
+	<figure>
+		<img src="screenshots/05-bordereau.png" alt="Bordereau de remise figé, imprimable" />
+		<figcaption>Le bordereau déposé, figé et imprimable. Ses chèques passent à « Déposé ».</figcaption>
+	</figure>
+	<p>
+		Le menu <em>Exporter</em> du bordereau sort sa liste (numéro, membre, montant) en tableur, par
+		exemple pour la joindre à un mail.
+	</p>
+
+	<h2 id="annuler">Annuler un bordereau déposé</h2>
+	<p>
+		La banque a refusé un chèque au guichet, ou le bordereau a été marqué déposé trop tôt&nbsp;? Tant
+		que son écriture n'est pas passée, <em>Annuler le bordereau</em> le supprime et rend ses chèques à
+		l'état «&nbsp;à encaisser&nbsp;», pour le refaire. Une fois comptabilisé, le bouton disparaît&nbsp;:
+		il faut d'abord que la comptabilité supprime l'écriture de remise.
+	</p>
+
+	<h2 id="retrouver">Retrouver un bordereau</h2>
+	<p>
+		L'onglet <em>Bordereaux</em> les liste tous, ceux en cours d'abord&nbsp;: date de dépôt, nombre de
+		chèques, total, et état de la comptabilisation. Cliquer sur la référence rouvre le bordereau,
+		pratique pour ressortir une remise d'il y a six mois quand la banque pose une question.
+	</p>
+	<figure>
+		<img src="screenshots/06-bordereaux.png" alt="Liste des bordereaux" />
+		<figcaption>Tous les bordereaux, avec l'état de leur comptabilisation.</figcaption>
+	</figure>
+	<p class="muted">
+		Un bordereau reste «&nbsp;à comptabiliser&nbsp;» tant que son écriture n'existe pas réellement. Si
+		la comptabilité la supprime, il redevient à comptabiliser, ici comme dans la file.
+	</p>
+
+	<h2 id="que-faire">Que faire si…</h2>
+	<dl class="faq">
+		<dt>… j'ai oublié un chèque dans la pile&nbsp;?</dt>
+		<dd>Si le bordereau est encore en cours, l'ajouter. S'il est déjà déposé, le chèque partira avec le
+			prochain bordereau.</dd>
+		<dt>… la banque refuse un chèque au guichet&nbsp;?</dt>
+		<dd>Si le bordereau n'est pas encore marqué déposé, retirer le chèque. Sinon, annuler le bordereau
+			et le refaire sans ce chèque.</dd>
+		<dt>… un chèque revient impayé après le dépôt&nbsp;?</dt>
+		<dd>Le module ne le gère pas&nbsp;: le chèque est déjà en banque, et le rejet se traite en
+			comptabilité, à partir du relevé bancaire. Prévenir la comptabilité.</dd>
+		<dt>… je veux réimprimer un bordereau&nbsp;?</dt>
+		<dd>Le rouvrir depuis l'onglet <em>Bordereaux</em>&nbsp;: un bordereau déposé reste imprimable.</dd>
+	</dl>
+
+	<nav class="pager">
+		<a href="cheques.html">← Les chèques au quotidien</a>
+		<a href="dettes.html">Dettes et remboursements →</a>
+	</nav>
+	<footer>
+		<p>Module <strong>Suivi des chèques</strong> pour Paheko.</p>
+	</footer>
+
+</div>
+</body>
+</html>

@@ -4,9 +4,11 @@
     text (not a button) so it stays subordinate to each page's main action. The
     URL comes from module.ini (doc_url), read via the extension section so it is
     defined in a single place. External host -> open in a new tab. Chrome, not
-    content: no-print keeps it off printouts (e.g. the deposit slip). *}}
+    content: no-print keeps it off printouts (e.g. the deposit slip).
+    $doc_page: the guide page (and anchor) for the calling screen, relative to
+    doc_url. *}}
 {{#extension name="suivi_cheques"}}
 	{{if $doc_url}}
-	<p class="help no-print">{{:link label="Consulter la documentation" href=$doc_url target="_blank"}}</p>
+	<p class="help no-print">{{:link label="Consulter la documentation" href="%s%s"|args:$doc_url:$doc_page target="_blank"}}</p>
 	{{/if}}
 {{/extension}}

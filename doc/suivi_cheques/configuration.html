@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Configuration — Suivi des chèques</title>
+<link rel="stylesheet" href="guide.css" />
+</head>
+<body>
+<header class="top">
+	<div class="wrap">
+		<p class="kicker"><a href="index.html">Suivi des chèques — guide d'utilisation</a></p>
+		<h1>Configuration</h1>
+		<p>Pré-requis, comptes, moyens de paiement, droits et mise à jour du module.</p>
+	</div>
+</header>
+<nav class="guide">
+	<ul>
+		<li><a href="index.html">Accueil</a></li>
+		<li><a href="cheques.html">Les chèques</a></li>
+		<li><a href="bordereaux.html">Bordereaux</a></li>
+		<li><a href="dettes.html">Dettes et remboursements</a></li>
+		<li><a href="comptabilite.html">Comptabilité</a></li>
+		<li><a href="configuration.html" aria-current="page">Configuration</a></li>
+	</ul>
+</nav>
+
+<div class="wrap">
+
+	<div class="toc">
+		<p>Sur cette page</p>
+		<ul>
+			<li><a href="#prerequis">Pré-requis</a></li>
+			<li><a href="#comptes">Comptes comptables</a></li>
+			<li><a href="#mois">Moyens de paiement et mois</a></li>
+			<li><a href="#automatique">Comptabilisation automatique</a></li>
+			<li><a href="#droits">Qui peut faire quoi</a></li>
+			<li><a href="#mise-a-jour">Mettre à jour le module</a></li>
+		</ul>
+	</div>
+
+	<p class="lead">
+		La configuration est réservée aux administrateurs. Elle se fait une fois, au démarrage, et ne se
+		touche plus guère ensuite.
+	</p>
+
+	<h2 id="prerequis">Pré-requis</h2>
+	<ul>
+		<li>L'extension <strong>Caisse</strong> est activée, avec un moyen de paiement par mois
+			d'encaissement&nbsp;: «&nbsp;Chèque janvier&nbsp;», «&nbsp;Chèque février&nbsp;»… de type
+			«&nbsp;Suivi&nbsp;».</li>
+		<li>Un <strong>exercice comptable ouvert</strong>, pour que les écritures puissent être
+			passées.</li>
+		<li>Le module <strong>Bordereau de remise en banque</strong> fourni avec Paheko est désactivé&nbsp;: ce module produit ses
+			propres bordereaux et ses propres écritures de remise, les deux se marcheraient dessus.</li>
+	</ul>
+
+	<h2 id="comptes">Comptes comptables</h2>
+	<figure>
+		<img src="screenshots/11-configuration.png" alt="Page de configuration du module" />
+		<figcaption>Comptes comptables, comptabilisation automatique, et correspondance moyen de paiement → mois.</figcaption>
+	</figure>
+	<table class="entries">
+		<thead>
+			<tr><th>Réglage</th><th>Par défaut</th><th>Sert à</th></tr>
+		</thead>
+		<tbody>
+			<tr><td>Compte d'attente des chèques</td><td>5112</td><td>crédité par les remises et les annulations</td></tr>
+			<tr><td>Compte de créance des membres</td><td>411</td><td>ce que les membres doivent après une annulation</td></tr>
+			<tr><td>Compte bancaire</td><td>512</td><td>débité par les remises, crédité par les remboursements</td></tr>
+			<tr><td>Abandon de dette&nbsp;: geste accordé</td><td>709</td><td>débité par un abandon «&nbsp;geste accordé&nbsp;» et par les remboursements</td></tr>
+			<tr><td>Abandon de dette&nbsp;: impayé</td><td>654</td><td>débité par un abandon «&nbsp;impayé&nbsp;»</td></tr>
+		</tbody>
+	</table>
+	<p>
+		Le compte d'attente doit être celui que les moyens de paiement «&nbsp;chèque&nbsp;» de la caisse
+		débitent. Les deux comptes d'abandon peuvent être le même si la distinction ne sert pas à la
+		comptabilité. Le détail des écritures est sur la page <a href="comptabilite.html#ecritures">Comptabilité</a>.
+	</p>
+
+	<h2 id="mois">Moyens de paiement et mois</h2>
+	<p>
+		Chaque moyen de paiement de type «&nbsp;Suivi&nbsp;» de la caisse est listé&nbsp;; on lui associe
+		le mois où ses chèques partent en banque, ou «&nbsp;—&nbsp;» s'il n'est pas encaissé en différé.
+		Seuls les chèques d'un moyen relié à un mois sont suivis par le module.
+	</p>
+	<p>
+		L'année n'est pas à indiquer&nbsp;: un chèque part au prochain mois de ce nom après sa réception
+		(voir <a href="cheques.html#mois">le mois d'encaissement</a>).
+	</p>
+
+	<h2 id="automatique">Comptabilisation automatique</h2>
+	<p>
+		Par défaut, le module prépare les écritures et la comptabilité les valide dans la file
+		«&nbsp;à comptabiliser&nbsp;». Trois cases suppriment cette attente&nbsp;: le module passe alors
+		l'écriture lui-même, au moment de l'opération.
+	</p>
+	<ul>
+		<li><strong>les annulations</strong>, dès que l'annulation est enregistrée&nbsp;;</li>
+		<li><strong>les règlements, abandons de dettes et remboursements</strong>, dès qu'ils sont
+			enregistrés&nbsp;;</li>
+		<li><strong>les remises</strong>, dès que le bordereau est marqué déposé.</li>
+	</ul>
+	<p>
+		Comme le réglage équivalent de la caisse, c'est la case cochée par l'administrateur qui vaut
+		autorisation&nbsp;: l'écriture est passée même si la personne qui fait l'opération n'a aucun droit
+		en comptabilité.
+	</p>
+	<div class="warn">
+		<strong>Sur les annulations, la fiche se verrouille aussitôt.</strong> L'écriture étant passée
+		immédiatement, le chèque n'est plus modifiable. Pour corriger, supprimer l'écriture en
+		comptabilité&nbsp;: le chèque redevient modifiable.
+	</div>
+	<div class="note">
+		<strong>Un échec ne fait rien perdre.</strong> Si l'écriture ne peut pas être créée (aucun exercice
+		ouvert ne couvre la date, compte inexistant…), l'opération est quand même enregistrée, un message
+		le signale, et l'élément reste dans la file «&nbsp;à comptabiliser&nbsp;».
+	</div>
+
+	<h2 id="droits">Qui peut faire quoi</h2>
+	<p>
+		Le module suit les droits des catégories de membres de Paheko&nbsp;: il vit dans la section
+		<em>Membres</em>, et ses écritures relèvent de la section <em>Comptabilité</em>.
+	</p>
+	<table class="entries">
+		<thead>
+			<tr><th>Droit</th><th>Ce qu'il permet</th></tr>
+		</thead>
+		<tbody>
+			<tr><td>Membres&nbsp;: lecture</td><td>ouvrir le module, voir les chèques, les bordereaux, les impayés, l'encart de la fiche membre</td></tr>
+			<tr><td>Membres&nbsp;: écriture</td><td>tout ce que fait l'accueil&nbsp;: modifier et annuler des chèques, constituer et déposer des bordereaux, encaisser, abandonner, rembourser</td></tr>
+			<tr><td>Comptabilité&nbsp;: lecture</td><td>voir la file «&nbsp;à comptabiliser&nbsp;»</td></tr>
+			<tr><td>Comptabilité&nbsp;: écriture</td><td>passer les écritures depuis la file</td></tr>
+			<tr><td>Configuration&nbsp;: administration</td><td>la page de configuration</td></tr>
+		</tbody>
+	</table>
+	<p>
+		L'accueil a typiquement <em>membres&nbsp;: écriture</em> et <em>comptabilité&nbsp;: lecture</em>&nbsp;;
+		la comptabilité, l'inverse.
+	</p>
+
+	<h2 id="mise-a-jour">Mettre à jour le module</h2>
+	<p>
+		Pour installer une nouvelle version, importer l'archive depuis <em>Configuration › Extensions</em>
+		en cochant la case qui <strong>écrase le module existant</strong>. Les données du module
+		(chèques, bordereaux, dettes) sont conservées.
+	</p>
+	<div class="warn">
+		<strong>Ne jamais supprimer le module pour le réinstaller.</strong> Supprimer un module efface
+		toutes ses données&nbsp;: annulations, bordereaux, créances, règlements. Si l'import refuse parce
+		que le module existe déjà, c'est seulement la case à cocher qui manque.
+	</div>
+
+	<nav class="pager">
+		<a href="comptabilite.html">← Comptabilité</a>
+		<span></span>
+	</nav>
+	<footer>
+		<p>Module <strong>Suivi des chèques</strong> pour Paheko.</p>
+	</footer>
+
+</div>
+</body>
+</html>

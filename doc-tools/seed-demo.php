@@ -195,6 +195,14 @@ $item($tab_sofia, '2026-07-04 18:01:00', 'Cours de piano — trimestre', 'Cours'
 $db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, 1, '2026-07-04', 3000, NULL, '530', 1);", $tab_sofia);
 $db->preparedQuery("INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, 3, '2026-07-04', 6000, NULL, '4110', 2);", $tab_sofia);
 
+// A refund already made, so the guide can show the refund page with a history.
+// On Sofia, not Camille, so it stays out of every test's way.
+$put('rmb-demo-sofia', [
+	'type' => 'remboursement', 'member_id' => (int) $uid2, 'amount' => 3000,
+	'reason' => 'Bureau du 12/03 : cours annulés', 'date' => '2026-07-15',
+	'means' => 'Virement ou chèque', 'account' => '512',
+]);
+
 // --- 7. Deterministic admin password (throwaway db) --------------------------
 // Lets the Playwright script log in without guessing credentials.
 $admin = $db->first('SELECT id, email FROM users WHERE id_category IN (SELECT id FROM users_categories WHERE perm_config = 9) ORDER BY id LIMIT 1');
@@ -212,3 +220,4 @@ printf("ADMIN_EMAIL=%s\n", $admin->email);
 printf("ADMIN_PASSWORD=demo-screenshots-2026\n");
 printf("CAMILLE_ID=%d\n", $uid);
 printf("PAY_EDIT=%d\n", $p['0140']);
+printf("SOFIA_ID=%d\n", $uid2);

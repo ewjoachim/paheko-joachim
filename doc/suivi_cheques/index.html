@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Suivi des chèques — guide d'utilisation</title>
+<link rel="stylesheet" href="guide.css" />
+</head>
+<body>
+<header class="top">
+	<div class="wrap">
+		<h1>Suivi des chèques</h1>
+		<p>Recevoir, planifier, déposer et comptabiliser les chèques de la caisse.</p>
+	</div>
+</header>
+<nav class="guide">
+	<ul>
+		<li><a href="index.html" aria-current="page">Accueil</a></li>
+		<li><a href="cheques.html">Les chèques</a></li>
+		<li><a href="bordereaux.html">Bordereaux</a></li>
+		<li><a href="dettes.html">Dettes et remboursements</a></li>
+		<li><a href="comptabilite.html">Comptabilité</a></li>
+		<li><a href="configuration.html">Configuration</a></li>
+	</ul>
+</nav>
+
+<div class="wrap">
+
+	<p class="lead">
+		Ce module suit chaque chèque encaissé <strong>en caisse</strong>&nbsp;: quand il sera déposé en
+		banque, s'il revient impayé et ce que le membre doit alors. Il prépare aussi, pour la
+		comptabilité, des écritures «&nbsp;prêtes à valider&nbsp;».
+	</p>
+
+	<h2 id="vie-d-un-cheque">La vie d'un chèque</h2>
+	<ol class="steps">
+		<li><strong>Il est saisi en caisse</strong>, à l'inscription, avec un moyen de paiement daté
+			(«&nbsp;Chèque janvier&nbsp;», «&nbsp;Chèque février&nbsp;»…). Rien à faire dans le module&nbsp;:
+			il y apparaît tout seul, <span class="tag enc">À encaisser</span> au mois prévu.</li>
+		<li><strong>Le mois venu, on le met sur un bordereau</strong> avec les autres chèques du mois
+			<span class="tag lot">Dans un lot</span>.</li>
+		<li><strong>On porte le bordereau en banque</strong> et on le dit au module&nbsp;: le chèque est
+			<span class="tag dep">Déposé</span>, et l'écriture de remise part vers la comptabilité.</li>
+	</ol>
+	<p>Et quand ça ne se passe pas comme prévu&nbsp;:</p>
+	<ul>
+		<li>le chèque <strong>ne sera pas encaissé</strong> (sans provision, compte clôturé, membre qui
+			change de moyen de paiement)&nbsp;: on l'annule <span class="tag ann">Annulé</span>, et le
+			membre doit son montant&nbsp;: c'est une <strong>créance</strong>&nbsp;;</li>
+		<li>le membre <strong>repaie</strong>&nbsp;: on encaisse la créance, en espèces, par carte ou par
+			un nouveau chèque, qui sera suivi comme le premier&nbsp;;</li>
+		<li>le bureau <strong>renonce</strong> à la somme&nbsp;: on abandonne la dette&nbsp;;</li>
+		<li>c'est l'association qui <strong>doit</strong> de l'argent au membre (départ en cours d'année
+			alors que ses chèques sont déjà en banque)&nbsp;: on enregistre le remboursement une fois le
+			virement fait.</li>
+	</ul>
+
+	<h2 id="roles">Deux rôles</h2>
+	<table class="roles">
+		<thead>
+			<tr><th>Rôle</th><th>Qui</th><th>Ce qu'il fait dans le module</th></tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td><strong>Accueil</strong></td>
+				<td>La personne qui tient la caisse, va à la banque et suit les paiements des membres</td>
+				<td>Planifie l'encaissement des chèques, prépare les bordereaux, annule les chèques
+					impayés, encaisse ce qui reste dû, enregistre abandons et remboursements.
+					<strong>N'a pas à toucher à la comptabilité.</strong></td>
+			</tr>
+			<tr>
+				<td><strong>Comptabilité</strong></td>
+				<td>La personne qui tient la comptabilité</td>
+				<td>Passe <strong>en un clic</strong>, après vérification, les écritures préparées par le
+					module&nbsp;: annulations, règlements, abandons, remboursements et remises.</td>
+			</tr>
+		</tbody>
+	</table>
+	<div class="note">
+		<strong>Principe.</strong> Le module reflète la réalité au moment où elle se produit. La
+		comptabilité peut suivre plus tard&nbsp;: elle sera juste «&nbsp;à terme&nbsp;», sans jamais
+		bloquer l'accueil. Une dette, par exemple, apparaît dans le module dès que le chèque est annulé,
+		que l'écriture soit passée ou non.
+	</div>
+	<div class="note">
+		<strong>Si une seule personne tient les deux rôles</strong>, l'étape de validation n'apporte rien.
+		La configuration permet de la supprimer&nbsp;: le module passe alors les écritures tout de suite
+		(voir <a href="configuration.html#automatique">comptabilisation automatique</a>).
+	</div>
+
+	<h2 id="pages">Le guide</h2>
+	<ul class="cards">
+		<li><a href="cheques.html">Les chèques au quotidien
+			<small>La liste des chèques, le mois d'encaissement, corriger un numéro, annuler un chèque, exporter.</small></a></li>
+		<li><a href="bordereaux.html">Bordereaux et remises
+			<small>Préparer la pile, la porter en banque, imprimer, retrouver un ancien bordereau.</small></a></li>
+		<li><a href="dettes.html">Dettes et remboursements
+			<small>Qui doit quoi, encaisser une créance, abandonner une dette, rembourser un membre.</small></a></li>
+		<li><a href="comptabilite.html">Comptabilité
+			<small>La file « à comptabiliser » et l'écriture que produit chaque opération.</small></a></li>
+		<li><a href="configuration.html">Configuration
+			<small>Pré-requis, comptes, moyens de paiement, droits, mise à jour du module.</small></a></li>
+	</ul>
+
+	<h2 id="vocabulaire">Vocabulaire</h2>
+	<dl class="faq">
+		<dt>Ardoise</dt>
+		<dd>Ce qu'un membre n'a pas payé à la caisse, reporté à plus tard. Elle appartient à la caisse et
+			se règle à la caisse.</dd>
+		<dt>Créance</dt>
+		<dd>Ce qu'un membre doit parce qu'un de ses chèques ne sera pas encaissé. Elle appartient à ce
+			module et se règle dans ce module.</dd>
+		<dt>Bordereau</dt>
+		<dd>La liste des chèques remis ensemble à la banque. Un passage au guichet, un bordereau.</dd>
+		<dt>Compte d'attente</dt>
+		<dd>Le compte (5112 par défaut) où un chèque attend entre sa réception et son dépôt en banque.</dd>
+		<dt>Comptabiliser</dt>
+		<dd>Créer en comptabilité l'écriture qui correspond à une opération faite dans le module.</dd>
+	</dl>
+
+	<nav class="pager">
+		<span></span>
+		<a href="cheques.html">Les chèques au quotidien →</a>
+	</nav>
+	<footer>
+		<p>Module <strong>Suivi des chèques</strong> pour Paheko.</p>
+	</footer>
+
+</div>
+</body>
+</html>
