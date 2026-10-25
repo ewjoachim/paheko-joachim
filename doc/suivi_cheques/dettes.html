@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dettes et remboursements — Suivi des chèques</title>
+<link rel="stylesheet" href="guide.css" />
+</head>
+<body>
+<header class="top">
+	<div class="wrap">
+		<p class="kicker"><a href="index.html">Suivi des chèques — guide d'utilisation</a></p>
+		<h1>Dettes et remboursements</h1>
+		<p>Qui doit quoi, encaisser une créance, abandonner une dette, rembourser un membre.</p>
+	</div>
+</header>
+<nav class="guide">
+	<ul>
+		<li><a href="index.html">Accueil</a></li>
+		<li><a href="cheques.html">Les chèques</a></li>
+		<li><a href="bordereaux.html">Bordereaux</a></li>
+		<li><a href="dettes.html" aria-current="page">Dettes et remboursements</a></li>
+		<li><a href="comptabilite.html">Comptabilité</a></li>
+		<li><a href="configuration.html">Configuration</a></li>
+	</ul>
+</nav>
+
+<div class="wrap">
+
+	<div class="toc">
+		<p>Sur cette page</p>
+		<ul>
+			<li><a href="#impayes">Qui doit quoi</a></li>
+			<li><a href="#encaisser">Encaisser une créance</a></li>
+			<li><a href="#abandonner">Abandonner une dette</a></li>
+			<li><a href="#rembourser">Rembourser un membre</a></li>
+			<li><a href="#fiche-membre">Sur la fiche d'un membre</a></li>
+			<li><a href="#que-faire">Que faire si…</a></li>
+		</ul>
+	</div>
+
+	<h2 id="impayes">Qui doit quoi</h2>
+	<p>
+		L'onglet <em>Impayés</em> liste les membres qui doivent encore quelque chose, du plus gros montant
+		au plus petit, avec un lien vers la fiche de chacun.
+	</p>
+	<figure>
+		<img src="screenshots/07-impayes.png" alt="Liste des membres qui doivent de l'argent" />
+		<figcaption>Les deux sortes de dette, côte à côte mais jamais confondues.</figcaption>
+	</figure>
+	<p>
+		Il y a <strong>deux façons</strong> de se retrouver débiteur, et elles ne se règlent pas au même
+		endroit&nbsp;:
+	</p>
+	<ul>
+		<li><strong>l'ardoise</strong>&nbsp;: le membre n'a pas tout payé à la caisse. Elle se règle
+			<strong>à la caisse</strong>, d'où le bouton <em>Régler l'ardoise</em>&nbsp;;</li>
+		<li><strong>la créance</strong>&nbsp;: un de ses chèques a été annulé. Elle se règle
+			<strong>dans ce module</strong>, avec <em>Régler la créance</em>.</li>
+	</ul>
+	<p class="muted">
+		Une dette prise sur une note de caisse ouverte à un simple nom, sans fiche membre, ne peut pas
+		figurer dans ce tableau&nbsp;: un encadré en dessous en donne le total.
+	</p>
+
+	<h2 id="encaisser">Encaisser une créance</h2>
+	<p>
+		Quand le membre revient payer, <em>Régler la créance</em> ouvre une page qui montre d'où vient la
+		somme&nbsp;: les chèques annulés, et ce qui a déjà été versé ou abandonné. Le formulaire porte sur
+		<strong>tout ce qu'il doit</strong>, pas sur un chèque en particulier.
+	</p>
+	<figure>
+		<img src="screenshots/08-regler-creance.png" alt="Page de règlement d'une créance" />
+		<figcaption>D'où vient la somme due, le formulaire d'encaissement, et en dessous celui d'abandon.</figcaption>
+	</figure>
+	<ol class="steps">
+		<li>le <strong>montant reçu</strong>&nbsp;: la totalité est proposée, un règlement partiel est
+			permis, plus que le dû est refusé&nbsp;;</li>
+		<li>la <strong>date</strong> de l'encaissement&nbsp;;</li>
+		<li>le <strong>moyen de paiement</strong>, parmi ceux de la caisse. L'ardoise et le porte-monnaie
+			ne sont pas proposés&nbsp;: ils déplaceraient la dette au lieu de l'éteindre.</li>
+	</ol>
+	<p>
+		Si le membre donne un <strong>chèque</strong>, choisir un moyen «&nbsp;chèque&nbsp;» et saisir son
+		numéro&nbsp;: il devient un chèque suivi comme les autres, planifié au mois du moyen choisi,
+		proposé au bordereau de ce mois, et annulable à son tour s'il ne passe pas. Il apparaît dans la
+		liste avec l'étiquette <em>Règlement</em>.
+	</p>
+
+	<h2 id="abandonner">Abandonner une dette</h2>
+	<p>
+		Quand le bureau renonce à réclamer tout ou partie de la somme, le formulaire <em>Abandonner la
+		dette</em>, en bas de la même page, l'efface sans qu'aucun argent ne bouge. On y indique&nbsp;:
+	</p>
+	<ul>
+		<li>le <strong>montant</strong>, tout ou partie de ce qui est dû&nbsp;;</li>
+		<li><strong>pourquoi</strong>&nbsp;: <em>Geste accordé</em> (décision du bureau&nbsp;: déménagement,
+			situation particulière…) ou <em>Impayé</em> (la somme ne sera pas récupérée)&nbsp;;</li>
+		<li>un <strong>motif</strong>, obligatoire&nbsp;: la référence de la décision, par exemple
+			«&nbsp;bureau du 12/03&nbsp;»&nbsp;;</li>
+		<li>la <strong>date</strong> de la décision.</li>
+	</ul>
+	<p>
+		Les deux raisons n'ont pas le même sens pour la comptabilité (une remise accordée d'un côté, une
+		perte de l'autre)&nbsp;: c'est la seule chose que ce choix change.
+	</p>
+
+	<h2 id="rembourser">Rembourser un membre</h2>
+	<p>
+		Quand c'est l'association qui rend de l'argent (un départ en cours d'année accepté par le bureau
+		alors que les chèques sont déjà en banque, par exemple), on l'enregistre <strong>une fois le
+		virement fait</strong>, depuis le lien <em>Rembourser ce membre</em> de sa fiche (encart
+		«&nbsp;Paiements&nbsp;»)&nbsp;: montant, motif, moyen (virement ou chèque de l'association, ou
+		espèces) et date.
+	</p>
+	<figure>
+		<img src="screenshots/12-rembourser.png" alt="Page de remboursement d'un membre" />
+		<figcaption>Le formulaire de remboursement, et les remboursements déjà faits à ce membre.</figcaption>
+	</figure>
+	<p>
+		Le remboursement apparaît dans l'historique du membre, et son écriture part vers la comptabilité.
+		Tant qu'elle n'est pas passée, un remboursement saisi par erreur peut être supprimé.
+	</p>
+
+	<h2 id="fiche-membre">Sur la fiche d'un membre</h2>
+	<p>
+		Un encart «&nbsp;Paiements&nbsp;» apparaît sur la fiche de chaque membre passé par la caisse.
+		C'est le journal de tout ce qu'il a acheté et réglé&nbsp;: achats, paiements de tous moyens,
+		chèques reçus en règlement, ardoise, créances, règlements, abandons et remboursements. Il est en
+		lecture seule&nbsp;; des liens mènent au module pour agir.
+	</p>
+	<figure>
+		<img src="screenshots/10-fiche-membre.png" alt="Encart paiements sur la fiche membre" />
+		<figcaption>Tout ce qu'un membre a acheté et réglé, directement sur sa fiche.</figcaption>
+	</figure>
+	<p>
+		En tête de l'encart, les <strong>dettes éventuelles</strong>, l'ardoise et la créance, chacune avec
+		un lien vers l'endroit où elle se règle. Elles ne sont jamais additionnées, puisqu'elles ne se
+		règlent pas au même endroit.
+	</p>
+	<div class="note">
+		<strong>Une ligne «&nbsp;Porté en ardoise&nbsp;» n'est pas un paiement.</strong> C'est un
+		report&nbsp;: la note est soldée à la caisse, mais le membre doit encore la somme. Elle alimente le
+		solde d'ardoise, sans être comptée parmi les règlements.
+	</div>
+
+	<h2 id="que-faire">Que faire si…</h2>
+	<dl class="faq">
+		<dt>… un membre arrête en cours d'année&nbsp;?</dt>
+		<dd>Si le bureau accepte de ne pas tout faire payer&nbsp;: <a href="cheques.html#annuler">annuler</a>
+			les chèques pas encore déposés, puis <a href="#abandonner">abandonner</a> la dette qui en
+			résulte avec <em>Geste accordé</em>. Si des chèques déjà encaissés doivent être rendus,
+			<a href="#rembourser">rembourser</a> une fois le virement fait.</dd>
+		<dt>… le membre paie en plusieurs fois&nbsp;?</dt>
+		<dd>Enregistrer chaque versement à sa date&nbsp;: le reste dû diminue à chaque fois.</dd>
+		<dt>… le membre veut payer plus que ce qu'il doit&nbsp;?</dt>
+		<dd>Le module refuse&nbsp;: il ne connaît que les dettes, pas les avances. N'enregistrer que le dû.</dd>
+		<dt>… je me suis trompé en saisissant un règlement ou un abandon&nbsp;?</dt>
+		<dd>Ils ne se modifient pas depuis le module&nbsp;: prévenir l'administrateur.</dd>
+		<dt>… la créance n'a pas de bouton «&nbsp;Régler&nbsp;»&nbsp;?</dt>
+		<dd>Le chèque avait été encaissé sur une note de caisse sans fiche membre. La dette existe, mais
+			ne peut pas être réglée depuis le module.</dd>
+	</dl>
+
+	<nav class="pager">
+		<a href="bordereaux.html">← Bordereaux et remises</a>
+		<a href="comptabilite.html">Comptabilité →</a>
+	</nav>
+	<footer>
+		<p>Module <strong>Suivi des chèques</strong> pour Paheko.</p>
+	</footer>
+
+</div>
+</body>
+</html>

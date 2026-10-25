@@ -18,7 +18,7 @@ def refund(page: Page, module_url, user: str, amount: str, reason: str,
 
 def queue_row(page: Page, module_url):
     page.goto(f"{module_url}/to_record.html", wait_until="domcontentloaded")
-    return page.locator('tr:has(input[name="rec_kind"][value="refund"])')
+    return page.locator('tr:has(input[name="rec_kind"][value="refund"])', has_text=MEMBER)
 
 
 def test_a_refund_is_one_entry_on_the_bank(admin_page: Page, module_url, reseed, seed, transaction):

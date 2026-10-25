@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Comptabilité — Suivi des chèques</title>
+<link rel="stylesheet" href="guide.css" />
+</head>
+<body>
+<header class="top">
+	<div class="wrap">
+		<p class="kicker"><a href="index.html">Suivi des chèques — guide d'utilisation</a></p>
+		<h1>Comptabilité</h1>
+		<p>La file « à comptabiliser » et l'écriture que produit chaque opération.</p>
+	</div>
+</header>
+<nav class="guide">
+	<ul>
+		<li><a href="index.html">Accueil</a></li>
+		<li><a href="cheques.html">Les chèques</a></li>
+		<li><a href="bordereaux.html">Bordereaux</a></li>
+		<li><a href="dettes.html">Dettes et remboursements</a></li>
+		<li><a href="comptabilite.html" aria-current="page">Comptabilité</a></li>
+		<li><a href="configuration.html">Configuration</a></li>
+	</ul>
+</nav>
+
+<div class="wrap">
+
+	<div class="toc">
+		<p>Sur cette page</p>
+		<ul>
+			<li><a href="#file">La file « à comptabiliser »</a></li>
+			<li><a href="#ecritures">L'écriture de chaque opération</a></li>
+			<li><a href="#maitresse">La comptabilité reste maîtresse</a></li>
+			<li><a href="#controles">Contrôler les comptes</a></li>
+			<li><a href="#que-faire">Que faire si…</a></li>
+		</ul>
+	</div>
+
+	<h2 id="file">La file « à comptabiliser »</h2>
+	<p>
+		L'onglet <em>À comptabiliser</em> regroupe tout ce que l'accueil a fait et qui attend son écriture,
+		en cinq tableaux&nbsp;: annulations, règlements de créances, abandons de dettes, remboursements et
+		remises de chèques. Le bouton <em>Comptabiliser</em> d'une ligne crée l'écriture correspondante,
+		équilibrée, et le message de confirmation propose un lien vers elle.
+	</p>
+	<figure>
+		<img src="screenshots/09-a-comptabiliser.png" alt="File des éléments à comptabiliser" />
+		<figcaption>Ce qui attend une écriture. Chaque bouton « Comptabiliser » crée une écriture équilibrée.</figcaption>
+	</figure>
+	<p>
+		La page est visible dès le droit <em>comptabilité&nbsp;: lecture</em>, pour que l'accueil puisse
+		voir ce qui reste&nbsp;; les boutons demandent <em>comptabilité&nbsp;: écriture</em>. Si la
+		<a href="configuration.html#automatique">comptabilisation automatique</a> est activée, la file ne
+		contient plus que ce qui n'a pas pu être passé tout seul.
+	</p>
+
+	<h2 id="ecritures">L'écriture de chaque opération</h2>
+	<p>
+		Les comptes ci-dessous sont ceux par défaut&nbsp;; tous se changent dans la
+		<a href="configuration.html#comptes">configuration</a>. Chaque écriture est une écriture
+		«&nbsp;avancée&nbsp;», rattachée aux membres concernés, ce qui la fait apparaître dans
+		<em>Comptes de membres</em>.
+	</p>
+	<table class="entries">
+		<thead>
+			<tr><th>Opération</th><th>Débit</th><th>Crédit</th><th>Datée du</th></tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td><em>Rappel&nbsp;:</em> chèque saisi en caisse <small>(écriture de la caisse, pas du module)</small></td>
+				<td>5112 Chèques à encaisser</td>
+				<td>le produit de la vente (706…)</td>
+				<td>jour de la session de caisse</td>
+			</tr>
+			<tr>
+				<td>Remise en banque d'un bordereau</td>
+				<td>512 Banque, le total</td>
+				<td>5112, une ligne par chèque, avec son numéro en référence</td>
+				<td>jour où elle est comptabilisée</td>
+			</tr>
+			<tr>
+				<td>Annulation d'un chèque</td>
+				<td>411 Créance du membre</td>
+				<td>5112, avec le numéro du chèque en référence</td>
+				<td>jour où elle est comptabilisée</td>
+			</tr>
+			<tr>
+				<td>Règlement d'une créance</td>
+				<td>compte du moyen de paiement (530 espèces, 5112 si c'est un chèque…)</td>
+				<td>411</td>
+				<td>date de l'encaissement</td>
+			</tr>
+			<tr>
+				<td>Abandon de dette, geste accordé</td>
+				<td>709 Rabais, remises et ristournes accordés</td>
+				<td>411</td>
+				<td>date de la décision</td>
+			</tr>
+			<tr>
+				<td>Abandon de dette, impayé</td>
+				<td>654 Pertes sur créances irrécouvrables</td>
+				<td>411</td>
+				<td>date de la décision</td>
+			</tr>
+			<tr>
+				<td>Remboursement d'un membre</td>
+				<td>709</td>
+				<td>512 Banque, ou le compte de caisse pour des espèces</td>
+				<td>date du remboursement</td>
+			</tr>
+		</tbody>
+	</table>
+	<div class="warn">
+		<strong>La recette n'est jamais annulée.</strong> Un chèque impayé ne défait pas la vente&nbsp;: la
+		somme passe du compte d'attente à la créance du membre. Ce qui en advient ensuite (règlement,
+		abandon) a sa propre écriture.
+	</div>
+	<p>
+		Une remise et une annulation sont datées du jour où on clique <em>Comptabiliser</em>&nbsp;: un
+		exercice ouvert doit couvrir ce jour-là. Les autres opérations gardent leur date propre, et c'est
+		l'exercice qui couvre cette date qui est utilisé.
+	</p>
+
+	<h2 id="maitresse">La comptabilité reste maîtresse</h2>
+	<p>
+		Une écriture créée par le module reste une écriture ordinaire&nbsp;: elle se modifie et se
+		supprime normalement. Le module ne relit jamais son contenu&nbsp;: il vérifie seulement qu'elle
+		existe encore. Si elle est supprimée, l'élément réapparaît dans la file, prêt à être repassé.
+	</p>
+	<p>
+		Côté accueil, une écriture passée verrouille ce qu'elle reflète&nbsp;: un chèque dont l'annulation
+		est comptabilisée n'est plus modifiable, un bordereau comptabilisé ne peut plus être annulé, un
+		remboursement comptabilisé ne peut plus être supprimé. Pour corriger, supprimer d'abord
+		l'écriture.
+	</p>
+
+	<h2 id="controles">Contrôler les comptes</h2>
+	<p>
+		Quand tout est comptabilisé&nbsp;:
+	</p>
+	<ul>
+		<li>le solde du <strong>5112</strong> correspond aux chèques reçus qui ne sont ni déposés ni
+			annulés&nbsp;: ceux «&nbsp;À encaisser&nbsp;» et «&nbsp;Dans un lot&nbsp;» dans le module&nbsp;;</li>
+		<li>le solde du <strong>411</strong> d'un membre correspond à sa créance dans l'onglet
+			<em>Impayés</em>.</li>
+	</ul>
+	<p>
+		L'onglet <em>Impayés</em> fait lui-même une partie de ce contrôle&nbsp;: si la comptabilité porte
+		sur les comptes de membres des mouvements que le module n'a pas créés (une cotisation saisie à la
+		main, par exemple), un encadré annonce l'écart, pour qu'on ne prenne pas la liste pour
+		exhaustive.
+	</p>
+
+	<h2 id="que-faire">Que faire si…</h2>
+	<dl class="faq">
+		<dt>… le bouton <em>Comptabiliser</em> renvoie une erreur&nbsp;?</dt>
+		<dd>Le plus souvent, aucun exercice ouvert ne couvre la date de l'écriture, ou un compte configuré
+			n'existe pas dans le plan comptable de cet exercice. L'élément reste dans la file&nbsp;: il
+			suffit de recommencer une fois le problème réglé.</dd>
+		<dt>… j'ai supprimé une écriture par erreur&nbsp;?</dt>
+		<dd>L'élément est revenu dans la file&nbsp;: le comptabiliser à nouveau.</dd>
+		<dt>… l'accueil doit corriger un chèque déjà comptabilisé&nbsp;?</dt>
+		<dd>Supprimer l'écriture concernée&nbsp;: la fiche redevient modifiable, et l'élément revient dans
+			la file une fois corrigé.</dd>
+		<dt>… un chèque revient impayé après avoir été déposé&nbsp;?</dt>
+		<dd>Le module ne le gère pas&nbsp;: passer l'écriture du rejet à la main, à partir du relevé
+			bancaire, en liant le membre.</dd>
+		<dt>… on clôture l'exercice&nbsp;?</dt>
+		<dd>Rien de particulier pour le module, qui ne dépend pas de l'exercice&nbsp;: les chèques et les
+			dettes continuent leur vie. Mieux vaut seulement avoir vidé la file avant la clôture.</dd>
+	</dl>
+
+	<nav class="pager">
+		<a href="dettes.html">← Dettes et remboursements</a>
+		<a href="configuration.html">Configuration →</a>
+	</nav>
+	<footer>
+		<p>Module <strong>Suivi des chèques</strong> pour Paheko.</p>
+	</footer>
+
+</div>
+</body>
+</html>
