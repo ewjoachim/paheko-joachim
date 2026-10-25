@@ -148,7 +148,7 @@
 				--    le paiement est un cheque suivi.
 				SELECT p.date AS mdate,
 					CASE p.type WHEN 2 THEN 'slate' WHEN 3 THEN 'wallet' ELSE 'payment' END AS kind,
-					m.name AS label, NULL AS detail, p.reference AS reference,
+					m.name AS label, NULL AS detail, COALESCE(json_extract(ov.document, '$.cheque_number'), p.reference) AS reference,
 					p.amount AS amount,
 					CASE
 						WHEN ov.key IS NULL THEN NULL

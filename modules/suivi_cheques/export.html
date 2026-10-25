@@ -93,7 +93,7 @@ FROM (
 					CAST(json_extract(mm.document, '$.month') AS INT))
 			END
 		) AS planned_month,
-		p.reference AS cheque_number,
+		COALESCE(json_extract(ov.document, '$.cheque_number'), p.reference) AS cheque_number,
 		p.amount AS amount,
 		@MEMBER_NAME@ AS member_name,
 		t.user_id AS user_id,

@@ -20,21 +20,23 @@
 {{:assign today=null}}
 {{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
 
-{{:assign found=false cheque_number=null amount=0 received_date=null user_id=null}}
+{{:assign found=false cheque_number=null till_number=null amount=0 received_date=null user_id=null}}
 {{:assign cur_month=null cur_cancelled=0 cur_reason=null cur_notes=null}}
 {{:assign cur_batch_id=null cur_annul_txn=null}}
 
 {{if $from_till}}
 	{{:assign store_type="cheque" store_key="pay-%d"|args:$pid kind="annul_pay" rid=$pid}}
 	{{#select
-		p.reference AS cheque_number, p.amount AS amount, p.date AS received_date, t.user_id AS user_id
+		COALESCE(json_extract(ov.document, '$.cheque_number'), p.reference) AS cheque_number,
+		p.reference AS till_number, p.amount AS amount, p.date AS received_date, t.user_id AS user_id
 		FROM plugin_pos_tabs_payments p
 		INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+		LEFT JOIN module_data_suivi_cheques ov ON ov.key = 'pay-' || p.id
 		WHERE p.id = :pid LIMIT 1;
 		:pid=$pid
 	}}
 		{{:assign found=true}}
-		{{:assign cheque_number=$cheque_number amount=$amount received_date=$received_date user_id=$user_id}}
+		{{:assign cheque_number=$cheque_number till_number=$till_number amount=$amount received_date=$received_date user_id=$user_id}}
 	{{/select}}
 	{{#load type="cheque" key=$store_key}}
 		{{:assign cur_month=$planned_month cur_cancelled=$cancelled cur_reason=$reason cur_notes=$notes}}
@@ -77,11 +79,16 @@
 	    forcer le mois par défaut redonne exactement ce mois par défaut. *}}
 	{{:include file="./_resolve_month.html" rm_month=$_POST.planned_month|intval rm_from=$received_date|or:$today keep="rm_ym"}}
 
+	{{:assign new_number=$_POST.cheque_number|trim|or:null}}
+	{{if $from_till && $new_number === $till_number}}{{:assign new_number=null}}{{/if}}
+	{{if !$from_till && !$new_number}}{{:error message="Indiquez le numéro du chèque."}}{{/if}}
+
 	{{* {{:save}} fusionne avec le document existant : l'identité du chèque et les
 	    liens compta sont déjà stockés, on n'écrit que ce que ce formulaire édite. *}}
 	{{if $from_till}}
 		{{:save type="cheque" key=$store_key validate_schema="./cheque.schema.json"
 			payment_id=$pid
+			cheque_number=$new_number
 			planned_month=$rm_ym
 			cancelled=$_POST.cancelled|intval
 			reason=$_POST.reason|trim|or:null
@@ -89,6 +96,7 @@
 		}}
 	{{else}}
 		{{:save type="cheque_rempl" key=$store_key validate_schema="./replacement.schema.json"
+			cheque_number=$new_number
 			planned_month=$rm_ym
 			cancelled=$_POST.cancelled|intval
 			reason=$_POST.reason|trim|or:null
@@ -171,6 +179,13 @@
 	<fieldset>
 		<legend>Encaissement</legend>
 		<dl>
+			{{if $from_till}}
+				{{:assign till_number_h=$till_number|or:"—"}}
+				{{:input type="text" name="cheque_number" label="N° de chèque" default=$cheque_number size=12
+					help="Saisi en caisse : %s. Corrigez-le ici s’il est faux : c’est ce numéro qui figurera sur le bordereau."|args:$till_number_h}}
+			{{else}}
+				{{:input type="text" name="cheque_number" label="N° de chèque" default=$cheque_number size=12 required=true}}
+			{{/if}}
 			<dt><label>Mois d’encaissement{{if $from_till}} forcé{{/if}}</label></dt>
 				<dd>
 					{{if $from_till}}

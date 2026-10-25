@@ -31,8 +31,9 @@
 
 {{if $cs_kind === 'annul_pay'}}
 	{{:assign cs_pid=$cs_rid|intval}}
-	{{#select p.reference AS r, p.amount AS a, t.user_id AS u
+	{{#select COALESCE(json_extract(ov.document, '$.cheque_number'), p.reference) AS r, p.amount AS a, t.user_id AS u
 		FROM plugin_pos_tabs_payments p INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+		LEFT JOIN module_data_suivi_cheques ov ON ov.key = 'pay-' || p.id
 		WHERE p.id = :pid LIMIT 1; :pid=$cs_pid}}
 		{{:assign cs_cheque_number=$r cs_amount=$a cs_member_id=$u}}
 	{{/select}}
