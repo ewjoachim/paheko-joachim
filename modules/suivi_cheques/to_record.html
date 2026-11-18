@@ -31,6 +31,8 @@
 		{{:include file="./_record_settlement.html" rid=$rid keep="rec_txn_id"}}
 	{{elseif $kind === 'abandon'}}
 		{{:include file="./_record_abandon.html" rid=$rid keep="rec_txn_id"}}
+	{{elseif $kind === 'refusal'}}
+		{{:include file="./_record_refusal.html" rid=$rid keep="rec_txn_id"}}
 	{{elseif $kind === 'refund'}}
 		{{:include file="./_record_refund.html" rid=$rid keep="rec_txn_id"}}
 	{{else}}
@@ -139,6 +141,48 @@
 	    d'une créance n'a pas la sienne — elle est portée par la ligne 411 de l'écriture
 	    d'annulation, donc déjà couverte par la file ci-dessus. Seule son extinction
 	    demande une écriture propre, d'où un document reglement par écriture. *}}
+	<h2 class="ruler">Échéances refusées à comptabiliser</h2>
+	<table class="list">
+		<thead>
+			<tr><th>Date</th><th>Membre</th><th>Paiement / motif</th><th class="money">Montant</th><th class="actions"></th></tr>
+		</thead>
+		<tbody>
+			{{#select
+				r.key AS rid,
+				json_extract(r.document, '$.date') AS rdate,
+				CAST(json_extract(r.document, '$.amount') AS INT) AS amount,
+				CAST(json_extract(r.document, '$.member_id') AS INT) AS uid,
+				json_extract(r.document, '$.method') AS method,
+				json_extract(r.document, '$.reason') AS reason
+				FROM module_data_suivi_cheques r
+				WHERE json_extract(r.document, '$.type') = 'refus'
+					AND (json_extract(r.document, '$.refus_txn_id') IS NULL
+						OR NOT EXISTS (SELECT 1 FROM acc_transactions t WHERE t.id = CAST(json_extract(r.document, '$.refus_txn_id') AS INT)))
+				ORDER BY rdate
+			}}
+				<tr>
+					<td>{{$rdate|date_short}}</td>
+					<td>{{if $uid}}{{#users id=$uid}}{{:link href="!users/details.php?id=%d"|args:$uid label=$_name}}{{/users}}{{else}}—{{/if}}</td>
+					<td>{{$method|escape}} — {{$reason|escape}}</td>
+					<td class="money">{{$amount|raw|money_currency}}</td>
+					<td class="actions">
+						{{#restrict section="accounting" level="write"}}
+							<form method="post" action="" class="inline">
+								<input type="hidden" name="rec_kind" value="refusal" />
+								<input type="hidden" name="rec_id" value="{{$rid|escape}}" />
+								{{:button type="submit" name="record" value="1" label="Comptabiliser" shape="money" class="main"}}
+							</form>
+						{{else}}
+							<em class="help">réservé à la comptabilité</em>
+						{{/restrict}}
+					</td>
+				</tr>
+			{{else}}
+				<tr><td colspan="5">Aucune échéance refusée à comptabiliser.</td></tr>
+			{{/select}}
+		</tbody>
+	</table>
+
 	<h2 class="ruler">Règlements de créances à comptabiliser</h2>
 	<table class="list">
 		<thead>

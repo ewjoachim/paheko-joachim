@@ -196,6 +196,38 @@ echo (int) $db->lastInsertId();
 """
 
 
+# A payment collected in instalments by an online provider (PayAsso): a tracked
+# method that is not a cheque, on the bank account. The till keeps one line for
+# the whole amount.
+_INSTALMENT_PHP = """<?php
+namespace Paheko;
+require '/var/www/paheko/include/init.php';
+$db = DB::getInstance();
+$p = json_decode(base64_decode('%s'), true);
+$mid = $db->firstColumn("SELECT id FROM plugin_pos_methods WHERE name = 'PayAsso'");
+if (!$mid) {
+    $db->exec("INSERT INTO plugin_pos_methods (name, type, account, enabled) VALUES ('PayAsso', 0, '512', 1);");
+    $mid = $db->lastInsertId();
+}
+$tab = $db->firstColumn('SELECT id FROM plugin_pos_tabs WHERE user_id = ? ORDER BY id LIMIT 1', (int) $p['user']);
+$db->preparedQuery(
+    "INSERT INTO plugin_pos_tabs_payments (tab, method, date, amount, reference, account, type) VALUES (?, ?, '2026-09-15', ?, NULL, '512', 0);",
+    $tab, $mid, $p['amount']
+);
+echo (int) $db->lastInsertId();
+"""
+
+
+@pytest.fixture
+def instalment_payment():
+    """Add a PayAsso payment on a member's tab. Call it after reseed()."""
+
+    def _add(user, amount: int) -> int:
+        b64 = base64.b64encode(json.dumps({"user": int(user), "amount": amount}).encode()).decode()
+        return int(_php(_INSTALMENT_PHP % b64).strip())
+
+    return _add
+
 @pytest.fixture
 def till_payment():
     """Insert a till cheque on the seeded tab. Call it after reseed()."""

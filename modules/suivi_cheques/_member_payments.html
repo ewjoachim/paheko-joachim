@@ -138,6 +138,9 @@
 					m.name AS label, NULL AS detail, COALESCE(json_extract(ov.document, '$.cheque_number'), p.reference) AS reference,
 					p.amount AS amount,
 					CASE
+						WHEN EXISTS (SELECT 1 FROM module_data_suivi_cheques rf
+							WHERE json_extract(rf.document, '$.type') = 'refus'
+								AND CAST(json_extract(rf.document, '$.payment_id') AS INT) = p.id) THEN 'refused'
 						WHEN ov.key IS NULL THEN NULL
 						WHEN COALESCE(CAST(json_extract(ov.document, '$.cancelled') AS INT), 0) = 1
 							AND json_extract(ov.document, '$.batch_id') IS NOT NULL THEN 'rejected'
@@ -183,7 +186,9 @@
 				--    demanderait d inventer une repartition. Le solde est au-dessus.
 				SELECT json_extract(c.document, '$.date') AS mdate,
 					'receivable' AS kind,
-					'Créance sur chèque annulé' AS label,
+					CASE json_extract(c.document, '$.origin_kind')
+						WHEN 'prelevement' THEN 'Créance sur échéance refusée'
+						ELSE 'Créance sur chèque annulé' END AS label,
 					json_extract(c.document, '$.reason') AS detail,
 					json_extract(c.document, '$.cheque_number') AS reference,
 					CAST(json_extract(c.document, '$.amount') AS INT) AS amount,
@@ -267,6 +272,7 @@
 				<td>
 					{{if $state === 'cancelled'}}{{:tag label="Annulé" color="grey"}}
 					{{elseif $state === 'rejected'}}{{:tag label="Rejeté" color="darkred"}}
+				{{elseif $state === 'refused'}}{{:tag label="Échéance refusée" color="darkred"}}
 					{{elseif $state === 'deposited'}}{{:tag label="Déposé" color="darkgreen"}}
 					{{elseif $state === 'pending'}}{{:tag label="À encaisser" color="darkorange"}}
 					{{/if}}

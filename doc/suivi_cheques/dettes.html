@@ -31,6 +31,7 @@
 		<p>Sur cette page</p>
 		<ul>
 			<li><a href="#impayes">Qui doit quoi</a></li>
+			<li><a href="#refus">Une échéance PayAsso refusée</a></li>
 			<li><a href="#encaisser">Encaisser une créance</a></li>
 			<li><a href="#abandonner">Abandonner une dette</a></li>
 			<li><a href="#rembourser">Rembourser un membre</a></li>
@@ -55,12 +56,32 @@
 	<ul>
 		<li><strong>l'ardoise</strong>&nbsp;: le membre n'a pas tout payé à la caisse. Elle se règle
 			<strong>à la caisse</strong>, d'où le bouton <em>Régler l'ardoise</em>&nbsp;;</li>
-		<li><strong>la créance</strong>&nbsp;: un de ses chèques a été annulé. Elle se règle
-			<strong>dans ce module</strong>, avec <em>Régler la créance</em>.</li>
+		<li><strong>la créance</strong>&nbsp;: un de ses chèques a été annulé, ou une échéance de
+			prélèvement a été refusée. Elle se règle <strong>dans ce module</strong>, avec
+			<em>Régler la créance</em>.</li>
 	</ul>
 	<p class="muted">
 		Une dette prise sur une note de caisse ouverte à un simple nom, sans fiche membre, ne peut pas
 		figurer dans ce tableau&nbsp;: un encadré en dessous en donne le total.
+	</p>
+
+	<h2 id="refus">Une échéance PayAsso refusée</h2>
+	<p>
+		Un paiement PayAsso est enregistré en caisse en une seule fois, mais prélevé en plusieurs
+		échéances. Quand PayAsso prévient qu'une échéance est refusée, et qu'elle ne sera pas représentée,
+		le lien <em>Signaler une échéance refusée</em> de la fiche du membre (encart
+		«&nbsp;Paiements&nbsp;») ouvre un petit formulaire&nbsp;:
+	</p>
+	<ul>
+		<li>le <strong>paiement concerné</strong>, parmi ses paiements PayAsso en caisse&nbsp;;</li>
+		<li>le <strong>montant refusé</strong>, celui de l'échéance et pas du paiement entier&nbsp;;</li>
+		<li>un <strong>motif</strong>, par exemple «&nbsp;échéance 3/10, mail du 12/11&nbsp;», et la date.</li>
+	</ul>
+	<p>
+		Le membre doit alors cette somme&nbsp;: elle apparaît dans <em>Impayés</em> et s'encaisse comme
+		toute créance, par chèque, virement ou espèces. Sur sa fiche, le paiement PayAsso porte
+		l'étiquette «&nbsp;Échéance refusée&nbsp;», suivie de la créance puis de son règlement.
+		Plusieurs échéances d'un même paiement peuvent être refusées l'une après l'autre.
 	</p>
 
 	<h2 id="encaisser">Encaisser une créance</h2>

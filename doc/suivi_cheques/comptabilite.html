@@ -41,7 +41,7 @@
 	<h2 id="file">La file « à comptabiliser »</h2>
 	<p>
 		L'onglet <em>À comptabiliser</em> regroupe tout ce que l'accueil a fait et qui attend son écriture,
-		en cinq tableaux&nbsp;: annulations et rejets, règlements de créances, abandons de dettes, remboursements et
+		en six tableaux&nbsp;: annulations et rejets, échéances refusées, règlements de créances, abandons de dettes, remboursements et
 		remises de chèques. Le bouton <em>Comptabiliser</em> d'une ligne crée l'écriture correspondante,
 		équilibrée, et le message de confirmation propose un lien vers elle.
 	</p>
@@ -91,6 +91,12 @@
 				<td>411 Créance du membre</td>
 				<td>512 Banque, avec le numéro du chèque en référence</td>
 				<td>jour où le rejet a été enregistré</td>
+			</tr>
+			<tr>
+				<td>Échéance de prélèvement refusée (PayAsso)</td>
+				<td>411 Créance du membre</td>
+				<td>le compte du moyen de paiement en caisse (la banque, pour PayAsso)</td>
+				<td>date du refus</td>
 			</tr>
 			<tr>
 				<td>Règlement d'une créance</td>

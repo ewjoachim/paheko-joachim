@@ -350,7 +350,10 @@
 					<tr>
 						<td>{{$mdate|date_short}}</td>
 						<td>
-							{{if $kind === 'creance'}}
+							{{if $kind === 'creance' && $okind === 'prelevement'}}
+								Échéance refusée
+								{{:link href="refusal.html?user=%d"|args:$uid label="voir"}}
+							{{elseif $kind === 'creance'}}
 								Chèque annulé n°{{$number|escape|or:'—'}}
 								{{if $okind === 'cheque_rempl'}}
 									{{:link href="edit.html?key=%s"|args:$okey label="voir"}}
