@@ -1,0 +1,228 @@
+{{* -*- brindille -*- *}}
+
+{{* Signaler une échéance de prélèvement refusée (PayAsso, typiquement). La caisse
+    n'a qu'une ligne pour le paiement entier, prélevé en plusieurs fois par le
+    prestataire : quand une échéance est refusée, le membre doit cette somme. C'est
+    une créance comme celle d'un chèque annulé, et elle se règle de la même façon.
+
+    Un fait, un document : le refus (avec son écriture), et la créance qui en naît,
+    gardée à part pour que tout ce qui calcule la dette d'un membre la voie sans
+    rien savoir des refus. On ne signale que ce dont on est sûr que le prestataire
+    ne le représentera pas.
+
+    Supprimable tant que son écriture n'existe pas et que la dette n'a pas été
+    réglée au-delà, comme l'annulation d'un chèque. *}}
+{{#restrict block=true section="users" level="write"}}{{/restrict}}
+
+{{:assign uid=$_GET.user|intval}}
+
+{{:assign today=null}}
+{{#select date('now', 'localtime') AS d}}{{:assign today=$d}}{{/select}}
+
+{{* Les paiements d'un membre qui peuvent avoir une échéance refusée : ceux d'un
+    moyen « Suivi » qui n'est pas un chèque (les chèques ont leur annulation), avec
+    ce qui n'a pas déjà été signalé refusé. *}}
+{{:assign eligible_sql="
+	SELECT p.id AS pid, m.name AS method, p.date AS pdate, p.amount AS amount,
+		COALESCE(p.account, m.account) AS account,
+		p.amount - COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
+			FROM module_data_suivi_cheques r
+			WHERE json_extract(r.document, '$.type') = 'refus'
+				AND CAST(json_extract(r.document, '$.payment_id') AS INT) = p.id), 0) AS remaining
+	FROM plugin_pos_tabs_payments p
+	INNER JOIN plugin_pos_tabs t ON t.id = p.tab
+	INNER JOIN plugin_pos_methods m ON m.id = p.method
+	WHERE t.user_id = :uid AND m.type = 0
+		AND NOT EXISTS (SELECT 1 FROM module_data_suivi_cheques mm
+			WHERE json_extract(mm.document, '$.type') = 'method_month_map'
+				AND CAST(json_extract(mm.document, '$.method_id') AS INT) = m.id)
+"}}
+
+{{#form on="refusal"}}
+	{{:assign pid=$_POST.payment|intval}}
+	{{:assign amt=$_POST.amount|money_int}}
+	{{:assign rdate=$_POST.date|date:'Y-m-d'|or:$today}}
+	{{:assign reason=$_POST.reason|trim}}
+
+	{{:assign p_found=false p_method=null p_account=null p_remaining=0}}
+	{{#select * FROM (!eligible_sql) WHERE pid = :pid; :uid=$uid :pid=$pid !eligible_sql=$eligible_sql}}
+		{{:assign p_found=true p_method=$method p_account=$account p_remaining=$remaining|intval}}
+	{{/select}}
+
+	{{if !$p_found}}{{:error message="Choisissez le paiement concerné."}}{{/if}}
+	{{if $amt <= 0}}{{:error message="Indiquez un montant supérieur à zéro."}}{{/if}}
+	{{if $amt > $p_remaining}}
+		{{:assign p_remaining_h=$p_remaining|money_currency}}
+		{{:error message="Il ne reste que %s de ce paiement qui puisse être refusé."|args:$p_remaining_h}}
+	{{/if}}
+	{{if !$reason}}{{:error message="Indiquez le motif."}}{{/if}}
+	{{if !$p_account}}{{:error message="Ce moyen de paiement n'a pas de compte comptable dans la caisse."}}{{/if}}
+
+	{{:assign rkey=null}}
+	{{#select 'refus-' || :p || '-' || strftime('%Y%m%d%H%M%S', 'now', 'localtime') AS k; :p=$pid}}
+		{{:assign rkey=$k}}
+	{{/select}}
+
+	{{:save type="refus" key=$rkey validate_schema="./refus.schema.json"
+		payment_id=$pid member_id=$uid method=$p_method
+		amount=$amt date=$rdate reason=$reason account=$p_account}}
+	{{:save type="creance" key="creance-%s"|args:$rkey validate_schema="./creance.schema.json"
+		origin_kind="prelevement" origin_key=$rkey member_id=$uid cheque_number=null
+		amount=$amt date=$rdate reason=$reason}}
+	{{:assign posted_rkey=$rkey}}
+{{/form}}
+
+{{* WORKAROUND (Paheko 1.3.22) — même raison qu'edit.html : _record_refusal.html relit
+    le document, ce qui ne voit pas le {{:save}} du formulaire ci-dessus. *}}
+{{#form on="refusal"}}
+	{{if $posted_rkey}}
+		{{:assign rec_txn_id=null rec_error=null}}
+		{{if $module.config.auto_record_cancellations}}
+			{{:include file="./_record_refusal.html" rid=$posted_rkey quiet=true keep="rec_txn_id,rec_error"}}
+		{{/if}}
+
+		{{:assign qs="user=%d&saved=1"|args:$uid}}
+		{{if $rec_txn_id}}
+			{{:assign qs="user=%d&saved=1&recorded=%d"|args:$uid:$rec_txn_id}}
+		{{elseif $rec_error}}
+			{{:assign qs="user=%d&saved=1&not_recorded=1"|args:$uid}}
+		{{/if}}
+		{{:redirect to="refusal.html?%s"|args:$qs}}
+	{{/if}}
+{{/form}}
+
+{{#form on="refusal_delete"}}
+	{{:assign rkey=$_POST.rf_key|trim}}
+	{{:assign found=false txn=null r_amount=0}}
+	{{#load type="refus" key=$rkey}}
+		{{if $member_id|intval === $uid}}{{:assign found=true txn=$refus_txn_id r_amount=$amount|intval}}{{/if}}
+	{{/load}}
+	{{if !$found}}{{:error message="Échéance refusée introuvable."}}{{/if}}
+	{{if $txn}}
+		{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$txn}}
+			{{:error message="Ce refus est comptabilisé : supprimez d'abord son écriture en comptabilité."}}
+		{{/select}}
+	{{/if}}
+	{{:include file="./_member_debt.html" md_user_id=$uid keep="md_owed"}}
+	{{if $r_amount > $md_owed}}
+		{{:assign owed_h=$md_owed|money_currency}}
+		{{:error message="Ce membre ne doit plus que %s : supprimez d'abord son règlement ou l'abandon de sa dette, sinon le refus effacerait ce qui a été soldé."|args:$owed_h}}
+	{{/if}}
+	{{:delete type="creance" where="key = :k" :k="creance-%s"|args:$rkey}}
+	{{:delete type="refus" where="key = :k" :k=$rkey}}
+	{{:redirect to="refusal.html?user=%d&deleted=1"|args:$uid}}
+{{/form}}
+
+{{:assign member_name=null}}
+{{if $uid}}{{#users id=$uid}}{{:assign member_name=$_name}}{{/users}}{{/if}}
+
+{{:admin_header title="Échéance refusée — %s"|args:$member_name|or:"membre inconnu" current="module_suivi_cheques"}}
+
+{{:form_errors}}
+
+{{if $_GET.deleted}}
+	<p class="block confirm">Échéance refusée supprimée.</p>
+{{elseif $_GET.saved}}
+	<p class="block confirm">
+		Échéance refusée enregistrée : le membre doit désormais cette somme.
+		{{:link href="settle.html?user=%d"|args:$uid label="Encaisser ce qu'il doit"}}
+		{{if $_GET.recorded}}
+			{{#restrict section="accounting" level="read"}}
+				{{:assign done_txn=$_GET.recorded|intval}}
+				— {{:link href="!acc/transactions/details.php?id=%d"|args:$done_txn label="Voir l'écriture n°%d"|args:$done_txn}}
+			{{/restrict}}
+		{{elseif $_GET.not_recorded}}
+			— l'écriture comptable n'a pas pu être passée : elle attend dans « À comptabiliser ».
+		{{/if}}
+	</p>
+{{/if}}
+
+{{if !$member_name}}
+	<p class="block error">Membre introuvable.</p>
+{{else}}
+
+	{{:include file="./_tabs.html" tab="debtors"}}
+
+	<p class="help">
+		Quand le prestataire de paiement (PayAsso) prévient qu'une échéance est refusée, et qu'il ne
+		la représentera pas : le membre doit cette somme. Elle apparaît aussitôt dans « Impayés », où
+		on l'encaisse comme une autre créance — par chèque, virement, espèces…
+	</p>
+
+	{{:assign n_eligible=0}}
+	<form method="post" action="">
+		<fieldset>
+			<legend>Échéance refusée</legend>
+			<dl>
+				<dt><label for="f_payment">Paiement concerné <b>*</b></label></dt>
+				<dd>
+					<select name="payment" id="f_payment" required="required">
+						{{#select * FROM (!eligible_sql) WHERE remaining > 0 ORDER BY pdate DESC;
+							:uid=$uid !eligible_sql=$eligible_sql}}
+							{{:assign n_eligible="%d+1"|math:$n_eligible}}
+							<option value="{{$pid}}">{{$method|escape}} — {{$amount|raw|money_currency}} — {{$pdate|date_short}}</option>
+						{{/select}}
+					</select>
+				</dd>
+				{{:input type="money" name="amount" label="Montant refusé" required=true
+					help="Celui de l'échéance, pas du paiement entier."}}
+				{{:input type="text" name="reason" label="Motif" required=true
+					help="Ex. : échéance 3/10, mail PayAsso du 12/11."}}
+				{{:input type="date" name="date" label="Date du refus" required=true default=$today
+					help="Détermine l'exercice de l'écriture : un exercice ouvert doit couvrir cette date."}}
+			</dl>
+		</fieldset>
+		<p class="submit">
+			{{:button type="submit" name="refusal" label="Enregistrer" shape="right" class="main"}}
+		</p>
+	</form>
+	{{if !$n_eligible}}
+		<p class="block alert">Ce membre n'a aucun paiement par prélèvement (PayAsso…) en caisse.</p>
+	{{/if}}
+
+	<h2 class="ruler">Échéances refusées de ce membre</h2>
+	<table class="list">
+		<thead>
+			<tr><th>Date</th><th>Paiement</th><th>Motif</th><th class="money">Montant</th><th class="actions"></th></tr>
+		</thead>
+		<tbody>
+			{{#select
+				key AS rkey,
+				json_extract(document, '$.date') AS rdate,
+				json_extract(document, '$.method') AS method,
+				json_extract(document, '$.reason') AS reason,
+				CAST(json_extract(document, '$.amount') AS INT) AS amount,
+				EXISTS (SELECT 1 FROM acc_transactions a
+					WHERE a.id = CAST(json_extract(document, '$.refus_txn_id') AS INT)) AS recorded
+				FROM module_data_suivi_cheques
+				WHERE json_extract(document, '$.type') = 'refus'
+					AND CAST(json_extract(document, '$.member_id') AS INT) = :uid
+				ORDER BY rdate DESC;
+				:uid=$uid
+			}}
+				<tr>
+					<td>{{$rdate|date_short}}</td>
+					<td>{{$method|escape}}</td>
+					<td>{{$reason|escape}}</td>
+					<td class="money">{{$amount|raw|money_currency}}</td>
+					<td class="actions">
+						{{if !$recorded}}
+							<form method="post" action="" class="inline">
+								<input type="hidden" name="rf_key" value="{{$rkey|escape}}" />
+								{{:button type="submit" name="refusal_delete" label="Supprimer" shape="delete"}}
+							</form>
+						{{/if}}
+					</td>
+				</tr>
+			{{else}}
+				<tr><td colspan="5">Aucune échéance refusée pour ce membre.</td></tr>
+			{{/select}}
+		</tbody>
+	</table>
+
+	<p class="actions">{{:linkbutton href="debtors.html" label="Retour aux impayés" shape="left"}}</p>
+{{/if}}
+
+{{:include file="./_doc_footer.html" doc_page="dettes.html#refus"}}
+
+{{:admin_footer}}

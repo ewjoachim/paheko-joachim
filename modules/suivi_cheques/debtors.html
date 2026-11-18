@@ -221,7 +221,7 @@
 				INNER JOIN module_data_suivi_cheques o ON o.key = json_extract(c.document, '$.origin_key')
 				WHERE json_extract(c.document, '$.type') = 'creance'
 					AND EXISTS (SELECT 1 FROM acc_transactions a
-						WHERE a.id = CAST(json_extract(o.document, '$.annulation_txn_id') AS INT))), 0)
+						WHERE a.id = CAST(COALESCE(json_extract(o.document, '$.annulation_txn_id'), json_extract(o.document, '$.refus_txn_id')) AS INT))), 0)
 			- COALESCE((SELECT SUM(CAST(json_extract(r.document, '$.amount') AS INT))
 				FROM module_data_suivi_cheques r
 				WHERE json_extract(r.document, '$.type') = 'reglement'

@@ -25,7 +25,7 @@
 					AND CAST(json_extract(r.document, '$.member_id') AS INT) = :uid)
 			+
 			(SELECT COUNT(*) FROM module_data_suivi_cheques c
-				WHERE json_extract(c.document, '$.type') IN ('creance', 'reglement', 'abandon', 'remboursement')
+				WHERE json_extract(c.document, '$.type') IN ('creance', 'reglement', 'abandon', 'remboursement', 'refus')
 					AND CAST(json_extract(c.document, '$.member_id') AS INT) = :uid)
 		) AS n;
 		:uid=$user.id
@@ -42,6 +42,7 @@
 		<p class="help">
 			{{:link href="%sindex.html"|args:$module.url label="Suivre les chèques de ce membre"}}
 			{{#restrict section="users" level="write"}}
+				— {{:link href="%srefusal.html?user=%d"|args:$module.url:$user.id label="Signaler une échéance refusée"}}
 				— {{:link href="%srefund.html?user=%d"|args:$module.url:$user.id label="Rembourser ce membre"}}
 			{{/restrict}}
 		</p>

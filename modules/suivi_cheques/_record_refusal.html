@@ -1,0 +1,81 @@
+{{* -*- brindille -*- *}}
+
+{{* Écriture comptable d'une échéance de prélèvement refusée — partagée par la file
+    « à comptabiliser » (to_record.html) et le mode automatique de refusal.html.
+    À inclure DANS un {{#form}}.
+
+    La caisse a compté le paiement entier comme reçu sur le compte de son moyen
+    (PayAsso : la banque). L'échéance refusée n'y arrivera pas : crédit de ce
+    compte, débit du compte de créance, membre lié. C'est l'écriture d'un chèque
+    rejeté, le compte venant du paiement au lieu de la configuration.
+
+    Paramètres :
+      $rid    clé du document refus ;
+      $quiet  true = ne jamais lever d'erreur (contrat de _record_cancellation.html).
+    Renvoie, via keep="rec_txn_id,rec_error". *}}
+
+{{:assign rec_txn_id=null rec_error=null}}
+{{:assign api_fail=true}}
+{{if $quiet}}{{:assign api_fail=false}}{{/if}}
+
+{{:assign receivable_account=$module.config.receivable_account|or:"411"}}
+
+{{:assign rf_amount=0 rf_date=null rf_account=null rf_member=null rf_method=null rf_reason=null rf_already=null}}
+{{#load type="refus" key=$rid}}
+	{{:assign rf_amount=$amount|intval rf_date=$date rf_account=$account rf_member=$member_id}}
+	{{:assign rf_method=$method rf_reason=$reason rf_already=$refus_txn_id}}
+{{/load}}
+
+{{if !$rf_amount}}
+	{{:assign rec_error="Échéance refusée introuvable ou montant nul."}}
+{{/if}}
+
+{{if !$rec_error && $rf_already}}
+	{{#select 1 AS x FROM acc_transactions WHERE id = :t LIMIT 1; :t=$rf_already}}
+		{{:assign rec_error="Cette échéance refusée est déjà comptabilisée."}}
+	{{/select}}
+{{/if}}
+
+{{if !$rec_error}}
+	{{:assign rf_member_name=null}}
+	{{if $rf_member}}{{#users id=$rf_member}}{{:assign rf_member_name=$_name}}{{/users}}{{/if}}
+
+	{{:assign rf_label="Échéance %s refusée"|args:$rf_method}}
+
+	{{:assign lines=null}}
+	{{:assign var="lines[0][account]" value=$rf_account}}
+	{{:assign var="lines[0][credit]" value=$rf_amount|money}}
+	{{:assign var="lines[0][label]" value=$rf_reason}}
+	{{:assign var="lines[1][account]" value=$receivable_account}}
+	{{:assign var="lines[1][debit]" value=$rf_amount|money}}
+	{{:assign rf_line_label=$rf_label}}
+	{{if $rf_member_name}}{{:assign rf_line_label="Créance %s — %s"|args:$rf_member_name:$rf_label}}{{/if}}
+	{{:assign var="lines[1][label]" value=$rf_line_label}}
+
+	{{:assign users=null}}
+	{{if $rf_member}}{{:assign var="users[0]" value=$rf_member|intval}}{{/if}}
+
+	{{if $quiet}}
+		{{:include file="./_record_precheck.html" lines=$lines on_date=$rf_date on_match=true keep="rec_error"}}
+	{{/if}}
+{{/if}}
+
+{{if !$rec_error}}
+	{{:assign created=null}}
+	{{:assign txn_label=$rf_label}}
+	{{if $rf_member_name}}{{:assign txn_label="%s — %s"|args:$rf_label:$rf_member_name}}{{/if}}
+	{{:api method="POST" path="accounting/transaction" access="write" fail=$api_fail
+		id_year="match" type="advanced" date=$rf_date
+		label=$txn_label
+		reference="REFUS-%s"|args:$rid
+		lines=$lines linked_users=$users assign="created"}}
+
+	{{if $created}}
+		{{:save type="refus" key=$rid refus_txn_id=$created.id}}
+		{{:assign rec_txn_id=$created.id}}
+	{{else}}
+		{{:assign rec_error="L'écriture comptable n'a pas pu être créée."}}
+	{{/if}}
+{{/if}}
+
+{{if $rec_error && !$quiet}}{{:error message=$rec_error}}{{/if}}

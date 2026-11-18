@@ -73,7 +73,8 @@ réservée à `config = admin`.
 |---|---|---|
 | `cheque` | `pay-<payment_id>` | **overlay** d'un paiement de caisse : uniquement ce que la caisse ignore (mois, annulation, liens compta, lot). Montant et date restent côté caisse ; le numéro aussi, sauf correction (`cheque_number`) |
 | `cheque_rempl` | `chq-<clé du règlement>` | chèque reçu en règlement d'une créance (`reglement_key`), jamais passé en caisse : le module en possède tout |
-| `creance` | `creance-<origin_key>` | dette née de l'annulation d'un chèque. Clé dérivée de l'origine, donc la création est **idempotente** |
+| `creance` | `creance-<origin_key>` | dette née de l'annulation d'un chèque ou d'une échéance refusée (`refus`). Clé dérivée de l'origine, donc la création est **idempotente** |
+| `refus` | `refus-<payment_id>-<horodatage>` | échéance refusée d'un paiement de caisse prélevé en plusieurs fois (PayAsso). Ouvre une `creance` d'origine `prelevement` ; son écriture crédite le compte du paiement |
 | `reglement` | `regl-<id du membre>-<horodatage>` | argent versé par un membre sur ce qu'il doit ; plusieurs documents pour un règlement en plusieurs fois |
 | `abandon` | `aband-<id du membre>-<horodatage>` | part de ce que doit un membre à laquelle le bureau renonce (geste accordé ou impayé) ; aucun argent ne bouge |
 | `remboursement` | `rmb-<id du membre>-<horodatage>` | argent rendu à un membre, saisi une fois parti ; son écriture débite `gesture_account` et crédite le compte d'où l'argent est sorti |

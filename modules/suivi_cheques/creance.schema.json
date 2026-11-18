@@ -8,12 +8,12 @@
 		},
 		"origin_kind": {
 			"type": "string",
-			"enum": ["cheque", "cheque_rempl"],
-			"description": "Type du document dont l'annulation a créé cette créance, pour savoir vers quelle fiche renvoyer."
+			"enum": ["cheque", "cheque_rempl", "prelevement"],
+			"description": "Ce qui a créé cette créance, pour savoir vers quelle fiche renvoyer : l'annulation d'un chèque (cheque, cheque_rempl), ou une échéance de prélèvement refusée (prelevement, document refus)."
 		},
 		"origin_key": {
 			"type": "string",
-			"description": "Clé module du chèque annulé : 'pay-<payment_id>' ou clé d'un cheque_rempl. La clé de la créance en découle ('creance-<origin_key>'), ce qui rend sa création idempotente : ré-enregistrer l'annulation met à jour la même créance au lieu d'en empiler une seconde."
+			"description": "Clé module de l'origine : 'pay-<payment_id>', clé d'un cheque_rempl, ou clé d'un refus. La clé de la créance en découle ('creance-<origin_key>'), ce qui rend sa création idempotente : ré-enregistrer l'annulation met à jour la même créance au lieu d'en empiler une seconde."
 		},
 		"member_id": {
 			"type": ["null", "integer"],
