@@ -1,9 +1,13 @@
-# Suivi des chèques
+# Suivi des paiements
 
 Module Paheko pour une école de musique (ou toute asso encaissant beaucoup de chèques
-en caisse). Il suit chaque chèque saisi via l'extension **Caisse**, planifie son mois
-d'encaissement, gère les annulations et ce qu'elles laissent dû, produit les bordereaux de remise, et
-prépare pour la comptabilité des écritures « prêtes à valider ».
+en caisse). Il suit les paiements saisis via l'extension **Caisse** : planifie le mois
+d'encaissement de chaque chèque, produit les bordereaux de remise, gère ce qui revient
+impayé et ce que les membres doivent alors, les remboursements, et prépare pour la
+comptabilité des écritures « prêtes à valider ».
+
+Le nom technique reste `suivi_cheques` : c'est lui qui nomme la table des données
+(`module_data_suivi_cheques`), et le changer reviendrait à installer un module vide.
 
 Guide utilisateur illustré : `doc/suivi_cheques/` (une page par tâche, `index.html` pour commencer).
 
