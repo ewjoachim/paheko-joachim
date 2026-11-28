@@ -9,7 +9,7 @@
 # www/.htaccess already generated, caisse and the other plugins already bundled),
 # so copying from the amd64 image onto the arm64 base is clean — and the final
 # image runs natively on both arches. No make deps / fossil.kd2.org / ADD-git.
-FROM php:8.5-apache@sha256:08af36df144462d84c7f16190557eec06cb9f656882685610b712a15eec54d46
+FROM php:8.6-apache@sha256:17e914da4f48db2a395f3a9e69206cd311b2d8dfdebc802477a31a69a246ecff
 
 # apt cache mounts speed up local rebuilds (podman keeps the .deb + lists cache
 # between builds). No CI effect — GitHub's ephemeral runners don't persist mount
@@ -25,7 +25,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
  && docker-php-ext-enable sodium
 
 # Paheko core, KD2, www/.htaccess and the bundled plugins (incl. caisse).
-COPY --from=docker.io/paheko/paheko:1.3.22.1@sha256:ef1b6bad664cd52e7bffd255f2ea8ebb1db48eede5eacdae7f512845747494ae /var/www/paheko /var/www/paheko
+COPY --from=docker.io/paheko/paheko:1.3.25.1@sha256:c530e83f5b04d3ef93b3ba00027ccfd0d1380fb9e3bb2e5c623cae1b13ae8674 /var/www/paheko /var/www/paheko
 WORKDIR /var/www/paheko
 
 # This repo's modules and the test config. Locally these paths are bind-mounted
